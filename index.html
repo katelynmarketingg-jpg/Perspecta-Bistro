@@ -1759,7 +1759,7 @@
         <label>Login<input type="text" id="loginUser" placeholder="Digite seu login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
         <label>Senha<input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password" autocapitalize="off" autocorrect="off"></label>
         <div id="loginError" class="login-error hidden">Login ou senha incorretos</div>
-        <button type="submit">Entrar</button>
+        <button type="submit" id="loginBtn">Entrar</button>
       </form>
     </div>
   </div>
@@ -1970,8 +1970,32 @@
       document.getElementById("loginScreen").classList.add("hidden");
     }
 
-    function doLogin(login, senha) {
-      const master = loadMasterState();
+    async function doLogin(login, senha) {
+      // Show loading state
+      const btn = document.getElementById("loginBtn");
+      const errEl = document.getElementById("loginError");
+      if (btn) { btn.textContent = "Verificando…"; btn.disabled = true; }
+      if (errEl) errEl.classList.add("hidden");
+
+      // Load master state from localStorage first
+      let master = loadMasterState();
+
+      // If localStorage has no companies, pull from Firebase (new device / fresh browser)
+      if (!master.companies || master.companies.length === 0) {
+        try {
+          const r = await fetch(`${FIREBASE_URL}/data/${fbPath(MASTER_KEY)}.json`);
+          if (r.ok) {
+            const fb = await r.json();
+            if (fb && fb.companies) {
+              master = { ...master, ...fb };
+              saveMasterState(master); // cache locally for next time
+            }
+          }
+        } catch(e) {}
+      }
+
+      if (btn) { btn.textContent = "Entrar"; btn.disabled = false; }
+
       const gc = master.gestorCredentials || { login: "Perspecta", senha: "001" };
       if (login.toLowerCase() === gc.login.toLowerCase() && senha === gc.senha) {
         currentSession = { type: "gestor" };
@@ -1989,11 +2013,22 @@
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
         storeKey = "gestaoCompany." + company.id + ".v1";
         state = loadState();
+        // Also pull company state from Firebase if localStorage empty
+        try {
+          const r2 = await fetch(`${FIREBASE_URL}/data/${fbPath(storeKey)}.json`);
+          if (r2.ok) {
+            const fb2 = await r2.json();
+            if (fb2 && (fb2.savedAt || 0) > (state.savedAt || 0)) {
+              state = normalizeState({ ...structuredClone(defaultState), ...fb2 });
+              localStorage.setItem(storeKey, JSON.stringify(state));
+            }
+          }
+        } catch(e) {}
         hideLogin();
         startApp();
         return;
       }
-      document.getElementById("loginError").classList.remove("hidden");
+      if (errEl) errEl.classList.remove("hidden");
     }
 
     function startApp() {
@@ -3525,7 +3560,11 @@
 
     function renderMenuAdmin() {
       const baseUrl = location.href.split("#")[0].split("?")[0];
-      const publicUrl = `${baseUrl}#cardapio-publico`;
+      // Include company ID in URL so the public menu knows which data to load
+      const companyId = currentSession?.company?.id || null;
+      const publicUrl = companyId
+        ? `${baseUrl}#cardapio-publico-${companyId}`
+        : `${baseUrl}#cardapio-publico`;
       document.getElementById("cardapio").innerHTML = `
         <div class="panel">
           <h2>Cardápio</h2>
@@ -5101,11 +5140,11 @@
     });
     document.getElementById("sidebarBackdrop").addEventListener("click", closeSidebar);
 
-    document.getElementById("loginForm").addEventListener("submit", function(e) {
+    document.getElementById("loginForm").addEventListener("submit", async function(e) {
       e.preventDefault();
       const login = document.getElementById("loginUser").value.trim();
       const senha = document.getElementById("loginPass").value;
-      doLogin(login, senha);
+      await doLogin(login, senha);
     });
 
     document.addEventListener("click", event => {
@@ -6289,7 +6328,16 @@
     // ── App boot: check session, show login or start ──
     (function boot() {
       const pub = location.hash.startsWith("#cardapio-publico");
-      if (pub) { startApp(); return; }
+      if (pub) {
+        // Extract company ID from hash like #cardapio-publico-COMPANY_ID
+        const compMatch = location.hash.match(/^#cardapio-publico-([a-z0-9_-]+)/i);
+        if (compMatch) {
+          storeKey = "gestaoCompany." + compMatch[1] + ".v1";
+          state = loadState();
+        }
+        startApp();
+        return;
+      }
 
       // deep link pedido?
       const pedidoParam = new URLSearchParams(location.search).get("pedido");
