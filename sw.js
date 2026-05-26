@@ -1,4 +1,4 @@
-const CACHE = 'alianca-v1';
+const CACHE = 'alianca-v8';
 const ASSETS = ['./'];
 
 self.addEventListener('install', e => {

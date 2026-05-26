@@ -841,14 +841,16 @@
 
     .command-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: 1fr;
+      gap: 14px;
       margin-top: 16px;
     }
 
     .command-card {
       padding: 12px;
       box-shadow: none;
+      background: var(--panel-2);
+      border-color: var(--line);
     }
 
     .command-location-grid {
@@ -922,10 +924,10 @@
     }
 
     .command-client-name {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--brand);
-      margin-top: 2px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 1px;
     }
 
     .command-head strong {
@@ -1192,6 +1194,11 @@
       max-height: calc(100vh - 260px);
       overflow-y: auto;
     }
+    .kanban-card[draggable="true"] { cursor: grab; }
+    .kanban-card[draggable="true"]:active { cursor: grabbing; }
+    .kanban-card.dragging { opacity: 0.3; pointer-events: none; }
+    .kanban-col.drag-over { outline: 2px dashed var(--brand); outline-offset: -4px; background: #fdefd8; }
+
     .kanban-col-header {
       display: flex;
       justify-content: space-between;
@@ -1219,8 +1226,30 @@
       display: flex;
       flex-direction: column;
       gap: 5px;
+      cursor: pointer;
     }
     .kanban-card:hover { border-color: var(--brand); }
+
+    /* ── Kanban command modal ── */
+    .kb-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      z-index: 500; display: flex; align-items: center; justify-content: center;
+      padding: 16px; box-sizing: border-box;
+    }
+    .kb-modal-overlay.hidden { display: none; }
+    .kb-modal-inner {
+      background: var(--panel); border-radius: 14px;
+      width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+      position: relative; padding: 0;
+    }
+    .kb-modal-close {
+      position: sticky; top: 0; float: right; z-index: 10;
+      background: var(--panel-2); border: none; border-radius: 0 14px 0 10px;
+      padding: 8px 14px; font-size: 18px; cursor: pointer; color: var(--text);
+      line-height: 1;
+    }
+    .kb-modal-close:hover { background: var(--line); }
+    .kb-modal-body { padding: 0; overflow: hidden; border-radius: 14px; }
     .kanban-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; }
     .kanban-card-mesa { font-weight: 900; font-size: 15px; line-height: 1.15; }
     .kanban-card-total { font-size: 13px; font-weight: 900; white-space: nowrap; }
@@ -1337,6 +1366,18 @@
       letter-spacing: .3px;
     }
 
+    /* Custom select */
+    .csel { position:relative; display:inline-block; }
+    .csel-trigger { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); cursor:pointer; font-size:13px; user-select:none; white-space:nowrap; min-height:36px; box-sizing:border-box; }
+    .csel-trigger::after { content:'▾'; font-size:10px; color:var(--muted); flex-shrink:0; }
+    .csel-drop { position:absolute; top:calc(100% + 4px); left:0; min-width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:9000; overflow:hidden; display:none; max-height:240px; overflow-y:auto; }
+    .csel-drop.open { display:block; }
+    .csel-opt { padding:9px 14px; font-size:13px; cursor:pointer; white-space:nowrap; }
+    .csel-opt:hover { background:var(--panel-2); }
+    .csel-opt.sel { color:var(--accent); font-weight:700; }
+    label > .csel { width:100%; }
+    label > .csel .csel-trigger { width:100%; box-sizing:border-box; }
+
     /* Category tabs */
     .pm-cats-wrap {
       background: #161616;
@@ -1379,7 +1420,7 @@
       width: 100%; aspect-ratio: 4/3; background: #1e1e1e;
       display: flex; align-items: center; justify-content: center; overflow: hidden;
     }
-    .pm-card-img img { width: 100%; height: 100%; object-fit: cover; }
+    .pm-card-img img { width: 100%; height: 100%; object-fit: cover; image-rendering: auto; display: block; }
     .pm-card-emoji { font-size: 52px; line-height: 1; }
 
     .pm-card-body { padding: 14px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -1526,40 +1567,135 @@
       height: 18px;
     }
 
+    /* Hamburger button — only on mobile */
+    .hamburger-btn {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      color: #111;
+      flex-shrink: 0;
+      border-radius: 8px;
+    }
+    .hamburger-btn:hover { background: rgba(0,0,0,.06); }
+    .hamburger-btn svg { display: block; }
+
+    /* Logo direita — só mobile */
+    .topbar-logo-right {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+    }
+    .topbar-logo-right svg { display: block; }
+
+    /* Sidebar overlay backdrop */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 199;
+    }
+    .sidebar-backdrop.open { display: block; }
+
     @media (max-width: 1050px) {
       .app-shell { grid-template-columns: 1fr; }
+      .hamburger-btn { display: flex; align-items: center; justify-content: center; }
+      .topbar-logo-right { display: flex; }
       .sidebar {
-        position: static;
-        height: auto;
+        position: fixed;
+        top: 0; left: 0;
+        height: 100vh;
+        width: 270px;
+        z-index: 200;
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+        overflow-y: auto;
       }
-      .nav {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+      .sidebar.sidebar-open {
+        transform: translateX(0);
       }
       .metrics, .modules, .three-col, .flow, .command-grid, .command-location-grid, .floor-grid, .simple-card-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .two-col {
-        grid-template-columns: 1fr;
-      }
+      .two-col { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 720px) {
       main { padding: 16px; }
-      .topbar { display: grid; }
-      .nav, .metrics, .modules, .three-col, .flow, .form-grid, .summary-strip, .command-grid, .command-location-grid, .floor-grid, .simple-card-grid, .ingredient-row {
+      .topbar { display: flex; align-items: center; gap: 8px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #e8e8e8; }
+      .topbar-titles { flex: 1; display: flex; align-items: center; }
+      .topbar-titles h1 { font-size: 18px; font-weight: 700; margin: 0; line-height: 1; }
+      .topbar-titles .eyebrow { display: none !important; }
+      .topbar-titles .page-subtitle { display: none; }
+      .topbar .date-pill { display: none; }
+      .nav, .three-col, .flow, .form-grid, .summary-strip, .command-location-grid, .floor-grid, .ingredient-row {
         grid-template-columns: 1fr;
       }
-      .payment-form {
-        grid-template-columns: 1fr;
+      .form-grid.form-grid-2col { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+      .form-grid.form-grid-2col label { font-size: 11px; }
+      .form-grid.form-grid-2col input, .form-grid.form-grid-2col select { font-size: 13px; padding: 8px 10px; }
+      #inventoryForm > div { grid-template-columns: 1fr 1fr !important; }
+      #inventoryForm > div > label:nth-child(1) { grid-column: 1 / -1 !important; }
+      #inventoryForm > div > label:nth-child(7) { grid-column: 1 / -1 !important; }
+      .metrics, .modules, .simple-card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
       }
-      .command-save-grid {
-        grid-template-columns: 1fr 1fr 60px auto;
-      }
+      .command-grid { grid-template-columns: 1fr; gap: 10px; }
+      .payment-form { grid-template-columns: 1fr; }
+      .command-save-grid { grid-template-columns: 1fr 1fr 60px auto; }
       .floor-plan { height: 520px; }
       .sidebar { padding: 16px; }
       .nav button { min-height: 44px; }
       .bar-line { grid-template-columns: 1fr; }
-      th, td { min-width: 140px; }
+      th, td { min-width: 100px; }
+      #costsMainTable th, #costsMainTable td { min-width: unset; padding: 8px 10px; }
+      #costsMainTable td:first-child, #costsMainTable th:first-child { width: 55%; text-align: left; }
+      #costsMainTable td:not(:first-child), #costsMainTable th:not(:first-child) { text-align: right !important; white-space: nowrap; }
+
+      /* ── Tipografia global mobile ── */
+      h1 { font-size: 20px !important; }
+      h2 { font-size: 15px !important; margin-bottom: 8px; }
+      h3 { font-size: 13px !important; margin-bottom: 6px; }
+      .page-subtitle { font-size: 12px; }
+
+      /* Dashboard — cards de métrica */
+      .metric { padding: 10px 12px; min-height: unset; }
+      .metric .label { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+      .metric .value { font-size: 18px; line-height: 1.2; word-break: break-all; }
+      .metric .delta { font-size: 10px; margin-top: 3px; }
+
+      /* Painéis gerais */
+      .panel, .module-card { padding: 12px 14px; }
+
+      /* Summary strip — 2 colunas, fonte menor */
+      .summary-strip { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 8px; margin: 10px 0; }
+      .summary-strip > div { padding: 8px 10px; }
+      .summary-strip span { font-size: 10px; margin-bottom: 2px; }
+      .summary-strip strong { font-size: 13px; font-weight: 800; }
+
+      /* Comandas */
+      .command-head h3 { font-size: 15px !important; }
+      .command-head strong { font-size: 14px; }
+      .command-card { padding: 10px; }
+
+      /* Cards simples (Metas, Relatórios, Clientes…) */
+      .simple-card strong { font-size: 15px; }
+      .simple-card { padding: 12px; min-height: unset; }
+      .goal-card strong { font-size: 13px; }
+
+      /* Tabelas */
+      th { font-size: 11px; padding: 8px 10px; }
+      td { font-size: 12px; padding: 7px 10px; }
+
+      /* Card "Mais vendidos" compacto dentro do grid */
+      .metric-vendidos { display: flex; flex-direction: column; justify-content: flex-start; }
+      .metric-vendidos-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+      .metric-vendidos-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; gap: 4px; }
+      .metric-vendidos-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #222; }
+      .metric-vendidos-row span:last-child { flex-shrink: 0; font-weight: 700; color: #f6921e; font-size: 10px; }
+      .metric-vendidos-empty { font-size: 11px; color: #aaa; }
     }
 
     @media print {
@@ -1608,6 +1744,7 @@
   </style>
 </head>
 <body>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <!-- LOGIN SCREEN -->
   <div id="loginScreen">
     <div class="login-card">
@@ -1633,18 +1770,41 @@
       <nav class="nav" id="nav"></nav>
       <div class="sidebar-footer">
         <div id="sessionBadge" style="font-size:11px;color:#f6921e;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
+        <div id="proxyBanner"></div>
         <button class="btn sidebar-logout" type="button" data-logout>⏏ Sair</button>
       </div>
     </aside>
 
     <main>
       <div class="topbar">
-        <div>
+        <!-- Hamburger — esquerda, só mobile -->
+        <button class="hamburger-btn" id="hamburgerBtn" aria-label="Menu" type="button">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+
+        <!-- Títulos — centro -->
+        <div class="topbar-titles">
           <p class="eyebrow" id="pageEyebrow" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect width="42" height="42" rx="9" fill="#f6921e"/><polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/><polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/><polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/></svg>Perspecta Bistro</p>
           <h1 id="pageTitle">Visão do dia</h1>
           <p class="page-subtitle" id="pageSubtitle">Operação simples para caixa, mesas, pedidos, clientes e cardápio.</p>
         </div>
+
+        <!-- Data — desktop -->
         <div class="date-pill" id="todayLabel"></div>
+
+        <!-- Logo — direita, só mobile -->
+        <div class="topbar-logo-right">
+          <svg width="32" height="32" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
+            <rect width="42" height="42" rx="9" fill="#f6921e"/>
+            <polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/>
+            <polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/>
+            <polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/>
+          </svg>
+        </div>
       </div>
 
       <section id="dashboard" class="section active"></section>
@@ -1665,6 +1825,7 @@
 
   <div id="publicMenu" class="public-menu hidden"></div>
   <div id="printArea" class="print-area hidden"></div>
+  <div id="kbModal" class="kb-modal-overlay hidden"></div>
 
   <template id="iconTemplate">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
@@ -1675,6 +1836,8 @@
     const DATE = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
     const MASTER_KEY = "gestaoMaster.v1";
     let storeKey = MASTER_KEY;
+    let _kbModalId = null;
+    let _dragId = null;
     let currentSession = null; // { type:'gestor'} | { type:'company', company:{...} }
 
     const icons = {
@@ -1699,19 +1862,19 @@
     ];
 
     const pageCopy = {
-      dashboard: ["Visão do dia", "Resumo rápido para olhar no caixa: vendas, clientes, mesas e pedidos."],
-      empresas: ["Empresas", "Acesso da gestão para abrir cada restaurante e acompanhar as configurações."],
-      caixa: ["Caixa", "Entradas, saídas, sangrias e fechamento do dia."],
-      mesas: ["Mesas e áreas", "Organize o salão arrastando as mesas e cadastrando cada área."],
-      estoque: ["Estoque e insumos", "Entrada de estoque, mínimo necessário e alerta do que está faltando."],
-      custos: ["Fichas de custo", "Receitas com vários ingredientes e cálculo automático de custo."],
-      metas: ["Metas", "Acompanhe venda, quantidade de pedidos, produtos específicos e tempo de preparo."],
-      previsao: ["Planejamento", "Receitas e despesas previstas para saber o que entra, o que sai e o saldo esperado."],
-      clientes: ["Clientes", "Cadastro simples com contato, aniversário, pontos e WhatsApp."],
-      cardapio: ["Cardápio", "Itens que aparecem no cardápio público e nas comandas."],
-      comandas: ["Comandas", "Pedidos abertos por mesa, balcão ou delivery."],
-      relatorios: ["Relatórios", "Leitura simples do que vendeu, do que entrou e do que precisa atenção."],
-      dados: ["Configurações", "Operação simples para o caixa: pedido, cliente e cardápio."]
+      dashboard: ["Visão do dia", ""],
+      empresas: ["Empresas", ""],
+      caixa: ["Caixa", ""],
+      mesas: ["Mesas e áreas", ""],
+      estoque: ["Estoque e insumos", ""],
+      custos: ["Fichas de custo", ""],
+      metas: ["Metas", ""],
+      previsao: ["Planejamento", ""],
+      clientes: ["Clientes", ""],
+      cardapio: ["Cardápio", ""],
+      comandas: ["Comandas", ""],
+      relatorios: ["Relatórios", ""],
+      dados: ["Configurações", ""]
     };
 
     const defaultState = {
@@ -1730,7 +1893,7 @@
         logoUrl: null,
         perspectaLogo: null
       },
-      gestorCredentials: { login: "gestor", senha: "perspecta2026" },
+      gestorCredentials: { login: "Perspecta", senha: "001" },
       companies: [],
       staff: [],
       costs: [],
@@ -1743,6 +1906,7 @@
       goals: [],
       inventory: [],
       inventoryMovements: [],
+      inventoryBatches: [],
       expenses: [],
       cash: [],
       cashSessions: [],
@@ -1775,10 +1939,10 @@
     function loadMasterState() {
       try {
         const saved = localStorage.getItem(MASTER_KEY);
-        const base = { gestorCredentials: { login: "gestor", senha: "perspecta2026" }, companies: [], settings: {} };
+        const base = { gestorCredentials: { login: "Perspecta", senha: "001" }, companies: [], settings: {} };
         if (!saved) return base;
         return { ...base, ...JSON.parse(saved) };
-      } catch { return { gestorCredentials: { login: "gestor", senha: "perspecta2026" }, companies: [], settings: {} }; }
+      } catch { return { gestorCredentials: { login: "Perspecta", senha: "001" }, companies: [], settings: {} }; }
     }
 
     function saveMasterState(master) {
@@ -1801,7 +1965,7 @@
 
     function doLogin(login, senha) {
       const master = loadMasterState();
-      const gc = master.gestorCredentials || { login: "gestor", senha: "perspecta2026" };
+      const gc = master.gestorCredentials || { login: "Perspecta", senha: "001" };
       if (login === gc.login && senha === gc.senha) {
         currentSession = { type: "gestor" };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
@@ -1857,11 +2021,13 @@
     function getSessionLabel() {
       if (!currentSession) return "";
       if (currentSession.type === "gestor") return "Gestor";
+      if (currentSession.type === "gestor-proxy") return "👁 " + (currentSession.company?.nome || "Empresa");
       return currentSession.company?.nome || "Empresa";
     }
 
     function getNavItems() {
       if (!currentSession || currentSession.type === "gestor") return navItems;
+      // Both company sessions and gestor-proxy sessions see the company's own nav (no "Empresas" panel)
       return navItems.filter(([id]) => id !== "empresas");
     }
 
@@ -1875,6 +2041,7 @@
       data.inventory = data.inventory || structuredClone(defaultState.inventory);
       data.inventory = data.inventory.map(item => ({ previousCost: item.previousCost ?? item.custo, ...item }));
       data.inventoryMovements = data.inventoryMovements || [];
+      data.inventoryBatches = data.inventoryBatches || [];
       const savedMenu = Array.isArray(data.menu) && data.menu.length ? data.menu : structuredClone(defaultState.menu);
       const savedAddons = Array.isArray(data.addons) && data.addons.length ? data.addons : structuredClone(defaultState.addons);
       data.menu = savedMenu.map(item => ({ foto: null, ...item, preco: num(item.preco) }));
@@ -1897,6 +2064,7 @@
       data.costs = (data.costs || []).map(row => {
         if (Array.isArray(row.ingredientes)) {
           return {
+            tipo: "produto",
             ...row,
             ingredientes: row.ingredientes.map(item => ({
               ...item,
@@ -1907,6 +2075,7 @@
         }
         return {
           id: row.id || uid(),
+          tipo: row.tipo || "produto",
           produto: row.produto || "Produto",
           rendimento: row.rendimento || 1,
           margem: row.margem || data.settings.defaultMargin,
@@ -2079,6 +2248,10 @@
     }
 
     function ingredientCost(row) {
+      if (row.costId) {
+        const sub = state.costs.find(c => c.id === row.costId);
+        if (sub) return costCalc(sub).costPerUnit * num(row.quantidadeUsada);
+      }
       const usedBase = convertToBase(row.quantidadeUsada, row.unidadeUsada);
       const unitCost = currentIngredientUnitCost(row);
       return unitCost * usedBase;
@@ -2089,11 +2262,58 @@
       return num(row.baseUnitCost || purchaseUnitCost(row)) * usedBase;
     }
 
+    // ── FIFO ────────────────────────────────────────────────
+    function fifoBatchesForItem(inventoryId) {
+      return (state.inventoryBatches || [])
+        .filter(b => b.inventoryId === inventoryId && num(b.quantidadeRestante) > 0)
+        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    }
+
+    // Custo FIFO por unidade do insumo (R$ / unidade do estoque)
+    function fifoCostForItem(inventoryId) {
+      const batches = fifoBatchesForItem(inventoryId);
+      return batches.length ? num(batches[0].custo) : null;
+    }
+
+    // Consome lotes FIFO na baixa
+    function consumeFIFO(inventoryId, quantidade) {
+      let remaining = num(quantidade);
+      for (const batch of fifoBatchesForItem(inventoryId)) {
+        if (remaining <= 0) break;
+        const consume = Math.min(remaining, num(batch.quantidadeRestante));
+        batch.quantidadeRestante = Math.max(0, num(batch.quantidadeRestante) - consume);
+        remaining -= consume;
+      }
+    }
+
+    // Detecta fichas de custo com mudança de preço FIFO
+    function fifoAlerts() {
+      const alerts = [];
+      (state.costs || []).forEach(recipe => {
+        (recipe.ingredientes || []).forEach(ing => {
+          const inv = inventoryById(ing.inventoryId);
+          if (!inv) return;
+          const fifo = fifoCostForItem(inv.id);
+          if (fifo === null) return;
+          const base = num(ing.baseUnitCost) * convertToBase(1, inv.unidade || "un");
+          const delta = fifo - base;
+          if (Math.abs(delta) >= 0.01) {
+            alerts.push({ recipe: recipe.produto, ingredient: ing.nome, base, fifo, delta, pct: base ? ((delta / base) * 100) : 0 });
+          }
+        });
+      });
+      return alerts;
+    }
+
     function ingredientChange(row) {
-      const current = ingredientCost(row);
+      const inv = inventoryById(row.inventoryId);
+      const fifo = inv ? fifoCostForItem(inv.id) : null;
+      const current = fifo !== null
+        ? fifo * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un")
+        : ingredientCost(row);
       const original = ingredientOriginalCost(row);
       const delta = current - original;
-      return { current, original, delta, changed: Math.abs(delta) >= 0.01 };
+      return { current, original, delta, changed: Math.abs(delta) >= 0.01, isFifo: fifo !== null };
     }
 
     function costCalc(row) {
@@ -2152,6 +2372,58 @@
       return String(text ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
     }
 
+    // ── Custom select helpers ──
+    function cselBuild(name, opts, selected, style = "") {
+      const match = opts.find(o => String(o.v) === String(selected));
+      const selLabel = (match || opts[0])?.l || "";
+      const selVal   = String((match || opts[0])?.v ?? selected ?? "");
+      const items = opts.length
+        ? opts.map(o => `<div class="csel-opt${String(o.v)===String(selected)?" sel":""}" data-v="${escapeHTML(String(o.v))}">${escapeHTML(o.l)}</div>`).join("")
+        : `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">Nenhuma opção cadastrada</div>`;
+      return `<div class="csel" style="${style}"><div class="csel-trigger"><span class="csel-val">${escapeHTML(selLabel)}</span></div><div class="csel-drop">${items}</div><input type="hidden" name="${escapeHTML(name)}" value="${escapeHTML(selVal)}"></div>`;
+    }
+    document.addEventListener("click", e => {
+      const opt = e.target.closest(".csel-opt");
+      if (opt) {
+        const csel = opt.closest(".csel");
+        csel.querySelector("input[type=hidden]").value = opt.dataset.v;
+        csel.querySelector(".csel-val").textContent = opt.textContent;
+        csel.querySelectorAll(".csel-opt").forEach(o => o.classList.toggle("sel", o === opt));
+        csel.querySelector(".csel-drop").classList.remove("open");
+        csel.dispatchEvent(new Event("change", { bubbles: true }));
+        return;
+      }
+      const trigger = e.target.closest(".csel-trigger");
+      if (trigger) {
+        const csel = trigger.closest(".csel");
+        const drop = csel.querySelector(".csel-drop");
+        const isOpen = drop.classList.contains("open");
+        document.querySelectorAll(".csel-drop.open").forEach(d => d.classList.remove("open"));
+        if (!isOpen) { drop.classList.add("open"); drop.scrollTop = 0; }
+        return;
+      }
+      if (!e.target.closest(".csel")) {
+        document.querySelectorAll(".csel-drop.open").forEach(d => d.classList.remove("open"));
+      }
+    });
+
+    // Custo/un digitado → calcula total
+    function calcCustoDir() {
+      const q = parseFloat(document.getElementById('invQtd')?.value) || 0;
+      const c = parseFloat(document.getElementById('invCusto')?.value) || 0;
+      const el = document.getElementById('invCustoTotal');
+      if (el && q && c) el.value = (q * c).toFixed(2);
+      else if (el) el.value = '';
+    }
+    // Custo total digitado → calcula custo/un
+    function calcCustoRev() {
+      const q = parseFloat(document.getElementById('invQtd')?.value) || 0;
+      const t = parseFloat(document.getElementById('invCustoTotal')?.value) || 0;
+      const el = document.getElementById('invCusto');
+      if (el && q && t) el.value = (t / q).toFixed(4);
+      else if (el) el.value = '';
+    }
+
     function whatsappLink(phone, message = "") {
       const clean = String(phone || "").replace(/\D/g, "");
       return `https://wa.me/${clean}?text=${encodeURIComponent(message)}`;
@@ -2191,27 +2463,168 @@
       const ticket = clients ? total / clients : 0;
       const ranking = productRanking().slice(0, 5);
 
+      // ── Datas ──
+      const _iso2 = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      const _sum2 = orders => orders.reduce((s,o) => s + num(o.total || commandTotal(o)), 0);
+      const todayD = new Date(); todayD.setHours(0,0,0,0);
+      const todayStr = _iso2(todayD);
+      const yesterdayD = new Date(todayD); yesterdayD.setDate(todayD.getDate()-1);
+      const sdlmD = new Date(todayD); sdlmD.setMonth(todayD.getMonth()-1);
+      const sdlyD = new Date(todayD); sdlyD.setFullYear(todayD.getFullYear()-1);
+
+      // ── Pedidos por período ──
+      const ordersHoje  = ordersForRange(todayStr, todayStr);
+      const totalHoje   = _sum2(ordersHoje);
+      const countHoje   = ordersHoje.length;
+      const mondayD = new Date(todayD); mondayD.setDate(todayD.getDate() - (todayD.getDay()===0?6:todayD.getDay()-1));
+      const countSemana = ordersForRange(_iso2(mondayD), todayStr).length;
+      const firstMesD   = new Date(todayD.getFullYear(), todayD.getMonth(), 1);
+      const ordersMonth = ordersForRange(_iso2(firstMesD), todayStr);
+      const countMes    = ordersMonth.length;
+      const totalMes    = _sum2(ordersMonth);
+
+      // ── Comparativos ──
+      const totalOntem = _sum2(ordersForRange(_iso2(yesterdayD), _iso2(yesterdayD)));
+      const totalSdlm  = _sum2(ordersForRange(_iso2(sdlmD),     _iso2(sdlmD)));
+      const totalSdly  = _sum2(ordersForRange(_iso2(sdlyD),     _iso2(sdlyD)));
+      const firstLYD   = new Date(todayD.getFullYear()-1, todayD.getMonth(), 1);
+      const lastLYD    = new Date(todayD.getFullYear()-1, todayD.getMonth()+1, 0);
+      const totalMesLY = _sum2(ordersForRange(_iso2(firstLYD), _iso2(lastLYD)));
+
+      const _delta2 = (cur, prev) => {
+        if (!prev) return { txt: cur > 0 ? "+100%" : "—", ok: cur > 0 ? true : null };
+        const p = (cur - prev) / prev * 100;
+        return { txt: (p>=0?"+":"") + p.toFixed(1)+"%", ok: p >= 0 };
+      };
+      const _dc2 = ok => ok === null ? "#999" : ok ? "#1a7a45" : "#c0392b";
+      const dOntem = _delta2(totalHoje, totalOntem);
+      const dSdlm  = _delta2(totalHoje, totalSdlm);
+      const dSdly  = _delta2(totalHoje, totalSdly);
+      const dMesLY = _delta2(totalMes,  totalMesLY);
+
+      // ── Lucro estimado hoje ──
+      let _custoHoje = 0, _semFH = 0, _comFH = 0;
+      ordersHoje.forEach(order => {
+        (order.itens || []).forEach(item => {
+          const qty = Math.max(1, num(item.quantidade));
+          const recipe = (state.costs || []).find(r => r.produto && r.produto.toLowerCase() === String(item.nome||"").toLowerCase());
+          if (!recipe) { _semFH++; return; }
+          _comFH++;
+          const ci = (recipe.ingredientes||[]).reduce((s,ing) => {
+            const inv = inventoryById(ing.inventoryId);
+            return s + num(ing.quantidade) * (num(ing.custo)||num(inv&&inv.custo)||0);
+          }, 0);
+          _custoHoje += ci * qty;
+        });
+      });
+      const lucroHoje  = totalHoje - _custoHoje;
+      const margemH    = (_comFH > 0 && totalHoje > 0) ? (lucroHoje / totalHoje * 100) : null;
+      const margemCorH = margemH === null ? "#999" : margemH >= 60 ? "#1a7a45" : margemH >= 35 ? "#a07000" : "#c0392b";
+
+      // ── Meta do dia ──
+      const metaDia    = num(state.settings.metaDia) || 0;
+      const metaPct    = metaDia > 0 ? Math.min(100, totalHoje / metaDia * 100) : 0;
+      const metaFaltam = metaDia > 0 ? Math.max(0, metaDia - totalHoje) : 0;
+      const metaCor    = metaPct >= 100 ? "#1a7a45" : metaPct >= 70 ? "#a07000" : "var(--brand)";
+
       document.getElementById("dashboard").innerHTML = `
         <div class="grid metrics">
-          ${metric("Faturamento hoje", money(total || 3840), "+12% vs ontem", false)}
-          ${metric("Ticket médio", money(ticket || 48.20), "+R$ 3,10 vs semana", false)}
-          ${metric("Clientes atendidos", clients || 79, "mesas + balcão", false)}
-        </div>
-
-        <div class="grid two-col" style="margin-top:18px">
-          <div class="panel">
-            <h2>Mais vendidos hoje</h2>
-            <div class="product-list">
-              ${ranking.length ? ranking.map(p => `<div class="product-row"><div><strong>${escapeHTML(p.nome)}</strong><span>${p.quantidade} unidades</span></div><strong>${money(p.total)}</strong></div>`).join("") : empty("Feche comandas para alimentar o ranking de produtos.")}
+          ${metric("Faturamento hoje", money(totalHoje), dOntem.ok !== null ? dOntem.txt+" vs ontem" : "hoje", false)}
+          ${metric("Ticket médio", money(ticket), clients ? ""+clients+" cliente(s)" : "—", false)}
+          ${metric("Clientes atendidos", clients, "mesas + balcão", false)}
+          <div class="metric metric-vendidos">
+            <div class="label">Mais vendidos</div>
+            <div class="metric-vendidos-list">
+              ${ranking.length
+                ? ranking.slice(0,3).map(p => `<div class="metric-vendidos-row"><span>${escapeHTML(p.nome)}</span><span>${p.quantidade}x</span></div>`).join("")
+                : `<span class="metric-vendidos-empty">—</span>`}
             </div>
           </div>
         </div>
 
-        <div class="grid two-col" style="margin-top:18px">
-          <div class="panel">
-            <h2>Alertas de estoque</h2>
-            <div class="product-list">${stockAlerts()}</div>
+        <div class="panel" style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+            <h2 style="margin:0">🎯 Meta do dia</h2>
+            <form id="metaDiaForm" style="display:flex;gap:6px;align-items:center">
+              <span style="font-size:11px;color:var(--muted)">Meta:</span>
+              <input name="metaDia" type="number" min="0" step="50" value="${metaDia || ""}" placeholder="R$ 0"
+                style="width:80px;padding:4px 8px;font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);color:var(--text)">
+              <button class="btn secondary" type="submit" style="padding:4px 10px;font-size:11px">Salvar</button>
+            </form>
           </div>
+          ${metaDia > 0 ? `
+            <div style="height:14px;border-radius:7px;background:#e8e0d8;overflow:hidden;margin-bottom:8px">
+              <div style="height:100%;width:${metaPct.toFixed(1)}%;background:${metaCor};border-radius:7px"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px">
+              <strong style="color:${metaCor}">${metaPct.toFixed(0)}% atingido</strong>
+              <span style="color:var(--muted)">${money(totalHoje)} de ${money(metaDia)}${metaFaltam > 0 ? " · faltam "+money(metaFaltam) : " ✓"}</span>
+            </div>
+          ` : `<p class="mini" style="color:var(--muted)">Defina uma meta acima para acompanhar o progresso.</p>`}
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px">
+          <article style="background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:8px;padding:10px 12px;box-shadow:var(--shadow)">
+            <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Hoje</div>
+            <div style="font-size:9px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.5px">pedidos</div>
+            <div style="font-size:22px;font-weight:800;margin:1px 0 1px">${countHoje}</div>
+            <div style="font-size:11px;color:var(--muted)">${totalHoje > 0 ? money(totalHoje) : "Nenhum"}</div>
+          </article>
+          <article style="background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:8px;padding:10px 12px;box-shadow:var(--shadow)">
+            <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Esta semana</div>
+            <div style="font-size:9px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.5px">pedidos</div>
+            <div style="font-size:22px;font-weight:800;margin:1px 0 1px">${countSemana}</div>
+            <div style="font-size:11px;color:var(--muted)">desde segunda</div>
+          </article>
+          <article style="background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:8px;padding:10px 12px;box-shadow:var(--shadow)">
+            <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Este mês</div>
+            <div style="font-size:9px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.5px">pedidos</div>
+            <div style="font-size:22px;font-weight:800;margin:1px 0 1px">${countMes}</div>
+            <div style="font-size:11px;color:var(--muted)">${money(totalMes)}</div>
+          </article>
+        </div>
+
+        <div class="panel" style="margin-top:14px">
+          <h2>📊 Comparativos de faturamento</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+            <div style="padding:10px 12px;border-radius:10px;background:var(--panel-2)">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:2px">vs Ontem (${_iso2(yesterdayD).slice(5).replace("-","/")})</div>
+              <div style="font-size:20px;font-weight:800;color:${_dc2(dOntem.ok)}">${dOntem.txt}</div>
+              <div style="font-size:11px;color:var(--muted)">${totalOntem > 0 ? "Ontem: "+money(totalOntem) : "Sem dados ontem"}</div>
+            </div>
+            <div style="padding:10px 12px;border-radius:10px;background:var(--panel-2)">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:2px">vs Mesmo dia mês passado</div>
+              <div style="font-size:20px;font-weight:800;color:${_dc2(dSdlm.ok)}">${dSdlm.txt}</div>
+              <div style="font-size:11px;color:var(--muted)">${totalSdlm > 0 ? _iso2(sdlmD).slice(5).replace("-","/")+": "+money(totalSdlm) : "Sem dados"}</div>
+            </div>
+            <div style="padding:10px 12px;border-radius:10px;background:var(--panel-2)">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:2px">vs Mesmo dia ano passado</div>
+              <div style="font-size:20px;font-weight:800;color:${_dc2(dSdly.ok)}">${dSdly.txt}</div>
+              <div style="font-size:11px;color:var(--muted)">${totalSdly > 0 ? _iso2(sdlyD).slice(5).replace("-","/")+": "+money(totalSdly) : "Sem dados"}</div>
+            </div>
+            <div style="padding:10px 12px;border-radius:10px;background:var(--panel-2)">
+              <div style="font-size:11px;color:var(--muted);margin-bottom:2px">Este mês vs ${todayD.getFullYear()-1}</div>
+              <div style="font-size:20px;font-weight:800;color:${_dc2(dMesLY.ok)}">${dMesLY.txt}</div>
+              <div style="font-size:11px;color:var(--muted)">${totalMesLY > 0 ? "Mesmo mês ano passado: "+money(totalMesLY) : "Sem dados"}</div>
+            </div>
+          </div>
+        </div>
+
+        ${margemH !== null || totalHoje > 0 ? `
+        <div class="panel" style="margin-top:14px">
+          <h2>💰 Lucro estimado hoje</h2>
+          ${margemH !== null ? `
+            <div class="simple-card-grid" style="margin-top:8px">
+              ${simpleCard("Vendas hoje", money(totalHoje), "Total faturado no dia.")}
+              ${simpleCard("Custo estimado", money(_custoHoje), _comFH+" produto(s) com ficha."+(_semFH > 0 ? " "+_semFH+" sem ficha." : ""))}
+              <article class="simple-card"><span class="mini">Margem hoje</span><strong style="font-size:22px;color:${margemCorH}">${margemH.toFixed(1).replace(".",",")}%</strong><p class="mini">Lucro: ${money(lucroHoje)}</p></article>
+            </div>
+          ` : `<p class="mini" style="color:var(--muted);padding:4px 0">Cadastre fichas de custo nos produtos para ver o lucro estimado.</p>`}
+        </div>` : ""}
+
+        <div class="panel" style="margin-top:14px">
+          <h2>Alertas de estoque</h2>
+          <div class="product-list">${stockAlerts()}</div>
         </div>
       `;
     }
@@ -2281,9 +2694,27 @@
     }
 
     function stockAlerts() {
+      const now = Date.now();
+      const week = 7 * 24 * 60 * 60 * 1000;
       const low = (state.inventory || []).filter(item => num(item.quantidade) <= num(item.minimo));
-      if (!low.length) return empty("Nada faltando agora.");
-      return low.map(item => `<div class="product-row"><div><strong>${escapeHTML(item.item)}</strong><span>Tem ${item.quantidade}${item.unidade}; mínimo ${item.minimo}${item.unidade}</span></div><span class="status paused">atenção</span></div>`).join("");
+      const expiring = (state.inventory || []).filter(item => {
+        if (!item.validade) return false;
+        const diff = new Date(item.validade).getTime() - now;
+        return diff >= 0 && diff <= week;
+      });
+      const expired = (state.inventory || []).filter(item => {
+        if (!item.validade) return false;
+        return new Date(item.validade).getTime() < now;
+      });
+      if (!low.length && !expiring.length && !expired.length) return empty("Nada faltando agora.");
+      return [
+        ...expired.map(item => `<div class="product-row"><div><strong>${escapeHTML(item.item)}</strong><span>Vencido em ${new Date(item.validade).toLocaleDateString("pt-BR")}</span></div><span class="status paused">vencido</span></div>`),
+        ...expiring.map(item => {
+          const dias = Math.ceil((new Date(item.validade).getTime() - now) / (24*60*60*1000));
+          return `<div class="product-row"><div><strong>${escapeHTML(item.item)}</strong><span>Vence em ${dias} dia${dias !== 1 ? "s" : ""} (${new Date(item.validade).toLocaleDateString("pt-BR")})</span></div><span class="status" style="background:#fff3cd;color:#856404">validade</span></div>`;
+        }),
+        ...low.map(item => `<div class="product-row"><div><strong>${escapeHTML(item.item)}</strong><span>Tem ${item.quantidade}${item.unidade}; mínimo ${item.minimo}${item.unidade}</span></div><span class="status paused">repor</span></div>`)
+      ].join("");
     }
 
     function metric(label, value, delta, bad) {
@@ -2344,39 +2775,56 @@
       const lastSession = lastCashSession();
       const status = session ? "Aberto" : "Fechado";
 
+      const valorAtual = cashBalance(rows);
       document.getElementById("caixa").innerHTML = `
         <div class="panel">
           <h2>Status do caixa</h2>
           <div class="summary-strip" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-            <div><span>Situação</span><strong>${status}</strong></div>
             <div><span>Abertura</span><strong>${session ? money(session.openingAmount) : lastSession?.openingAmount ? money(lastSession.openingAmount) : money(0)}</strong></div>
-            <div><span>Entradas do dia</span><strong>${money(entradas)}</strong></div>
-            <div><span>Saídas do dia</span><strong>${money(saidas)}</strong></div>
+            <div><span>Entradas</span><strong>${money(entradas)}</strong></div>
+            <div><span>Saídas</span><strong>${money(saidas)}</strong></div>
+            <div><span>Valor atual</span><strong>${money(valorAtual)}</strong></div>
+          </div>
+          <div style="margin:10px 0 14px">
+            <span style="display:inline-block;padding:5px 16px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:.5px;color:#fff;background:${session ? '#176b5d' : '#c0392b'}">
+              ● ${status}
+            </span>
           </div>
           ${session ? closeCashForm(dinheiro) : openCashForm(lastSession)}
-          ${lastSession && lastSession.status === "fechado" ? `<p class="mini">Último fechamento: valor informado ${money(lastSession.countedCash)}${num(lastSession.difference) ? `, diferença ${money(lastSession.difference)}` : ", conferido sem diferença"}.</p>` : `<p class="mini">No fechamento, informe apenas o valor real em dinheiro que tem no caixa.</p>`}
+          ${lastSession && lastSession.status === "fechado" ? `<p class="mini">Último fechamento: ${money(lastSession.countedCash)}${num(lastSession.difference) ? ` · diferença ${money(lastSession.difference)}` : " · conferido"}.</p>` : ""}
         </div>
 
         <div class="panel">
           <h2>Caixa do Dia</h2>
           <form id="cashForm">
-            <div class="form-grid">
-              <label>Movimento<select name="tipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></label>
-              <label>Descrição<input name="descricao" required placeholder="Abertura, sangria, suprimento, venda"></label>
+            <div class="form-grid form-grid-2col">
+              <label>Movimento
+                <select name="tipo" id="cashTipo" onchange="
+                  var s=document.getElementById('cashSangriaRow');
+                  s.style.display=this.value==='sangria'?'contents':'none';
+                ">
+                  <option value="entrada">Entrada</option>
+                  <option value="saida">Saída</option>
+                  <option value="sangria">Sangria</option>
+                </select>
+              </label>
+              <label>Descrição<input name="descricao" required placeholder="Ex: suprimento, venda extra"></label>
               <label>Valor<input name="valor" type="number" step="0.01" required></label>
-              <label>Forma<select name="forma"><option value="dinheiro">Dinheiro</option><option value="pix">Pix</option><option value="debito">Débito</option><option value="credito">Crédito</option></select></label>
+              <label>Forma${cselBuild("forma",[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro")}</label>
+              <span id="cashSangriaRow" style="display:none;contents">
+                <label style="grid-column:1/-1">Motivo da sangria<input name="motivoSangria" placeholder="Ex: pagamento fornecedor, troco extra…"></label>
+                <label style="grid-column:1/-1">Quem retirou<input name="responsavelSangria" placeholder="Nome do responsável" required></label>
+              </span>
             </div>
             <div class="actions">
               <button class="btn" type="submit">${icon("caixa")}Lançar no caixa</button>
             </div>
           </form>
-          <div class="summary-strip">
-            <div><span>Entradas hoje</span><strong>${money(entradas)}</strong></div>
-            <div><span>Saídas hoje</span><strong>${money(saidas)}</strong></div>
-            <div><span>Saldo do caixa</span><strong>${money(cashBalance(rows))}</strong></div>
-            <div><span>Dinheiro físico</span><strong>${money(dinheiro)}</strong></div>
-          </div>
-          <div class="summary-strip">
+          ${session ? `
+          <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+          <h2>Fechar caixa</h2>
+          ${closeCashForm(dinheiro)}` : ""}
+          <div class="summary-strip" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px">
             ${methodTotals.map(([method, label]) => `<div><span>${label}</span><strong>${money(cashByMethod(rows, method))}</strong></div>`).join("")}
           </div>
         </div>
@@ -2418,30 +2866,42 @@
     }
 
     function renderCompanies() {
+      // Only gestor can see this section — clear DOM for all other sessions
+      if (!currentSession || currentSession.type !== "gestor") {
+        document.getElementById("empresas").innerHTML = "";
+        return;
+      }
       document.getElementById("empresas").innerHTML = `
-        <div class="panel">
-          <h2>Acesso da gestão</h2>
-          <p class="mini">Use este espaço como a visão da Perspecta: cada empresa tem login, senha e configurações próprias.</p>
-          <div class="summary-strip">
-            <div><span>Login gestora</span><strong>Perspecta 001</strong></div>
-            <div><span>Empresas ativas</span><strong>${(state.companies || []).length}</strong></div>
-            <div><span>Empresa aberta</span><strong>${escapeHTML(state.settings.restaurant)}</strong></div>
-            <div><span>Acesso</span><strong>Admin</strong></div>
-          </div>
-          <form id="companyForm">
-            <div class="form-grid">
-              <label>Empresa<input name="nome" required placeholder="Perspecta Bistro"></label>
-              <label>Código<input name="codigo" required placeholder="ALI-001"></label>
-              <label>Login<input name="login" required placeholder="alianca"></label>
-              <label>Senha<input name="senha" required placeholder="001"></label>
-              <label>Responsável<input name="responsavel" placeholder="Nome do contato"></label>
-              <label>WhatsApp<input name="whatsapp" placeholder="5511999999999"></label>
-              <label>Status<select name="status"><option value="ativo">Ativo</option><option value="teste">Teste</option><option value="pausado">Pausado</option></select></label>
+        <div class="settings-stack">
+
+          <div class="panel">
+            <h2>Acesso da gestão</h2>
+            <div class="summary-strip">
+              <div><span>Login</span><strong>${escapeHTML((state.gestorCredentials||{}).login || 'gestor')}</strong></div>
+              <div><span>Senha</span><strong>${escapeHTML((state.gestorCredentials||{}).senha || '—')}</strong></div>
+              <div><span>Empresas ativas</span><strong>${(state.companies || []).length}</strong></div>
+              <div><span>Acesso</span><strong>Gestor</strong></div>
             </div>
-            <div class="actions"><button class="btn" type="submit">${icon("empresas")}Cadastrar empresa</button></div>
-          </form>
+          </div>
+
+          <div class="panel">
+            <h2>Cadastrar nova empresa</h2>
+            <form id="companyForm" style="margin-top:14px">
+              <div class="form-grid form-grid-2col">
+                <label>Empresa<input name="nome" required placeholder="Perspecta Bistro"></label>
+                <label>Código<input name="codigo" required placeholder="ALI-001"></label>
+                <label>Login<input name="login" required placeholder="alianca"></label>
+                <label>Senha<input name="senha" required placeholder="001"></label>
+                <label>Responsável<input name="responsavel" placeholder="Nome do contato"></label>
+                <label>WhatsApp<input name="whatsapp" placeholder="5511999999999"></label>
+                <label>Status<select name="status"><option value="ativo">Ativo</option><option value="teste">Teste</option><option value="pausado">Pausado</option></select></label>
+                <label style="display:flex;flex-direction:column;justify-content:flex-end"><span style="visibility:hidden;font-size:11px">_</span><button class="btn" type="submit" style="width:100%">${icon("empresas")}Cadastrar</button></label>
+              </div>
+            </form>
+          </div>
+
+          <div class="table-wrap">${companiesTable()}</div>
         </div>
-        <div class="table-wrap">${companiesTable()}</div>
       `;
     }
 
@@ -2462,66 +2922,76 @@
     }
 
     function renderInventory() {
-      const total = (state.inventory || []).length;
-      const low = (state.inventory || []).filter(item => num(item.quantidade) <= num(item.minimo)).length;
       document.getElementById("estoque").innerHTML = `
         <div class="panel">
           <h2>Entrada de estoque</h2>
-          <p class="mini">Cadastre o que entrou, a quantidade atual e o mínimo. Quando ficar abaixo do mínimo, aparece como atenção.</p>
           <form id="inventoryForm">
-            <div class="form-grid">
-              <label>Insumo<input name="item" required placeholder="Farinha"></label>
-              <label>Categoria<input name="categoria" placeholder="Massa, bebida, recheio"></label>
-              <label>Quantidade atual<input name="quantidade" type="number" step="0.001" required></label>
-              <label>Quantidade mínima<input name="minimo" type="number" step="0.001" required></label>
-              <label>Unidade<select name="unidade"><option>kg</option><option>g</option><option>l</option><option>ml</option><option>un</option></select></label>
-              <label>Custo unitário<input name="custo" type="number" step="0.01"></label>
-              <label>Fornecedor<input name="fornecedor"></label>
-              <label>Validade<input name="validade" type="date"></label>
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:end">
+              <!-- Linha 1 -->
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Insumo<input name="item" required placeholder="Farinha, açúcar…" style="font-size:14px"></label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Qtd que entrou<input id="invQtd" name="quantidade" type="number" step="0.001" min="0" required placeholder="0" oninput="calcCustoDir()" style="font-size:14px"></label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Qtd mínima<input name="minimo" type="number" step="0.001" min="0" required placeholder="0" style="font-size:14px"></label>
+              <!-- Linha 2 -->
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Unidade<select name="unidade" style="font-size:13px"><option>kg</option><option>g</option><option>l</option><option>ml</option><option>un</option><option>cx</option><option>pct</option></select></label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Custo / un<input id="invCusto" name="custo" type="number" step="0.01" min="0" placeholder="0,00" oninput="calcCustoDir()" style="font-size:14px"></label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Custo total<input id="invCustoTotal" name="custoTotal" type="number" step="0.01" min="0" placeholder="0,00" oninput="calcCustoRev()" style="font-size:14px"></label>
+              <!-- Linha 3 -->
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);grid-column:1/3">Fornecedor<input name="fornecedor" placeholder="Nome do fornecedor" style="font-size:14px"></label>
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted)">Validade<input name="validade" type="date" style="font-size:13px"></label>
             </div>
             <div class="actions"><button class="btn" type="submit">${icon("estoque")}Adicionar insumo</button></div>
           </form>
-          <div class="summary-strip">
-            <div><span>Itens cadastrados</span><strong>${total}</strong></div>
-            <div><span>Precisam atenção</span><strong>${low}</strong></div>
-            <div><span>Valor em estoque</span><strong>${money((state.inventory || []).reduce((s, i) => s + num(i.quantidade) * num(i.custo), 0))}</strong></div>
-            <div><span>Status</span><strong>${low ? "Repor" : "OK"}</strong></div>
-          </div>
         </div>
         <div class="panel">
           <h2>Baixa de estoque</h2>
-          <p class="mini">Use para itens consumidos fora da venda direta, como óleo da fritadeira, limpeza, perda ou uso interno.</p>
           <form id="inventoryOutForm">
-            <div class="form-grid">
+            <div class="form-grid form-grid-2col">
               <label>Insumo<select name="inventoryId" required>${inventorySelectOptions("")}</select></label>
               <label>Quantidade usada<input name="quantidade" type="number" step="0.001" required></label>
-              <label>Motivo<input name="motivo" required placeholder="Troca da fritadeira, perda, uso interno"></label>
+              <label style="grid-column:1/-1">Motivo<input name="motivo" required placeholder="Troca da fritadeira, perda, uso interno"></label>
             </div>
             <div class="actions"><button class="btn danger" type="submit">Dar baixa</button></div>
           </form>
         </div>
-        <div class="table-wrap">${inventoryTable()}</div>
-        <div class="table-wrap">${inventoryMovementTable()}</div>
+        <div class="panel">
+          <h2>Estoque atual</h2>
+          ${inventoryListTable()}
+        </div>
+        <div class="panel">
+          <h2>Últimas movimentações</h2>
+          ${inventoryMovementTable()}
+        </div>
       `;
     }
 
-    function inventoryTable() {
-      if (!(state.inventory || []).length) return empty("Nenhum insumo cadastrado ainda.");
-      return `<table><thead><tr><th>Insumo</th><th>Quantidade</th><th>Mínimo</th><th>Custo</th><th>Fornecedor</th><th>Status</th><th></th></tr></thead><tbody>
-        ${state.inventory.map(item => {
-          const low = num(item.quantidade) <= num(item.minimo);
-          const costDelta = num(item.custo) - num(item.previousCost);
-          return `<tr>
-            <td><strong>${escapeHTML(item.item)}</strong><br><span class="mini">${escapeHTML(item.categoria || "Sem categoria")}</span></td>
-            <td>${item.quantidade}${escapeHTML(item.unidade)}</td>
-            <td>${item.minimo}${escapeHTML(item.unidade)}</td>
-            <td><strong>${money(item.custo)} / ${escapeHTML(item.unidade)}</strong>${Math.abs(costDelta) >= 0.01 ? `<span class="change-note">${costDelta > 0 ? "subiu" : "baixou"} ${money(Math.abs(costDelta))}</span>` : `<span class="mini">sem mudança</span>`}</td>
-            <td>${escapeHTML(item.fornecedor || "")}<br><span class="mini">${escapeHTML(item.validade || "")}</span></td>
-            <td><span class="status ${low ? "paused" : ""}">${low ? "comprar" : "ok"}</span></td>
-            <td><button class="btn ghost" data-delete-inventory="${item.id}">Excluir</button></td>
-          </tr>`;
-        }).join("")}
-      </tbody></table>`;
+    function inventoryListTable() {
+      const items = state.inventory || [];
+      if (!items.length) return empty("Nenhum insumo cadastrado ainda.");
+      return `<div class="table-wrap"><table>
+        <thead><tr>
+          <th>Insumo</th>
+          <th style="text-align:right">Qtd</th>
+          <th>Un.</th>
+          <th style="text-align:right">R$/un</th>
+          <th style="text-align:right">Mín</th>
+          <th>Sit.</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          ${items.map(item => {
+            const low = num(item.quantidade) <= num(item.minimo);
+            return `<tr>
+              <td><strong>${escapeHTML(item.item)}</strong>${item.fornecedor ? `<br><span class="mini">${escapeHTML(item.fornecedor)}</span>` : ""}</td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums">${num(item.quantidade).toLocaleString("pt-BR", {maximumFractionDigits:3})}</td>
+              <td>${escapeHTML(item.unidade || "")}</td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums">${money(item.custo)}</td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums">${num(item.minimo).toLocaleString("pt-BR", {maximumFractionDigits:3})}</td>
+              <td><span class="status${low ? " paused" : ""}">${low ? "repor" : "ok"}</span></td>
+              <td><button class="btn ghost" style="padding:4px 8px;font-size:11px" data-delete-inventory="${item.id}">×</button></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table></div>`;
     }
 
     function inventoryMovementTable() {
@@ -2542,7 +3012,6 @@
       document.getElementById("mesas").innerHTML = `
         <div class="panel">
           <h2>Mesas e áreas</h2>
-          <p class="mini">Tudo que mudar aqui aparece automaticamente no mapa rápido da Visão do Dia.</p>
           <form id="tableForm">
             <div class="form-grid">
               <label>Nome<input name="nome" required placeholder="Mesa 5"></label>
@@ -2556,7 +3025,6 @@
 
         <div class="panel" style="margin-top:16px">
           <h2>Mapa das mesas</h2>
-          <p class="mini">Segure uma mesa e arraste para montar a disposição do salão. Puxe a quina para mudar o tamanho daquela mesa.</p>
           ${tableMapControls()}
           ${tableLegend()}
           ${tableMap(true)}
@@ -2564,7 +3032,6 @@
 
         ${(state.tables || []).length ? `<div class="panel" style="margin-top:16px">
           <h3>Mesas cadastradas</h3>
-          <p class="mini">Posição e tamanho editáveis arrastando no mapa. Clique no nome para renomear.</p>
           <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
             ${state.tables.sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => `
               <span style="display:inline-flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 12px;font-size:13px;font-weight:750">
@@ -2580,7 +3047,6 @@
       document.getElementById("metas").innerHTML = `
         <div class="panel">
           <h2>Nova meta</h2>
-          <p class="mini">Crie metas de valor, quantidade de pedidos, produto específico ou tempo de preparo.</p>
           <form id="goalForm">
             <div class="form-grid">
               <label>Nome da meta<input name="nome" required placeholder="Vender 50 pastéis"></label>
@@ -2589,11 +3055,11 @@
               <label>Unidade<input name="unidade" required placeholder="R$, pedidos, unidades, minutos"></label>
               <label>Produto<input name="produto" placeholder="Pastel de carne"></label>
               <label>Período<select name="periodo">
-                <option value="hoje">Hoje</option>
-                <option value="semana">Esta semana</option>
-                <option value="mes">Este mês</option>
-                <option value="trimestre">Este trimestre</option>
-                <option value="ano">Este ano</option>
+                <option value="hoje">Diário (hoje)</option>
+                <option value="semana">Semanal (esta semana)</option>
+                <option value="mes">Mensal (este mês)</option>
+                <option value="trimestre">Trimestral</option>
+                <option value="ano">Anual (este ano)</option>
                 <option value="proximo_mes">Próximo mês</option>
                 <option value="proximo_ano">Próximo ano</option>
                 <option value="agora">Ao vivo (tempo real)</option>
@@ -2634,7 +3100,7 @@
 
     function goalPeriodLabel(periodo) {
       const y = new Date().getFullYear();
-      return { hoje: "Hoje", semana: "Esta semana", mes: "Este mês", trimestre: "Este trimestre", ano: `Ano ${y}`, proximo_mes: "Próximo mês", proximo_ano: `Ano ${y + 1}`, agora: "Ao vivo" }[periodo] || periodo;
+      return { hoje: "Diário", semana: "Semanal", mes: "Mensal", trimestre: "Trimestral", ano: "Anual", proximo_mes: "Próximo mês", proximo_ano: `Ano ${y + 1}`, agora: "Ao vivo" }[periodo] || periodo;
     }
 
     function goalProgress(goal) {
@@ -2666,37 +3132,58 @@
       </article>`;
     }
 
+    let _openCostId = null;
+
     function renderCosts() {
       document.getElementById("custos").innerHTML = `
         <div class="panel">
-          <h2>Fichas de Custo</h2>
-          <p class="mini">Selecione insumos do estoque. Quando o custo do estoque mudar, a ficha recalcula e mostra o que mudou sem alterar o cardápio.</p>
           <form id="costForm">
-            <div class="form-grid">
-              <label>Produto<input name="produto" required placeholder="Pastel de carne"></label>
-              <label>Rendimento<input name="rendimento" type="number" step="1" min="1" value="1"></label>
-              <label>Lucro sobre custo %<input name="margem" type="number" step="1" value="${state.settings.defaultMargin}"></label>
-              <label>Outros custos<input name="outrosCustos" type="number" step="0.01" value="0"></label>
+            <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px">
+              Nome
+              <input name="produto" required placeholder="Pastel de frango, Massa do pastel…" style="font-size:14px">
+            </label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+              <label style="display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;padding:7px 6px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2)">
+                <input type="radio" name="tipo" value="produto" checked style="accent-color:var(--accent)"> Produto
+              </label>
+              <label style="display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;padding:7px 6px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2)">
+                <input type="radio" name="tipo" value="insumo" style="accent-color:var(--accent)"> Insumo
+              </label>
+              <label style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 6px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2)">
+                Rende
+                <div style="display:flex;align-items:center;gap:3px">
+                  <input name="rendimento" type="number" step="1" min="1" value="1" style="width:38px;font-size:13px;padding:2px 4px;text-align:center">
+                  <span style="font-size:11px">un.</span>
+                </div>
+              </label>
             </div>
-            <div class="ingredient-row">
-              <label>Insumo do estoque<select name="inventoryId">${inventoryOptions()}</select></label>
-              <label>Ingrediente manual<input name="ingrediente" placeholder="Se não estiver no estoque"></label>
-              <label>Valor pago<input name="precoCompra" type="number" step="0.01" placeholder="12"></label>
-              <label>Qtd comprada<input name="quantidadeCompra" type="number" step="0.001" placeholder="5"></label>
-              <label>Un. compra<select name="unidadeCompra"><option>kg</option><option>g</option><option>l</option><option>ml</option><option>un</option></select></label>
-              <label>Qtd usada<input name="quantidadeUsada" type="number" step="0.001" required placeholder="300"></label>
-              <label>Un. usada<select name="unidadeUsada"><option>g</option><option>kg</option><option>ml</option><option>l</option><option>un</option></select></label>
-              <span></span>
-            </div>
-            <div class="actions"><button class="btn" type="submit">${icon("custos")}Criar ficha</button></div>
+            <button class="btn" type="submit" style="width:100%">${icon("custos")}Cadastrar</button>
           </form>
         </div>
-        <div class="cost-block">${costsTable()}</div>
+        <div class="panel" style="padding:0">${costsTable()}</div>
       `;
+      if (_openCostId) {
+        const el = document.getElementById("cost-detail-" + _openCostId);
+        if (el) { el.style.display = ""; el.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        _openCostId = null;
+      }
     }
 
     function inventoryOptions(selectedId = "") {
       return `<option value="">Manual / não vinculado</option>${(state.inventory || []).map(item => `<option value="${item.id}" ${item.id === selectedId ? "selected" : ""}>${escapeHTML(item.item)} - ${money(item.custo)} / ${escapeHTML(item.unidade)}</option>`).join("")}`;
+    }
+
+    function allIngredientOptions() {
+      const stocks = (state.inventory || []).map(item =>
+        `<option value="inv:${item.id}">${escapeHTML(item.item)} — ${money(item.custo)}/${escapeHTML(item.unidade)}</option>`
+      ).join("");
+      const subs = (state.costs || []).filter(c => c.tipo === "insumo").map(c => {
+        const calc = costCalc(c);
+        return `<option value="cost:${c.id}">${escapeHTML(c.produto)} — ${money(calc.costPerUnit)}/un</option>`;
+      }).join("");
+      return `<option value="">Selecione…</option>` +
+        (stocks ? `<optgroup label="Estoque">${stocks}</optgroup>` : "") +
+        (subs ? `<optgroup label="Sub-receitas">${subs}</optgroup>` : "");
     }
 
     function inventorySelectOptions(selectedId = "") {
@@ -2704,91 +3191,200 @@
     }
 
     function ingredientFromFormData(data) {
-      const inventory = inventoryById(data.inventoryId);
-      if (inventory) {
-        return {
+      const ref = data.inventoryId || "";
+      // Estoque vinculado
+      if (ref.startsWith("inv:")) {
+        const inventory = inventoryById(ref.slice(4));
+        if (inventory) return {
           nome: inventory.item,
           inventoryId: inventory.id,
+          refType: "inv",
           precoCompra: inventory.custo,
           quantidadeCompra: 1,
           unidadeCompra: inventory.unidade,
           quantidadeUsada: data.quantidadeUsada,
-          unidadeUsada: data.unidadeUsada,
+          unidadeUsada: data.unidadeUsada || inventory.unidade,
           baseUnitCost: inventoryUnitCost(inventory)
         };
       }
+      // Sub-receita (ficha de insumo)
+      if (ref.startsWith("cost:")) {
+        const sub = state.costs.find(c => c.id === ref.slice(5));
+        if (sub) {
+          const calc = costCalc(sub);
+          return {
+            nome: sub.produto,
+            inventoryId: "",
+            costId: sub.id,
+            refType: "cost",
+            precoCompra: calc.costPerUnit,
+            quantidadeCompra: 1,
+            unidadeCompra: "un",
+            quantidadeUsada: data.quantidadeUsada,
+            unidadeUsada: "un",
+            baseUnitCost: calc.costPerUnit
+          };
+        }
+      }
+      // Legado: id direto (sem prefixo)
+      if (ref && !ref.includes(":")) {
+        const inventory = inventoryById(ref);
+        if (inventory) return {
+          nome: inventory.item,
+          inventoryId: inventory.id,
+          refType: "inv",
+          precoCompra: inventory.custo,
+          quantidadeCompra: 1,
+          unidadeCompra: inventory.unidade,
+          quantidadeUsada: data.quantidadeUsada,
+          unidadeUsada: data.unidadeUsada || inventory.unidade,
+          baseUnitCost: inventoryUnitCost(inventory)
+        };
+      }
+      // Manual
       const manual = {
         nome: data.ingrediente || "Ingrediente",
         inventoryId: "",
+        refType: "manual",
         precoCompra: data.precoCompra || 0,
         quantidadeCompra: data.quantidadeCompra || 1,
-        unidadeCompra: data.unidadeCompra || "kg",
+        unidadeCompra: data.unidadeCompra || "un",
         quantidadeUsada: data.quantidadeUsada,
-        unidadeUsada: data.unidadeUsada
+        unidadeUsada: data.unidadeUsada || "un"
       };
       manual.baseUnitCost = purchaseUnitCost(manual);
       return manual;
     }
 
     function costsTable() {
-      if (!state.costs.length) return empty("Nenhuma ficha cadastrada ainda.");
-      return state.costs.map(row => {
+      if (!state.costs.length) return `<div style="padding:16px">${empty("Nenhuma ficha cadastrada ainda.")}</div>`;
+      const tipoBadge = tipo => tipo === "insumo"
+        ? `<span style="font-size:10px;font-weight:700;background:#e8f4fd;color:#1a6fa8;border-radius:20px;padding:2px 8px">sub-receita</span>`
+        : `<span style="font-size:10px;font-weight:700;background:#fff3e0;color:#b85c00;border-radius:20px;padding:2px 8px">produto</span>`;
+      const rows = state.costs.map(row => {
         const calc = costCalc(row);
-        return `<article class="plain-card">
-          <div class="command-head">
-            <div>
-              <h3>${escapeHTML(row.produto)}</h3>
-              <p class="mini">Rende ${row.rendimento} unidade(s). Preço sugerido = custo por unidade + lucro sobre custo.</p>
-            </div>
-            <div>
-              <strong>${money(calc.costPerUnit)} / un.</strong>
-              <p class="mini">Preço sugerido: ${money(calc.suggested)}</p>
-            </div>
-          </div>
-          <div class="summary-strip" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-            <div><span>Total dos ingredientes</span><strong>${money(calc.ingredientCost)}</strong></div>
-            <div><span>Outros custos</span><strong>${money(row.outrosCustos)}</strong></div>
-            <div><span>Total da receita</span><strong>${money(calc.totalRecipe)}</strong></div>
-            <div><span>Custo por unidade</span><strong>${money(calc.costPerUnit)}</strong></div>
-            <div><span>Lucro sobre custo</span><strong>${num(row.margem)}% (${money(calc.profitValue)})</strong></div>
-            <div><span>Preço sugerido</span><strong>${money(calc.suggested)}</strong></div>
-          </div>
-          <form class="costMarginForm" data-cost="${row.id}" style="margin-bottom:12px">
-            <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-              <label>Alterar lucro %<input name="margem" type="number" step="1" value="${num(row.margem)}"></label>
-              <label>Outros custos<input name="outrosCustos" type="number" step="0.01" value="${num(row.outrosCustos)}"></label>
-              <label>Rendimento<input name="rendimento" type="number" step="1" min="1" value="${num(row.rendimento) || 1}"></label>
-            </div>
-            <div class="actions" style="margin-top:10px"><button class="btn ghost" type="submit">Atualizar cálculo</button></div>
-          </form>
-          <div class="table-wrap"><table><thead><tr><th>Ingrediente</th><th>Compra</th><th>Usa na receita</th><th>Custo na receita</th><th></th></tr></thead><tbody>
-            ${(row.ingredientes || []).map((item, index) => {
-              const inventory = inventoryById(item.inventoryId) || inventoryMatchByName(item.nome);
-              const change = ingredientChange(item);
-              return `<tr>
-              <td><strong>${escapeHTML(item.nome)}</strong>${inventory ? `<br><span class="mini">vinculado ao estoque</span>` : `<br><span class="mini">manual</span>`}</td>
-              <td>${inventory ? `${money(inventory.custo)} / ${escapeHTML(inventory.unidade)}` : `${money(item.precoCompra)} por ${item.quantidadeCompra}${item.unidadeCompra || "un"}`}</td>
-              <td>${item.quantidadeUsada}${item.unidadeUsada}</td>
-              <td><strong>${money(change.current)}</strong>${change.changed ? `<span class="change-note">${change.delta > 0 ? "subiu" : "baixou"} ${money(Math.abs(change.delta))} nesta receita</span>` : `<span class="mini">sem mudança</span>`}</td>
-              <td><button class="btn ghost" data-delete-ingredient="${row.id}:${index}">Excluir</button></td>
-            </tr>`;
+        const isInsumo = row.tipo === "insumo";
+        const fifoItems = (row.ingredientes||[]).map(ing => ({ ing, change: ingredientChange(ing) })).filter(x => x.change.changed && x.change.isFifo);
+        const fifoTotalCost = (row.ingredientes||[]).reduce((s, ing) => s + ingredientChange(ing).current, 0) + num(row.outrosCustos);
+        const fifoRendimento = Math.max(1, num(row.rendimento)||1);
+        const fifoNewCostPerUnit = fifoTotalCost / fifoRendimento;
+        const fifoNewSuggested = fifoNewCostPerUnit * (1 + num(row.margem)/100);
+        const fifoBanner = fifoItems.length ? `
+          <div style="background:#fff8e1;border:1px solid #f0ad4e;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
+            <div style="font-weight:700;color:#7a4f00;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
+            ${fifoItems.map(({ing, change}) => {
+              const pct = change.original ? ((change.delta/change.original)*100).toFixed(1) : "—";
+              return `<div>• <strong>${escapeHTML(ing.nome)}</strong>: ${money(change.original)} → <strong>${money(change.current)}</strong> <span style="color:${change.delta>0?"#c0392b":"#27ae60"}">(${change.delta>0?"+":""}${pct}%)</span></div>`;
             }).join("")}
-          </tbody></table></div>
-          <form class="addIngredientForm" data-cost="${row.id}" style="margin-top:12px">
-            <div class="ingredient-row">
-              <label>Insumo do estoque<select name="inventoryId">${inventoryOptions()}</select></label>
-              <label>Ingrediente manual<input name="ingrediente" placeholder="Queijo"></label>
-              <label>Valor pago<input name="precoCompra" type="number" step="0.01"></label>
-              <label>Qtd comprada<input name="quantidadeCompra" type="number" step="0.001"></label>
-              <label>Un. compra<select name="unidadeCompra"><option>kg</option><option>g</option><option>l</option><option>ml</option><option>un</option></select></label>
-              <label>Qtd usada<input name="quantidadeUsada" type="number" step="0.001" required></label>
-              <label>Un. usada<select name="unidadeUsada"><option>g</option><option>kg</option><option>ml</option><option>l</option><option>un</option></select></label>
-              <button class="btn ghost" type="submit">Adicionar</button>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid #f0ad4e;color:#7a4f00">
+              Custo/un pelo FIFO: <strong>${money(fifoNewCostPerUnit)}</strong>${!isInsumo ? ` · Sugerido: <strong>${money(fifoNewSuggested)}</strong>` : ""}
             </div>
-          </form>
-          <div class="actions" style="margin-top:12px"><button class="btn ghost" data-delete-cost="${row.id}">Excluir ficha</button></div>
-        </article>`;
+          </div>` : "";
+        const fifoBadge = fifoItems.length ? ` <span style="font-size:10px;font-weight:700;background:#fff3cd;color:#856404;border-radius:20px;padding:2px 7px;vertical-align:middle;border:1px solid #f0ad4e">FIFO ↑</span>` : "";
+        const detail = `
+          <tr id="cost-detail-${row.id}" style="display:none">
+            <td colspan="3" style="padding:0;border-top:1px solid var(--line)">
+              <div style="padding:14px 16px;background:var(--panel-2)">
+                ${fifoBanner}
+                <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Rende ${escapeHTML(String(row.rendimento))} un. · Ingredientes: ${(row.ingredientes||[]).length}</div>
+                <div class="table-wrap" style="margin-bottom:12px"><table>
+                  <thead><tr><th>Ingrediente</th><th>Qtd usada</th><th>Custo</th><th></th></tr></thead>
+                  <tbody>
+                    ${(row.ingredientes || []).length ? (row.ingredientes || []).map((item, index) => {
+                      const change = ingredientChange(item);
+                      const tag = item.refType === "cost" ? `<span style="font-size:10px;color:#1a6fa8">sub-receita</span>`
+                                : item.inventoryId ? `<span style="font-size:10px;color:var(--muted)">estoque</span>`
+                                : `<span style="font-size:10px;color:var(--muted)">manual</span>`;
+                      return `<tr>
+                        <td><strong>${escapeHTML(item.nome)}</strong> ${tag}</td>
+                        <td>${escapeHTML(String(item.quantidadeUsada))} ${escapeHTML(item.unidadeUsada||"")}</td>
+                        <td><strong>${money(change.current)}</strong>${change.changed ? ` <span class="change-note" style="font-size:10px">${change.delta>0?"↑":"↓"} ${money(Math.abs(change.delta))}</span>` : ""}</td>
+                        <td><button class="btn ghost" style="padding:2px 7px;font-size:11px" data-delete-ingredient="${row.id}:${index}">×</button></td>
+                      </tr>`;
+                    }).join("") : `<tr><td colspan="4" style="color:var(--muted);font-size:12px">Nenhum ingrediente ainda.</td></tr>`}
+                  </tbody>
+                </table></div>
+                <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:8px">
+                  <form class="addIngredientForm" data-cost="${row.id}" style="display:contents">
+                    <div style="display:grid;grid-template-columns:2fr 80px 70px;gap:6px;align-items:end">
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Ingrediente<select name="inventoryId" style="font-size:12px">${allIngredientOptions()}</select></label>
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Qtd<input name="quantidadeUsada" type="number" step="0.001" required placeholder="0" style="font-size:12px"></label>
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Un.<select name="unidadeUsada" style="font-size:12px"><option>g</option><option>kg</option><option>ml</option><option>l</option><option>un</option></select></label>
+                    </div>
+                    <button class="btn ghost" type="submit" style="align-self:end;font-size:12px;padding:8px 12px">+ Add</button>
+                  </form>
+                </div>
+                <form class="costMarginForm" data-cost="${row.id}">
+                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+                    ${!isInsumo ? `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Lucro %<input name="margem" type="number" step="1" value="${num(row.margem)}" style="font-size:13px"></label>` : `<span></span>`}
+                    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Outros custos<input name="outrosCustos" type="number" step="0.01" value="${num(row.outrosCustos)}" style="font-size:13px"></label>
+                    <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Rendimento<input name="rendimento" type="number" step="1" min="1" value="${num(row.rendimento)||1}" style="font-size:13px"></label>
+                  </div>
+                  <div style="display:flex;gap:8px;margin-top:10px">
+                    <button class="btn ghost" type="submit" style="font-size:12px">Salvar alterações</button>
+                    <button class="btn ghost" type="button" data-delete-cost="${row.id}" style="color:#c0392b;font-size:12px">Excluir ficha</button>
+                  </div>
+                </form>
+              </div>
+            </td>
+          </tr>`;
+        return `
+          <tr style="cursor:pointer" data-tipo="${row.tipo}" onclick="toggleCostDetail('${row.id}')">
+            <td style="line-height:1.3"><strong style="font-size:13px">${escapeHTML(row.produto)}</strong> ${tipoBadge(row.tipo)}${fifoBadge}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${money(calc.costPerUnit)}</td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${!isInsumo ? money(calc.suggested) : "—"}</td>
+          </tr>
+          ${detail}`;
       }).join("");
+      return `
+        <div id="costFilterBar" style="display:flex;gap:6px;padding:12px 16px;border-bottom:1px solid var(--line)">
+          <button onclick="filterCosts('todos',this)" class="btn ghost" style="font-size:12px;padding:5px 14px;border-radius:20px;background:var(--accent);color:#fff;border-color:var(--accent)">Todos</button>
+          <button onclick="filterCosts('produto',this)" class="btn ghost" style="font-size:12px;padding:5px 14px;border-radius:20px">Produtos</button>
+          <button onclick="filterCosts('insumo',this)" class="btn ghost" style="font-size:12px;padding:5px 14px;border-radius:20px">Insumos</button>
+        </div>
+        <div class="table-wrap"><table id="costsMainTable">
+          <thead><tr>
+            <th>Nome</th>
+            <th style="text-align:right">Custo/un</th>
+            <th style="text-align:right">Sugerido</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+    }
+
+    function toggleCostDetail(id) {
+      const el = document.getElementById("cost-detail-" + id);
+      if (!el) return;
+      const open = el.style.display !== "none";
+      el.style.display = open ? "none" : "";
+    }
+
+    function toggleCatPicker() {
+      const el = document.getElementById("catPicker");
+      if (!el) return;
+      el.style.display = el.style.display === "none" ? "flex" : "none";
+    }
+
+    function pickCat(cat) {
+      const el = document.getElementById("expCategoria");
+      if (el) el.value = cat;
+      const picker = document.getElementById("catPicker");
+      if (picker) picker.style.display = "none";
+    }
+
+    function filterCosts(tipo, btn) {
+      const table = document.getElementById("costsMainTable");
+      if (!table) return;
+      table.querySelectorAll("tr[data-tipo]").forEach(tr => {
+        const show = tipo === "todos" || tr.dataset.tipo === tipo;
+        tr.style.display = show ? "" : "none";
+        const detail = document.getElementById("cost-detail-" + tr.getAttribute("onclick")?.match(/'([^']+)'/)?.[1]);
+        if (detail && !show) detail.style.display = "none";
+      });
+      btn.closest("div").querySelectorAll("button").forEach(b => {
+        b.style.background = ""; b.style.color = ""; b.style.borderColor = "";
+      });
+      btn.style.background = "var(--accent)"; btn.style.color = "#fff"; btn.style.borderColor = "var(--accent)";
     }
 
     function renderForecast() {
@@ -2800,15 +3396,25 @@
         <div class="panel">
           <h2>Receitas e despesas previstas</h2>
           <form id="expenseForm">
-            <div class="form-grid">
-              <label>Tipo<select name="tipo"><option value="despesa">Despesa</option><option value="receita">Receita prevista</option></select></label>
-              <label>Descrição<input name="descricao" required placeholder="Aluguel, insumos, venda prevista, entrada extra"></label>
-              <label>Valor<input name="valor" type="number" step="0.01" required></label>
-              <label>Vencimento<input name="vencimento" type="date" value="${todayISO()}"></label>
-              <label>Recorrência<select name="recorrencia"><option value="unica">Única</option><option value="mensal">Mensal</option><option value="semanal">Semanal</option></select></label>
-              <label>Categoria<input name="categoria" placeholder="Fixo, CMV, salários"></label>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Tipo<select name="tipo" style="font-size:13px"><option value="despesa">Despesa</option><option value="receita">Receita</option></select></label>
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Recorrência<select name="recorrencia" style="font-size:13px"><option value="unica">Única</option><option value="mensal">Mensal</option><option value="semanal">Semanal</option></select></label>
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Vencimento<input name="vencimento" type="date" value="${todayISO()}" style="font-size:13px"></label>
             </div>
-            <div class="actions"><button class="btn" type="submit">${icon("previsao")}Lançar receita/despesa</button></div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px">
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Descrição<input name="descricao" required placeholder="Aluguel, insumos, venda prevista…" style="font-size:13px"></label>
+              <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Valor<div style="display:flex;align-items:center;background:var(--input-bg,#fff);border:1px solid var(--line);border-radius:8px;overflow:hidden"><span style="padding:0 8px;font-size:13px;color:var(--muted);background:var(--panel-2);border-right:1px solid var(--line);white-space:nowrap">R$</span><input name="valor" type="number" step="0.01" required style="font-size:13px;border:none;border-radius:0;flex:1;min-width:0"></div></label>
+            </div>
+            <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px">Categoria
+              <div style="display:flex;gap:6px;align-items:center">
+                <input id="expCategoria" name="categoria" placeholder="Fixo, CMV, salários" style="font-size:13px;flex:1">
+                <button type="button" onclick="toggleCatPicker()" style="flex-shrink:0;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer" title="Categorias salvas">≡</button>
+              </div>
+              <div id="catPicker" style="display:none;flex-wrap:wrap;gap:6px;margin-top:6px">
+                ${[...new Set((state.expenses||[]).map(e=>e.categoria).filter(Boolean))].map(c=>`<button type="button" onclick="pickCat('${escapeHTML(c)}')" style="font-size:11px;padding:4px 10px;border-radius:20px;background:var(--panel-2);border:1px solid var(--line);cursor:pointer">${escapeHTML(c)}</button>`).join("") || `<span style="font-size:11px;color:var(--muted)">Nenhuma categoria salva ainda.</span>`}
+              </div>
+            </label>
+            <button class="btn" type="submit" style="width:100%">${icon("previsao")}Lançar</button>
           </form>
           <div class="summary-strip">
             <div><span>Receitas previstas</span><strong>${money(receitas)}</strong></div>
@@ -2873,7 +3479,7 @@
 
     function renderMenuAdmin() {
       const baseUrl = location.href.split("#")[0].split("?")[0];
-      const publicUrl = `${baseUrl.replace(/sistema-gestao\.html$/, "cardapio-publico.html")}`;
+      const publicUrl = `${baseUrl}#cardapio-publico`;
       document.getElementById("cardapio").innerHTML = `
         <div class="panel">
           <h2>Cardápio</h2>
@@ -2881,10 +3487,9 @@
             <div class="form-grid">
               <label>Nome do restaurante<input name="restaurant" value="${escapeHTML(state.settings.restaurant)}"></label>
               <label>WhatsApp para pedidos<input name="whatsapp" value="${escapeHTML(state.settings.whatsapp)}"></label>
-              <label>Lucro padrão %<input name="defaultMargin" type="number" value="${state.settings.defaultMargin}"></label>
               <label style="grid-column:span 2">Logo do cardápio público
                 <input type="file" accept="image/*" id="logoUploadInput" style="font-size:13px">
-                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG recomendado</span>`}
+                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · máx 600 × 300 px</span>`}
               </label>
             </div>
             <div class="actions">
@@ -2894,7 +3499,6 @@
         </div>
         <div class="panel" style="margin-top:16px">
           <h3>Link do cardápio público</h3>
-          <p class="mini">Use este link na bio, nos stories ou envie para clientes. O pedido finaliza no WhatsApp e também aparece em Comandas como Delivery ou Pedido por link.</p>
           <label>Link para divulgar<input readonly value="${publicUrl}" style="font-size:13px"></label>
           <div class="actions" style="margin-top:12px">
             <a class="btn ok" href="${publicUrl}" target="_blank">${icon("cardapio")}Abrir cardápio público</a>
@@ -2904,16 +3508,28 @@
         <div class="panel" style="margin-top:16px">
           <h3>Novo item</h3>
           <form id="menuForm">
-            <div class="form-grid">
-              <label>Nome<input name="nome" required></label>
-              <label>Emoji<input name="emoji" value="🥟"></label>
-              <label>Preço<input name="preco" type="number" step="0.01" required></label>
-              <label>Categoria<input name="categoria" required placeholder="Pastéis"></label>
-              <label style="grid-column:span 2">Descrição<input name="descricao"></label>
-              <label>Foto<input type="file" accept="image/*" name="fotoFile" style="font-size:13px"></label>
-              <label>Ativo<select name="ativo"><option value="true">Sim</option><option value="false">Pausado</option></select></label>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+              <label>Nome<input name="nome" required placeholder="Ex: Pastel de frango"></label>
+              <label>Valor<input name="preco" type="number" step="0.01" required placeholder="0,00"></label>
             </div>
-            <div class="actions"><button class="btn" type="submit">Adicionar item</button></div>
+            <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:8px">
+              <label>Categoria<input name="categoria" required placeholder="Pastéis"></label>
+              <label>Descrição<input name="descricao" placeholder="Opcional"></label>
+            </div>
+            <div style="display:inline-flex;gap:8px;align-items:flex-start;margin-top:8px;flex-wrap:wrap">
+              <label style="display:flex;flex-direction:column;gap:4px;cursor:pointer">Foto<span style="display:inline-flex;align-items:center;font-size:var(--font-size,13px);color:var(--text);padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);cursor:pointer;height:34px;box-sizing:border-box">Selecionar</span><input type="file" accept="image/*" name="fotoFile" style="display:none"></label>
+              <label style="display:flex;flex-direction:column;gap:4px">Ativo
+                <div style="display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;height:34px;background:var(--panel-2)">
+                  <label id="ativoSimLabel" style="display:flex;align-items:center;padding:0 14px;cursor:pointer;font-size:13px;background:var(--accent);color:#1a1a1a;transition:background .15s">
+                    <input type="radio" name="ativo" value="true" checked style="display:none" onchange="document.getElementById('ativoSimLabel').style.background='var(--accent)';document.getElementById('ativoSimLabel').style.color='#1a1a1a';document.getElementById('ativoPausLabel').style.background='';document.getElementById('ativoPausLabel').style.color=''">Sim
+                  </label>
+                  <label id="ativoPausLabel" style="display:flex;align-items:center;padding:0 14px;cursor:pointer;font-size:13px;border-left:1px solid var(--line);transition:background .15s">
+                    <input type="radio" name="ativo" value="false" style="display:none" onchange="document.getElementById('ativoPausLabel').style.background='var(--accent)';document.getElementById('ativoPausLabel').style.color='#1a1a1a';document.getElementById('ativoSimLabel').style.background='';document.getElementById('ativoSimLabel').style.color=''">Pausado
+                  </label>
+                </div>
+              </label>
+              <button class="btn" type="submit" style="align-self:flex-end">Adicionar item</button>
+            </div>
           </form>
         </div>
         <div class="grid two-col" style="margin-top:16px">
@@ -2926,11 +3542,10 @@
           </div>
           <div class="panel">
             <h3>Adicionais</h3>
-            <p class="mini">Cadastre aqui os adicionais que aparecem nas comandas, cada um com seu valor.</p>
             <form id="addonForm">
-              <div class="form-grid" style="grid-template-columns:1fr 120px 120px">
+              <div class="form-grid" style="grid-template-columns:2fr 90px 120px">
                 <label>Adicional<input name="nome" required placeholder="Queijo extra"></label>
-                <label>Valor<input name="preco" type="number" step="0.01" value="0"></label>
+                <label>Valor<div style="display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);overflow:hidden"><span style="padding:0 6px;color:var(--muted);font-size:13px;white-space:nowrap">R$</span><input name="preco" type="number" step="0.01" value="0" style="border:none;background:transparent;padding:8px 6px 8px 0;width:100%;min-width:0"></div></label>
                 <label>Ativo<select name="ativo"><option value="true">Sim</option><option value="false">Pausado</option></select></label>
               </div>
               <div class="actions"><button class="btn secondary" type="submit">Adicionar</button></div>
@@ -3011,31 +3626,51 @@
       } else if (status === "cozinha") {
         action = `<button class="btn ghost btn-sm" style="width:100%" data-deliver-command="${command.id}">✓ Marcar entregue</button>`;
       } else if (status === "entregue") {
-        action = `<div class="kb-pay-row">
-          <select data-kb-pay-method="${command.id}">
-            <option value="dinheiro">Dinheiro</option><option value="pix">Pix</option>
-            <option value="debito">Débito</option><option value="credito">Crédito</option>
-          </select>
-          <button class="btn ok btn-sm" data-pay-kanban="${command.id}">💰 Pagar</button>
-        </div>`;
+        action = `<div class="kb-pay-row">${cselBuild("_kbpay_"+command.id,[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro","width:100%")}<button class="btn ok btn-sm" data-pay-kanban="${command.id}">💰 Pagar</button></div>`;
       } else if (status === "paga") {
         action = `<button class="btn ok btn-sm" style="width:100%" data-close-command="${command.id}">✓ Liberar mesa</button>`;
       }
-      return `<div class="kanban-card">
+      const _kbOrd=["montando","feito","cozinha","entregue","pago"];
+      const _kbCs=commandStatus(command);
+      const _kbCur=_kbCs==="paga"?"pago":_kbCs==="entregue"?"entregue":_kbCs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
+      const _kbCi=_kbOrd.indexOf(_kbCur);
+      const _kbStps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
+      const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#d8d8d8;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
+      return `<div class="kanban-card" draggable="true" data-drag-id="${command.id}" data-open-kb="${command.id}">
         <div class="kanban-card-top">
-          <span class="kanban-card-mesa">${mesa}${command.source === "whatsapp" ? `<span class="badge-wa" style="font-size:10px;padding:1px 5px;margin-left:4px">📲</span>` : ""}</span>
+          <span class="kanban-card-mesa">👤 ${cliente}</span>
           <span class="kanban-card-total">${money(total)}</span>
         </div>
-        <div class="kanban-card-cliente">👤 ${cliente}</div>
+        <div class="kanban-card-cliente">${mesa}${command.source === "whatsapp" ? `<span class="badge-wa" style="font-size:10px;padding:1px 5px;margin-left:4px">📲</span>` : ""}</div>
         <div class="kanban-card-meta">${itens} item(ns) · ${pessoas} pessoa(s)</div>
+        ${_kbBar}
         <div class="kanban-card-action">${action}</div>
       </div>`;
+    }
+
+    function showKbModal(id) {
+      const command = state.commands.find(c => c.id === id);
+      if (!command) { closeKbModal(); return; }
+      _kbModalId = id;
+      const modal = document.getElementById("kbModal");
+      if (!modal) return;
+      modal.innerHTML = `<div class="kb-modal-inner">
+        <button class="kb-modal-close" id="kbModalClose">✕</button>
+        <div class="kb-modal-body">${commandCard(command)}</div>
+      </div>`;
+      modal.classList.remove("hidden");
+    }
+
+    function closeKbModal() {
+      _kbModalId = null;
+      const modal = document.getElementById("kbModal");
+      if (modal) { modal.classList.add("hidden"); modal.innerHTML = ""; }
     }
 
     function commandListRow(command) {
       const status = commandStatus(command);
       const total = commandTotal(command);
-      const paySelect = `<span class="list-pay-inline"><select data-kb-pay-method="${command.id}"><option value="dinheiro">Dinheiro</option><option value="pix">Pix</option><option value="debito">Débito</option><option value="credito">Crédito</option></select><button class="btn ok btn-sm" data-pay-kanban="${command.id}">Pagar</button></span>`;
+      const paySelect = `<span class="list-pay-inline" style="display:inline-flex;align-items:center;gap:6px">${cselBuild("_kbpay_"+command.id,[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro","min-width:110px")}<button class="btn ok btn-sm" data-pay-kanban="${command.id}">Pagar</button></span>`;
       const actions = [
         status === "aberta" && command.itens.length ? `<button class="btn secondary btn-sm" data-send-kitchen="${command.id}">Cozinha</button>` : "",
         status === "cozinha" ? `<button class="btn ghost btn-sm" data-deliver-command="${command.id}">Entregue</button>` : "",
@@ -3075,7 +3710,7 @@
           { id: "pago",     label: "Pago",         filter: c => !!c.paidAt },
         ].map(col => {
           const cards = open.filter(col.filter);
-          return `<div class="kanban-col">
+          return `<div class="kanban-col" data-drop-col="${col.id}">
             <div class="kanban-col-header">
               <span class="kanban-col-title">${col.label}</span>
               <span class="kanban-count${cards.length ? "" : " zero"}">${cards.length}</span>
@@ -3096,15 +3731,20 @@
         <div class="panel">
           <form id="commandForm">
             <div class="form-grid" style="grid-template-columns:1fr 1fr 72px;gap:8px">
-              <label style="font-size:11px">Local<select name="local" style="font-size:13px">${locations.map(t => `<option>${escapeHTML(t.nome)}</option>`).join("")}</select></label>
+              <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), locations[0]?.nome||"")}</label>
               <label style="font-size:11px">Cliente<input name="cliente" placeholder="Avulso" style="font-size:13px"></label>
               <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="1" style="font-size:13px"></label>
             </div>
             <div class="actions"><button class="btn" type="submit">${icon("comandas")}Abrir comanda</button></div>
           </form>
+          <div style="margin-top:16px">${content}</div>
         </div>
-        ${content}
       `;
+      if (_kbModalId) {
+        const cmd = state.commands.find(c => c.id === _kbModalId && c.status === "aberta");
+        if (cmd) showKbModal(_kbModalId);
+        else closeKbModal();
+      }
     }
 
     function commandLocations() {
@@ -3123,61 +3763,89 @@
       const waBadge = command.source === "whatsapp" ? `<span class="badge-wa">📲 WhatsApp</span>` : "";
       const clienteName = escapeHTML(command.cliente || "Avulso");
       const pessoas = Math.max(1, num(command.pessoas || 1));
+      const _cs = commandStatus(command);
+      const _cur = _cs==="paga"?"pago":_cs==="entregue"?"entregue":_cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
+      const _ord=["montando","feito","cozinha","entregue","pago"];
+      const _ci=_ord.indexOf(_cur);
+      const _stps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
+      const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#d8d8d8;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
           <div class="command-head-info">
-            <h3>${escapeHTML(command.local)}${waBadge}</h3>
-            <div class="command-client-name">👤 ${clienteName}</div>
+            <h3>👤 ${clienteName}${waBadge}</h3>
+            <div class="command-client-name">${escapeHTML(command.local)}</div>
             <p class="mini">${pessoas} cliente(s) · ${commandStatusText(command)}</p>
           </div>
           <strong>${money(commandTotal(command))}</strong>
         </div>
-        <form class="editCommandForm" data-command="${command.id}">
-          <div class="command-save-grid">
-            <label>Local<select name="local">${locations.map(t => `<option ${t.nome === command.local ? "selected" : ""}>${escapeHTML(t.nome)}</option>`).join("")}</select></label>
-            <label>Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
-            <label>Clientes<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
+        <form class="editCommandForm" data-command="${command.id}" style="margin-top:10px">
+          <div style="display:grid;grid-template-columns:1fr 2fr 52px 72px;gap:6px;align-items:end">
+            <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), command.local)}</label>
+            <label style="font-size:11px">Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
+            <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
             <button class="btn ghost" type="submit">Salvar</button>
           </div>
         </form>
-        <div class="line-items">
+        <div class="line-items" style="margin:10px 0">
           ${command.itens.length ? command.itens.map((item, index) => commandItemRow(command, item, index)).join("") : `<div class="empty">Sem itens</div>`}
         </div>
-        <form class="addItemForm" data-command="${command.id}">
-          <div class="form-grid" style="grid-template-columns:minmax(0,1fr) 64px auto;align-items:end">
-            <label style="font-size:11px">Item<select name="itemId">${activeItems.map(i => `<option value="${i.id}">${escapeHTML(i.nome)} - ${money(i.preco)}</option>`).join("")}</select></label>
+        <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">
+          <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:end;margin-bottom:8px">
+            <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
             <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
-            <button class="btn ghost btn-sm" type="submit">+ Adicionar</button>
+            <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
           </div>
           <div class="obs-addon-row">
-            <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, cortar ao meio"></label>
+            <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
             <details class="addon-mini">
               <summary title="Adicionais">+</summary>
               <div class="addon-list">
-                ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio para aparecer aqui.</span>`}
+                ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio.</span>`}
               </div>
             </details>
           </div>
         </form>
         <div class="command-flow">
-          <div class="command-actions">
-            <button class="btn secondary" type="button" data-send-kitchen="${command.id}">Mandar para cozinha</button>
+          ${_bar}
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+            <button class="btn secondary" type="button" data-send-kitchen="${command.id}">Cozinha</button>
             <button class="btn ghost" type="button" data-deliver-command="${command.id}">Entregue</button>
             <details class="payment-toggle" ${command.paidAt ? "open" : ""}>
-              <summary class="btn ${command.paidAt ? "paid" : "ok"}">${command.paidAt ? "Pago" : "Pagar"}</summary>
+              <summary class="btn ${command.paidAt ? "paid" : "ok"}" style="width:100%;text-align:center">${command.paidAt ? "Pago" : "Pagar"}</summary>
               <form class="paymentForm" data-command="${command.id}">
-                <div class="payment-form">
-                  <label>Forma<select name="forma"><option value="dinheiro">Dinheiro</option><option value="pix">Pix</option><option value="debito">Débito</option><option value="credito">Crédito</option></select></label>
-                  <label>Valor<input name="valor" type="number" step="0.01" value="${commandTotal(command).toFixed(2)}"></label>
+                <div class="payment-form" style="margin-top:8px">
+                  <label style="font-size:11px">Forma${cselBuild("forma",[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro")}</label>
+                  <label style="font-size:11px">Valor<input name="valor" type="number" step="0.01" value="${commandTotal(command).toFixed(2)}"></label>
                   <button class="btn ${command.paidAt ? "paid" : "ok"}" type="submit" ${command.paidAt ? "disabled" : ""}>${command.paidAt ? "Pago" : "Confirmar"}</button>
                 </div>
               </form>
             </details>
           </div>
-          <button class="btn ok close-command-button" type="button" data-close-command="${command.id}">Liberar mesa</button>
-          <p class="mini">${command.paidAt ? `Pagamento registrado: ${money(command.paymentAmount || commandTotal(command))} em ${escapeHTML(command.paymentMethod || "")}.` : "Registre o pagamento antes de fechar a comanda."}</p>
+          <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">Liberar mesa</button>
+          <p class="mini" style="margin-top:6px">${command.paidAt ? `Pago: ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}` : "Registre o pagamento antes de liberar."}</p>
         </div>
       </article>`;
+    }
+
+    function commandProgressBar(command) {
+      const steps = [
+        { key: "montando", label: "Sem pedido",   bg: "#f3f3f3", fg: "#555555" },
+        { key: "feito",    label: "Pedido feito", bg: "#fff7d6", fg: "#a07000" },
+        { key: "cozinha",  label: "Na cozinha",   bg: "#fff0e0", fg: "#e07a00" },
+        { key: "entregue", label: "Entregue",     bg: "#e8f1ff", fg: "#2f80ed" },
+        { key: "pago",     label: "Pago",         bg: "#e6f9ee", fg: "#1a8a45" },
+      ];
+      const s = commandStatus(command);
+      const current =
+        s === "paga"     ? "pago"     :
+        s === "entregue" ? "entregue" :
+        s === "cozinha"  ? "cozinha"  :
+        (s === "aberta" && command.itens.length) ? "feito" : "montando";
+      const cells = steps.map(step => {
+        const active = step.key === current;
+        return `<div style="display:flex;align-items:center;justify-content:center;padding:0 3px;${active ? `background:${step.bg};color:${step.fg};font-weight:900;font-size:10px;` : "background:#f0f0f0;color:#c0c0c0;font-weight:600;font-size:10px;"}">${step.label}</div>`;
+      }).join("");
+      return `<div style="display:grid;grid-template-columns:repeat(5,1fr);border-radius:7px;overflow:hidden;gap:2px;background:#e4e4e4;height:26px;margin-bottom:10px">${cells}</div>`;
     }
 
     function commandItemRow(command, item, index) {
@@ -3355,6 +4023,105 @@
       const gastosLista = [...gastosMap.values()].sort((a, b) => b.total - a.total);
       const gastoTotal = gastosLista.reduce((s, g) => s + g.total, 0);
       const qtdTotal   = gastosLista.reduce((s, g) => s + g.qtd, 0);
+
+      // ── Consumo de insumos: baixas diretas + estimativa via vendas ──
+      const consumoMap = new Map();
+      const addConsumo = (nome, unidade, qtd, origem) => {
+        const key = nome.toLowerCase();
+        const cur = consumoMap.get(key) || { nome, unidade: unidade || "", direto: 0, vendas: 0 };
+        if (origem === "direto") cur.direto += qtd;
+        else cur.vendas += qtd;
+        consumoMap.set(key, cur);
+      };
+      // 1. Baixas diretas de estoque no período
+      (state.inventoryMovements || []).filter(m => {
+        if (m.tipo !== "saida") return false;
+        const d = (m.createdAt || "").slice(0, 10);
+        return d >= rStart && d <= rEnd;
+      }).forEach(m => {
+        const inv = inventoryById(m.inventoryId);
+        addConsumo(m.item || inv?.item || m.inventoryId, m.unidade || inv?.unidade || "", num(m.quantidade), "direto");
+      });
+      // 2. Consumo estimado via fichas de custo × vendas no período
+      orders.forEach(order => {
+        (order.itens || []).forEach(item => {
+          const qty = Math.max(1, num(item.quantidade));
+          const cost = state.costs.find(r => r.produto.toLowerCase() === String(item.nome).toLowerCase());
+          if (!cost) return;
+          (cost.ingredientes || []).forEach(ing => {
+            const inv = inventoryById(ing.inventoryId);
+            const nome = inv?.item || ing.inventoryId || "Insumo";
+            const unidade = inv?.unidade || "";
+            addConsumo(nome, unidade, num(ing.quantidade) * qty, "vendas");
+          });
+        });
+      });
+      const consumoLista = [...consumoMap.values()]
+        .map(c => ({ ...c, total: c.direto + c.vendas }))
+        .sort((a, b) => b.total - a.total);
+
+      // ── Faturamento por hora do dia ──
+      const hourMap = Array.from({length: 24}, () => ({ total: 0, count: 0 }));
+      orders.forEach(order => {
+        const dt = order.paidAt || order.createdAt;
+        if (!dt) return;
+        const h = new Date(dt).getHours();
+        hourMap[h].total += num(order.total || commandTotal(order));
+        hourMap[h].count++;
+      });
+      const maxHourTotal = Math.max(...hourMap.map(h => h.total), 1);
+
+      // ── Vendas por dia da semana ──
+      const dowLabels = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+      const dowMap = Array.from({length: 7}, () => ({ total: 0, count: 0 }));
+      orders.forEach(order => {
+        const dt = order.paidAt || order.createdAt;
+        if (!dt) return;
+        const d = new Date(dt).getDay();
+        dowMap[d].total += num(order.total || commandTotal(order));
+        dowMap[d].count++;
+      });
+      const maxDowTotal = Math.max(...dowMap.map(d => d.total), 1);
+
+      // ── Formas de pagamento ──
+      const _payAliases = { dinheiro:"💵 Dinheiro", cartão:"💳 Cartão", cartao:"💳 Cartão", pix:"📱 Pix", fiado:"📋 Fiado", credito:"💳 Crédito", debito:"💳 Débito" };
+      const _payColors = ["#f6921e","#4caf50","#2196f3","#9c27b0","#e91e63","#607d8b"];
+      const _payRaw = {};
+      orders.forEach(order => {
+        if (!order.paidAt) return;
+        const m = (order.paymentMethod || "outros").toLowerCase().replace(/[\s-]/g,"");
+        const label = _payAliases[m] || "🔹 " + (order.paymentMethod || "Outros");
+        const v = num(order.paymentAmount || order.total || commandTotal(order));
+        if (!_payRaw[label]) _payRaw[label] = { total: 0, count: 0 };
+        _payRaw[label].total += v; _payRaw[label].count++;
+      });
+      const payEntries = Object.entries(_payRaw)
+        .map(([label, v], i) => ({ label, ...v, color: _payColors[i % _payColors.length], pct: 0 }))
+        .sort((a, b) => b.total - a.total);
+      const payGrand = payEntries.reduce((s, p) => s + p.total, 0);
+      payEntries.forEach(p => p.pct = payGrand > 0 ? Math.round(p.total / payGrand * 100) : 0);
+
+      // ── Margem bruta estimada (via fichas de custo) ──
+      let _custoVendas = 0, _semFicha = 0, _comFicha = 0;
+      orders.forEach(order => {
+        (order.itens || []).forEach(item => {
+          const qty = Math.max(1, num(item.quantidade));
+          const recipe = (state.costs || []).find(r => r.produto && r.produto.toLowerCase() === String(item.nome || "").toLowerCase());
+          if (!recipe) { _semFicha++; return; }
+          _comFicha++;
+          const custoItem = (recipe.ingredientes || []).reduce((s, ing) => {
+            const inv = inventoryById(ing.inventoryId);
+            const cu = num(ing.custo) || num(inv && inv.custo) || 0;
+            return s + num(ing.quantidade) * cu;
+          }, 0);
+          _custoVendas += custoItem * qty;
+        });
+      });
+      const margemBruta = (_comFicha > 0 && summary.vendas > 0)
+        ? ((summary.vendas - _custoVendas) / summary.vendas * 100) : null;
+      const margemColor = margemBruta === null ? "#999"
+        : margemBruta >= 60 ? "#1a7a45" : margemBruta >= 35 ? "#a07000" : "#c0392b";
+
       document.getElementById("relatorios").innerHTML = `
         <div class="panel">
           <h2>Filtro do relatório</h2>
@@ -3381,8 +4148,39 @@
         </div>
 
         <div class="panel" style="margin-top:16px">
+          <h2>📈 Margem bruta estimada</h2>
+          ${margemBruta === null
+            ? `<p class="mini" style="color:var(--muted);padding:4px 0">Cadastre fichas de custo nos produtos para calcular a margem${_semFicha > 0 ? " ("+_semFicha+" item(ns) sem ficha no período)" : ""}.</p>`
+            : `<div class="simple-card-grid" style="margin:10px 0">
+                ${simpleCard("Vendas", money(summary.vendas), "Total vendido no período.")}
+                ${simpleCard("Custo estimado", money(_custoVendas), _comFicha+" tipo(s) com ficha."+(_semFicha > 0 ? " "+_semFicha+" sem ficha (ignorados)." : ""))}
+                <article class="simple-card"><span class="mini">Margem bruta</span><strong style="font-size:22px;color:${margemColor}">${margemBruta.toFixed(1).replace(".",",")}%</strong><p class="mini">Lucro: ${money(summary.vendas - _custoVendas)}</p></article>
+              </div>
+              <div style="height:10px;border-radius:5px;background:#e8e0d8;overflow:hidden">
+                <div style="height:100%;width:${Math.min(100,Math.max(0,margemBruta)).toFixed(1)}%;background:${margemColor};border-radius:5px"></div>
+              </div>`}
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>💳 Formas de pagamento</h2>
+          ${payEntries.length === 0
+            ? `<p class="mini" style="color:var(--muted);padding:4px 0">Nenhum pagamento registrado no período.</p>`
+            : `<div style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
+                ${payEntries.map(p => `<div>
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+                    <span style="font-size:13px;font-weight:700">${escapeHTML(p.label)}</span>
+                    <span style="font-size:11px;color:var(--muted)">${p.pct}% · ${money(p.total)} · ${p.count}×</span>
+                  </div>
+                  <div style="height:8px;border-radius:4px;background:#e8e0d8;overflow:hidden">
+                    <div style="height:100%;width:${p.pct}%;background:${p.color};border-radius:4px"></div>
+                  </div>
+                </div>`).join("")}
+              </div>
+              <p class="mini" style="margin-top:12px;color:var(--muted)">Total recebido: <strong>${money(payGrand)}</strong></p>`}
+        </div>
+
+        <div class="panel" style="margin-top:16px">
           <h2>Gastos com insumos no período</h2>
-          <p class="mini">Entradas de estoque registradas entre ${escapeHTML(rStart)} e ${escapeHTML(rEnd)}.</p>
           <div class="simple-card-grid" style="margin:12px 0">
             ${simpleCard("Total gasto", money(gastoTotal), "Soma do valor de todas as compras no período.")}
             ${simpleCard("Itens comprados", gastosLista.length + " insumo(s)", "Tipos de produtos adquiridos.")}
@@ -3408,6 +4206,36 @@
           </div>` : `<div class="empty">Nenhuma entrada de estoque registrada nesse período.</div>`}
         </div>
 
+        <div class="panel" style="margin-top:16px">
+          <h2>Consumo de insumos no período</h2>
+          ${consumoLista.length ? `
+          <div class="simple-card-grid" style="margin:10px 0">
+            ${simpleCard("Insumos consumidos", consumoLista.length + " tipo(s)", "Ingredientes distintos usados no período.")}
+            ${simpleCard("Via baixa direta", consumoLista.reduce((s,c)=>s+c.direto,0).toFixed(2).replace(".",",") + " unid.", "Saídas registradas manualmente no estoque.")}
+            ${simpleCard("Via vendas", consumoLista.reduce((s,c)=>s+c.vendas,0).toFixed(2).replace(".",",") + " unid.", "Estimativa com base nas fichas de custo.")}
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Insumo</th>
+                  <th>Baixa direta</th>
+                  <th>Via vendas</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${consumoLista.map(c => `<tr>
+                  <td><strong>${escapeHTML(c.nome)}</strong><span class="mini"> ${escapeHTML(c.unidade)}</span></td>
+                  <td>${c.direto > 0 ? c.direto.toFixed(3).replace(".",",") + " " + escapeHTML(c.unidade) : "—"}</td>
+                  <td>${c.vendas > 0 ? c.vendas.toFixed(3).replace(".",",") + " " + escapeHTML(c.unidade) : "—"}</td>
+                  <td><strong>${c.total.toFixed(3).replace(".",",")} ${escapeHTML(c.unidade)}</strong></td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>` : empty("Nenhum consumo registrado nesse período. Dê baixas no estoque ou feche comandas com fichas de custo.")}
+        </div>
+
         <div class="grid two-col" style="margin-top:16px">
           <div class="panel">
             <h2>Produtos mais vendidos</h2>
@@ -3417,6 +4245,45 @@
             <h2>Maior lucro estimado</h2>
             <div class="product-list">${profitProducts.length ? profitProducts.map((p, i) => `<div class="product-row"><div><strong>${i + 1}. ${escapeHTML(p.nome)}</strong><span>venda ${money(p.total)}</span></div><strong>${money(p.lucro)}</strong></div>`).join("") : empty("Cadastre fichas de custo e feche vendas para calcular lucro.")}</div>
           </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>📅 Vendas por dia da semana</h2>
+          ${orders.length === 0 ? empty("Sem pedidos no período.") :
+            `<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+              ${[1,2,3,4,5,6,0].map(d => {
+                const row = dowMap[d];
+                const pct = (row.total / maxDowTotal * 100).toFixed(1);
+                return `<div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:12px;font-weight:600;width:28px;color:var(--muted);flex-shrink:0">${dowLabels[d]}</span>
+                  <div style="flex:1;height:22px;border-radius:4px;background:#f0ece6;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:var(--brand);border-radius:4px;opacity:${row.count > 0 ? 1 : 0.15}"></div>
+                  </div>
+                  <span style="font-size:12px;width:84px;text-align:right;font-weight:${row.count > 0 ? 700 : 400};color:${row.count > 0 ? "var(--text)" : "var(--muted)"}">${row.count > 0 ? money(row.total) : "—"}</span>
+                  <span style="font-size:11px;color:var(--muted);width:24px;flex-shrink:0">${row.count > 0 ? row.count+"×" : ""}</span>
+                </div>`;
+              }).join("")}
+            </div>`}
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>🕐 Faturamento por hora do dia</h2>
+          ${orders.length === 0 ? empty("Sem pedidos no período.") :
+            `<div style="overflow-x:auto">
+              <div style="display:flex;align-items:flex-end;gap:2px;height:90px;min-width:520px;padding-bottom:2px">
+                ${hourMap.map((h, i) => {
+                  const pct = h.total / maxHourTotal;
+                  const barH = Math.max(h.total > 0 ? 4 : 2, Math.round(pct * 72));
+                  const isPeak = pct >= 0.7;
+                  return `<div title="${i}h: ${h.count > 0 ? money(h.total)+" ("+h.count+"×)" : "sem pedidos"}"
+                    style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:default">
+                    <div style="width:100%;border-radius:2px 2px 0 0;background:${isPeak ? "var(--brand)" : h.total > 0 ? "#f6c47e" : "#e8e0d8"};height:${barH}px"></div>
+                    <span style="font-size:7px;color:var(--muted)">${i}h</span>
+                  </div>`;
+                }).join("")}
+              </div>
+              <p class="mini" style="margin-top:6px;color:var(--muted)">🟠 Laranja escuro = horário de pico (≥70% do máximo). Passe o mouse na barra para ver o valor.</p>
+            </div>`}
         </div>
 
         <div class="panel" style="margin-top:16px">
@@ -3471,66 +4338,82 @@
 
     function renderDataTools() {
       const currentLogo = state.settings.perspectaLogo;
+      const co = currentSession?.company;
+      const mainLogin = co?.login || state.settings.mainLogin || "";
       document.getElementById("dados").innerHTML = `
         <div class="settings-stack">
 
+          <!-- ── 🔐 Acesso Principal (apenas sessões de empresa) ── -->
+          ${co ? `
           <div class="panel">
-            <h2>Logo da plataforma</h2>
-            <p class="mini">Logo exibido no canto superior esquerdo do sistema. Se não tiver, aparece o ícone padrão Perspecta.</p>
+            <h2>🔐 Acesso principal</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:14px">Login e senha usados para entrar no sistema. Deixe a senha em branco para não alterar.</p>
+            <form id="mainAccessForm">
+              <div class="form-grid form-grid-2col">
+                <label>Login<input name="mainLogin" value="${escapeHTML(mainLogin)}" required placeholder="seu-login" autocomplete="username"></label>
+                <label>Nova senha<input name="mainPassword" type="password" placeholder="••••••  (deixe em branco para manter)" autocomplete="new-password"></label>
+              </div>
+              <div class="actions" style="margin-top:12px"><button class="btn" type="submit">Salvar acesso principal</button></div>
+            </form>
+          </div>` : ""}
+
+          <!-- ── 👥 Funcionários e Acessos ── -->
+          <div class="panel">
+            <h2>👥 Funcionários e acessos</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:14px">Gerencie os logins dos colaboradores e o que cada um pode acessar.</p>
+
+            <!-- Novo funcionário -->
+            <details class="addon-toggle" style="margin-bottom:16px">
+              <summary style="font-weight:700;font-size:13px">➕ Criar novo funcionário</summary>
+              <form id="staffForm" style="margin-top:12px">
+                <div class="form-grid form-grid-2col">
+                  <label>Nome<input name="nome" required placeholder="Caixa 02"></label>
+                  <label>Perfil
+                    <select name="perfil">
+                      <option>Caixa</option><option>Gestão</option><option>Atendimento</option><option>Cozinha</option>
+                    </select>
+                  </label>
+                  <label>Login<input name="login" required placeholder="caixa02"></label>
+                  <label>Senha<input name="senha" required placeholder="003"></label>
+                </div>
+                <div style="margin-top:12px">
+                  <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">ACESSOS PERMITIDOS</div>
+                  <div class="permission-grid">${permissionOptions(defaultPermissionsForRole("Atendimento"))}</div>
+                </div>
+                <div class="actions" style="margin-top:12px"><button class="btn secondary" type="submit">Criar funcionário</button></div>
+              </form>
+            </details>
+
+            <!-- Cards de funcionários existentes -->
+            ${staffCards()}
+          </div>
+
+          <!-- ── ⚙️ Preferências ── -->
+          <div class="panel">
+            <h2>⚙️ Preferências visuais</h2>
             <div style="display:flex;align-items:center;gap:16px;margin:14px 0">
               ${currentLogo
-                ? `<img src="${currentLogo}" style="width:64px;height:64px;object-fit:contain;border-radius:10px;background:#f0ede8;padding:6px;" alt="Logo atual">`
-                : `<div style="width:64px;height:64px;border-radius:10px;background:#f0ede8;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
+                ? `<img src="${currentLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:10px;background:#f0ede8;padding:6px;" alt="Logo">`
+                : `<div style="width:56px;height:56px;border-radius:10px;background:#f0ede8;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
               <div style="display:flex;flex-direction:column;gap:8px">
                 <label class="btn secondary" style="cursor:pointer;margin:0">
                   📁 ${currentLogo ? "Trocar logo" : "Enviar logo"}
                   <input type="file" id="perspectaLogoInput" accept="image/*" style="display:none">
                 </label>
-                ${currentLogo ? `<button class="btn ghost" id="removePerspectaLogo" style="margin:0">Remover</button>` : ""}
+                ${currentLogo ? `<button class="btn ghost" id="removePerspectaLogo" style="margin:0">Remover logo</button>` : ""}
               </div>
             </div>
-            <p class="mini" style="color:#aaa">Recomendado: fundo transparente ou escuro, mínimo 200×200px.</p>
           </div>
 
+          <!-- ── 📐 Ordem do menu ── -->
           <div class="panel">
-            <h2>Acessos da empresa</h2>
-            <p class="mini">Perspecta Bistro fica fixo como plataforma. Aqui a empresa cria os logins dos funcionários dela.</p>
-            <form id="adminSettingsForm">
-              <div class="form-grid">
-                <label>Login do cliente<input name="clientLogin" value="${escapeHTML(state.settings.clientLogin)}"></label>
-                <label>Senha do cliente<input name="clientPassword" type="password" value="${escapeHTML(state.settings.clientPassword)}"></label>
-              </div>
-              <div class="actions"><button class="btn" type="submit">Salvar configurações</button></div>
-            </form>
-          </div>
-
-          <div class="panel">
-            <h2>Funcionários</h2>
-            <form id="staffForm">
-              <div class="form-grid">
-                <label>Nome<input name="nome" required placeholder="Caixa 02"></label>
-                <label>Login<input name="login" required placeholder="caixa02"></label>
-                <label>Senha<input name="senha" required placeholder="003"></label>
-                <label>Perfil<select name="perfil"><option>Caixa</option><option>Gestão</option><option>Atendimento</option><option>Cozinha</option></select></label>
-              </div>
-              <details class="addon-toggle" open>
-                <summary>Acessos permitidos</summary>
-                <div class="permission-grid">${permissionOptions(defaultPermissionsForRole("Atendimento"))}</div>
-              </details>
-              <div class="actions"><button class="btn secondary" type="submit">Criar acesso</button></div>
-            </form>
-            <div class="table-wrap">${staffTable()}</div>
-          </div>
-
-          <div class="panel">
-            <h2>Ordem do menu lateral</h2>
-            <p class="mini">Ajuste a ordem das abas que aparecem no menu. Visão do dia e Configurações ficam sempre visíveis.</p>
+            <h2>📐 Ordem do menu lateral</h2>
             <div class="table-wrap">${menuOrderTable()}</div>
           </div>
 
+          <!-- ── 💾 Dados ── -->
           <div class="panel">
-            <h2>Backup e Dados</h2>
-            <p class="mini">Exporte um arquivo JSON para guardar backup. Para restaurar, cole o JSON no campo abaixo e importe.</p>
+            <h2>💾 Backup e dados</h2>
             <div class="actions" style="margin:14px 0">
               <button class="btn" id="exportData">${icon("dados")}Exportar JSON</button>
               <button class="btn ghost" id="resetDemo">Restaurar dados de exemplo</button>
@@ -3539,30 +4422,79 @@
             <div class="actions" style="margin-top:12px">
               <button class="btn secondary" id="importDataBtn">Importar</button>
               <button class="btn ghost" id="logoutBtn">Sair / trocar login</button>
-              <button class="btn ghost" id="backAdminBtn">Voltar ao administrador</button>
+              ${currentSession?.type === "gestor-proxy" ? `<button class="btn ghost" id="backAdminBtn">⬅ Voltar ao Gestor</button>` : ""}
             </div>
           </div>
         </div>
       `;
     }
 
-    function staffTable() {
-      if (!(state.staff || []).length) return empty("Nenhum funcionário cadastrado.");
-      return `<table><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Acessos</th><th></th></tr></thead><tbody>
-        ${state.staff.map(person => `<tr>
-          <td><strong>${escapeHTML(person.nome)}</strong></td>
-          <td><span class="role-pill">${escapeHTML(person.login)} / ${escapeHTML(person.senha)}</span></td>
-          <td>${escapeHTML(person.perfil)}</td>
-          <td>
-            <details class="addon-toggle">
-              <summary>Editar acessos</summary>
+    function staffCards() {
+      if (!(state.staff || []).length) {
+        return `<div style="color:var(--muted);font-size:13px;padding:12px 0;text-align:center">Nenhum funcionário cadastrado ainda.</div>`;
+      }
+      const perfis = ["Caixa","Gestão","Atendimento","Cozinha"];
+      return (state.staff || []).map(person => {
+        const initials = (person.nome || "?").split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
+        const permsView = (person.permissions || [])
+          .filter(p => p !== "dashboard")
+          .map(p => { const ni = navItems.find(([id]) => id === p); return ni ? escapeHTML(ni[1]) : null; })
+          .filter(Boolean)
+          .map(l => `<span style="display:inline-block;padding:3px 8px;border-radius:6px;background:var(--panel-2);font-size:11px;font-weight:700;color:var(--ink)">${l}</span>`)
+          .join(" ");
+        return `
+        <div data-staff-card="${person.id}" style="border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px">
+          <!-- Cabeçalho sempre visível -->
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--panel)">
+            <div style="width:38px;height:38px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:900;font-size:14px;flex-shrink:0">${initials}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:800;font-size:14px">${escapeHTML(person.nome)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:1px">
+                <span class="role-pill" style="font-size:10px;padding:3px 7px">${escapeHTML(person.perfil || "—")}</span>
+                <span style="margin-left:8px">login: <strong>${escapeHTML(person.login)}</strong></span>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn ghost" style="font-size:12px;padding:6px 12px" data-toggle-staff-edit="${person.id}" type="button">Editar</button>
+              <button class="btn ghost" style="font-size:12px;padding:6px 12px;color:#c0392b" data-delete-staff="${person.id}" type="button">Excluir</button>
+            </div>
+          </div>
+
+          <!-- Modo visualização -->
+          <div data-staff-view="${person.id}" style="padding:10px 14px;background:var(--panel-2);border-top:1px solid var(--line)">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+              <span style="font-size:11px;color:var(--muted);font-weight:600">ACESSOS:</span>
+              ${permsView || `<span style="font-size:11px;color:var(--muted)">Nenhum acesso configurado</span>`}
+            </div>
+          </div>
+
+          <!-- Modo edição (oculto por padrão) -->
+          <form class="staffInfoForm hidden" data-staff-id="${person.id}" style="padding:14px;background:var(--panel-2);border-top:2px solid var(--brand)">
+            <div class="form-grid form-grid-2col">
+              <label>Nome<input name="nome" value="${escapeHTML(person.nome)}" required></label>
+              <label>Perfil
+                <select name="perfil">
+                  ${perfis.map(p => `<option${p === person.perfil ? " selected" : ""}>${p}</option>`).join("")}
+                </select>
+              </label>
+              <label>Login<input name="login" value="${escapeHTML(person.login)}" required></label>
+              <label>Nova senha<input name="senha" type="password" placeholder="••••  (deixe em branco para manter)" autocomplete="new-password"></label>
+            </div>
+            <div style="margin-top:14px">
+              <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;letter-spacing:.5px">ACESSOS PERMITIDOS</div>
               <div class="permission-grid">${permissionOptions(person.permissions || [])}</div>
-              <div class="actions" style="margin-top:10px"><button class="btn ghost" data-save-staff-permissions="${person.id}" type="button">Salvar acessos</button></div>
-            </details>
-          </td>
-          <td><button class="btn ghost" data-delete-staff="${person.id}">Excluir</button></td>
-        </tr>`).join("")}
-      </tbody></table>`;
+            </div>
+            <div class="actions" style="margin-top:14px">
+              <button class="btn" type="submit">Salvar alterações</button>
+              <button class="btn ghost" type="button" data-cancel-staff-edit="${person.id}">Cancelar</button>
+            </div>
+          </form>
+        </div>`;
+      }).join("");
+    }
+
+    function staffTable() {
+      return staffCards();
     }
 
     function menuOrderTable() {
@@ -3848,6 +4780,14 @@
       document.getElementById("todayLabel").textContent = DATE.format(new Date());
       const badge = document.getElementById("sessionBadge");
       if (badge) badge.textContent = getSessionLabel();
+      const proxyBanner = document.getElementById("proxyBanner");
+      if (proxyBanner) {
+        if (currentSession?.type === "gestor-proxy") {
+          proxyBanner.innerHTML = `<button class="btn sidebar-logout" type="button" data-return-to-gestor style="background:rgba(246,146,30,.15);color:#f6921e;margin-bottom:6px;font-size:11px;width:100%">⬅ Voltar ao Gestor</button>`;
+        } else {
+          proxyBanner.innerHTML = "";
+        }
+      }
       updatePageHeader();
       renderNav();
       renderBrand();
@@ -3867,6 +4807,81 @@
       if (location.hash.startsWith("#cardapio-publico")) renderPublicMenu();
     }
 
+    // ── Hamburger menu toggle ──
+    function openSidebar() {
+      document.querySelector(".sidebar").classList.add("sidebar-open");
+      document.getElementById("sidebarBackdrop").classList.add("open");
+    }
+    function closeSidebar() {
+      document.querySelector(".sidebar").classList.remove("sidebar-open");
+      document.getElementById("sidebarBackdrop").classList.remove("open");
+    }
+    // ── Kanban drag-and-drop ──
+    function applyKanbanDrop(commandId, targetCol) {
+      const command = state.commands.find(c => c.id === commandId);
+      if (!command) return;
+      const now = new Date().toISOString();
+      if (targetCol === "montando" || targetCol === "feito") {
+        command.kitchenSentAt = null; command.deliveredAt = null; command.paidAt = null;
+      } else if (targetCol === "cozinha") {
+        command.kitchenSentAt = command.kitchenSentAt || now;
+        command.deliveredAt = null; command.paidAt = null;
+      } else if (targetCol === "entregue") {
+        command.kitchenSentAt = command.kitchenSentAt || now;
+        command.deliveredAt = command.deliveredAt || now;
+        command.paidAt = null;
+      } else if (targetCol === "pago") {
+        command.kitchenSentAt = command.kitchenSentAt || now;
+        command.deliveredAt = command.deliveredAt || now;
+        command.paidAt = command.paidAt || now;
+        command.paymentMethod = command.paymentMethod || "dinheiro";
+        command.paymentAmount = command.paymentAmount || commandTotal(command);
+      }
+      save(); renderCommands();
+    }
+
+    document.addEventListener("dragstart", e => {
+      const card = e.target.closest("[data-drag-id]");
+      if (!card) return;
+      _dragId = card.dataset.dragId;
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", _dragId);
+    });
+    document.addEventListener("dragend", () => {
+      _dragId = null;
+      document.querySelectorAll(".kanban-card.dragging").forEach(c => c.classList.remove("dragging"));
+      document.querySelectorAll(".kanban-col.drag-over").forEach(c => c.classList.remove("drag-over"));
+    });
+    document.addEventListener("dragover", e => {
+      const col = e.target.closest("[data-drop-col]");
+      if (!col) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      document.querySelectorAll(".kanban-col.drag-over").forEach(c => c.classList.remove("drag-over"));
+      col.classList.add("drag-over");
+    });
+    document.addEventListener("dragleave", e => {
+      const col = e.target.closest("[data-drop-col]");
+      if (col && !col.contains(e.relatedTarget)) col.classList.remove("drag-over");
+    });
+    document.addEventListener("drop", e => {
+      const col = e.target.closest("[data-drop-col]");
+      if (!col) return;
+      e.preventDefault();
+      col.classList.remove("drag-over");
+      const id = _dragId || e.dataTransfer.getData("text/plain");
+      if (id) applyKanbanDrop(id, col.dataset.dropCol);
+      _dragId = null;
+    });
+
+    document.getElementById("hamburgerBtn").addEventListener("click", function() {
+      const sidebar = document.querySelector(".sidebar");
+      if (sidebar.classList.contains("sidebar-open")) closeSidebar();
+      else openSidebar();
+    });
+    document.getElementById("sidebarBackdrop").addEventListener("click", closeSidebar);
+
     document.getElementById("loginForm").addEventListener("submit", function(e) {
       e.preventDefault();
       const login = document.getElementById("loginUser").value.trim();
@@ -3885,7 +4900,7 @@
       }
 
       const section = event.target.closest("[data-section]")?.dataset.section;
-      if (section) setSection(section);
+      if (section) { setSection(section); closeSidebar(); }
 
       const delCost = event.target.closest("[data-delete-cost]")?.dataset.deleteCost;
       if (delCost) { state.costs = state.costs.filter(x => x.id !== delCost); save(); }
@@ -3909,7 +4924,7 @@
       if (payKanban) {
         const command = state.commands.find(c => c.id === payKanban);
         if (command && !command.paidAt) {
-          const sel = document.querySelector(`[data-kb-pay-method="${payKanban}"]`);
+          const sel = document.querySelector(`[data-kb-pay-method="${payKanban}"]`) || document.querySelector(`input[name="_kbpay_${payKanban}"]`);
           const method = sel ? sel.value : "dinheiro";
           command.paidAt = new Date().toISOString();
           command.paymentMethod = method;
@@ -4041,6 +5056,24 @@
         }
       }
 
+      // ── Staff card edit toggle ──
+      const toggleStaffEdit = event.target.closest("[data-toggle-staff-edit]")?.dataset.toggleStaffEdit;
+      if (toggleStaffEdit) {
+        const card = document.querySelector(`[data-staff-card="${toggleStaffEdit}"]`);
+        if (card) {
+          card.querySelector(".staffInfoForm").classList.toggle("hidden");
+          card.querySelector(`[data-staff-view]`).classList.toggle("hidden");
+        }
+      }
+      const cancelStaffEdit = event.target.closest("[data-cancel-staff-edit]")?.dataset.cancelStaffEdit;
+      if (cancelStaffEdit) {
+        const card = document.querySelector(`[data-staff-card="${cancelStaffEdit}"]`);
+        if (card) {
+          card.querySelector(".staffInfoForm").classList.add("hidden");
+          card.querySelector(`[data-staff-view]`).classList.remove("hidden");
+        }
+      }
+
       const delGoal = event.target.closest("[data-delete-goal]")?.dataset.deleteGoal;
       if (delGoal) { state.goals = (state.goals || []).filter(x => x.id !== delGoal); save(); }
 
@@ -4048,12 +5081,14 @@
       if (openCompany) {
         const company = (state.companies || []).find(x => x.id === openCompany);
         if (company) {
-          state.settings.restaurant = company.nome;
-          state.settings.whatsapp = company.whatsapp || state.settings.whatsapp;
-          state.settings.clientLogin = company.login;
-          state.settings.clientPassword = company.senha;
+          // Switch gestor into a read/write proxy session for this company
+          currentSession = { type: "gestor-proxy", company };
+          sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
+          storeKey = "gestaoCompany." + company.id + ".v1";
+          state = loadState();
+          renderAll();
           setSection("dashboard");
-          save();
+          showToast("📂 Acessando: " + company.nome, 2200);
         }
       }
 
@@ -4063,12 +5098,59 @@
       const toggleAddon = event.target.closest("[data-toggle-addon]")?.dataset.toggleAddon;
       if (toggleAddon) { const addon = (state.addons || []).find(x => x.id === toggleAddon); if (addon) addon.ativo = !addon.ativo; save(); }
 
+      // ── Kanban card → open full command modal ──
+      if (event.target.id === "kbModalClose" || event.target.id === "kbModal") {
+        closeKbModal();
+      } else {
+        const openKb = event.target.closest("[data-open-kb]")?.dataset.openKb;
+        if (openKb && !event.target.closest("button, .csel-trigger, .csel-opt, .csel-drop, .csel, [data-step-advance]")) {
+          showKbModal(openKb);
+        }
+      }
+
       const removeItem = event.target.closest("[data-remove-item]")?.dataset.removeItem;
       if (removeItem) {
         const [commandId, index] = removeItem.split(":");
         const command = state.commands.find(c => c.id === commandId);
         if (command) command.itens.splice(Number(index), 1);
         save();
+      }
+
+      // ── Status bar step click ──
+      const stepAdvance = event.target.closest("[data-step-advance]")?.dataset.stepAdvance;
+      if (stepAdvance) {
+        const [cmdId, step] = stepAdvance.split(":");
+        const command = state.commands.find(c => c.id === cmdId);
+        if (command) {
+          const ord = ["montando","feito","cozinha","entregue","pago"];
+          const cs = commandStatus(command);
+          const cur = cs==="paga"?"pago":cs==="entregue"?"entregue":cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
+          const curI = ord.indexOf(cur), stepI = ord.indexOf(step);
+          if (stepI !== curI) {
+            const _now = new Date().toISOString();
+            if (stepI > curI) {
+              if (step === "cozinha") {
+                if (!(command.itens||[]).length) { showToast("Adicione itens antes de mandar para a cozinha.", 2500); }
+                else { command.kitchenSentAt = _now; save(); printKitchenCommand(command); }
+              } else if (step === "entregue") {
+                if (!command.kitchenSentAt) command.kitchenSentAt = _now;
+                command.deliveredAt = _now; save(); renderCommands();
+              } else if (step === "pago") {
+                if (!command.kitchenSentAt) command.kitchenSentAt = _now;
+                if (!command.deliveredAt) command.deliveredAt = _now;
+                command.paidAt = _now;
+                command.paymentMethod = "dinheiro";
+                command.paymentAmount = commandTotal(command);
+                save(); renderCommands();
+              }
+            } else {
+              if (step === "montando" || step === "feito") { command.kitchenSentAt = null; command.deliveredAt = null; command.paidAt = null; }
+              else if (step === "cozinha") { command.deliveredAt = null; command.paidAt = null; }
+              else if (step === "entregue") { command.paidAt = null; }
+              save(); renderCommands();
+            }
+          }
+        }
       }
 
       const sendKitchen = event.target.closest("[data-send-kitchen]")?.dataset.sendKitchen;
@@ -4237,6 +5319,7 @@
       // ── Remover logo ──
       if (event.target.id === "removeLogoBtn") {
         state.settings.logoUrl = null;
+        state.settings.logoDims = null;
         save();
         renderMenuAdmin();
         return;
@@ -4298,8 +5381,16 @@
         showLogin();
       }
 
-      if (event.target.id === "backAdminBtn") {
+      if (event.target.id === "backAdminBtn" || event.target.closest("[data-return-to-gestor]")) {
+        // Restore full gestor session from master storage
+        currentSession = { type: "gestor" };
+        sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
+        storeKey = MASTER_KEY;
+        const master = loadMasterState();
+        state = normalizeState({ ...structuredClone(defaultState), ...master });
+        renderAll();
         setSection("empresas");
+        showToast("🔐 Sessão do Gestor restaurada.", 2000);
       }
     });
 
@@ -4421,16 +5512,19 @@
       const data = Object.fromEntries(formData.entries());
 
       if (form.id === "costForm") {
+        const newId = uid();
         state.costs.push({
-          id: uid(),
+          id: newId,
+          tipo: data.tipo || "produto",
           produto: data.produto,
-          rendimento: data.rendimento,
-          margem: data.margem,
-          outrosCustos: data.outrosCustos,
-          ingredientes: [ingredientFromFormData(data)]
+          rendimento: num(data.rendimento) || 1,
+          margem: num(state.settings.defaultMargin) || 30,
+          outrosCustos: 0,
+          ingredientes: []
         });
-        form.reset();
+        _openCostId = newId;
         save();
+        return;
       }
 
       if (form.classList.contains("addIngredientForm")) {
@@ -4461,8 +5555,19 @@
 
       if (form.id === "cashForm") {
         state.cash = state.cash || [];
-        state.cash.push({ id: uid(), ...data, createdAt: new Date().toISOString() });
+        let entry = { id: uid(), ...data, createdAt: new Date().toISOString() };
+        if (data.tipo === "sangria") {
+          // Sangria é saída com descrição enriquecida
+          entry.tipo = "saida";
+          const motivo = (data.motivoSangria || "Sangria").trim();
+          const resp = (data.responsavelSangria || "").trim();
+          entry.descricao = `🔻 Sangria: ${motivo}${resp ? " — por " + resp : ""}`;
+          delete entry.motivoSangria;
+          delete entry.responsavelSangria;
+        }
+        state.cash.push(entry);
         form.reset();
+        document.getElementById("cashSangriaRow").style.display = "none";
         save();
       }
 
@@ -4494,6 +5599,12 @@
 
       if (form.id === "inventoryForm") {
         state.inventory = state.inventory || [];
+        // se custo/un não preenchido mas total sim, calcula custo/un
+        if (!num(data.custo) && num(data.custoTotal) && num(data.quantidade)) {
+          data.custo = (num(data.custoTotal) / num(data.quantidade)).toFixed(4);
+        }
+        delete data.custoTotal;
+        if (!data.quantidade) data.quantidade = num(data.minimo) || 0;
         const existing = inventoryMatchByName(data.item);
         if (existing) {
           existing.previousCost = existing.custo;
@@ -4501,15 +5612,18 @@
           existing.minimo = data.minimo || existing.minimo;
           existing.unidade = data.unidade || existing.unidade;
           existing.custo = data.custo || existing.custo;
-          existing.categoria = data.categoria || existing.categoria;
           existing.fornecedor = data.fornecedor || existing.fornecedor;
           existing.validade = data.validade || existing.validade;
         } else {
           state.inventory.push({ id: uid(), previousCost: data.custo, ...data });
         }
         const movementItem = existing || state.inventory[state.inventory.length - 1];
+        const entradaAt = new Date().toISOString();
         state.inventoryMovements = state.inventoryMovements || [];
-        state.inventoryMovements.push({ id: uid(), inventoryId: movementItem.id, item: movementItem.item, tipo: "entrada", quantidade: num(data.quantidade), unidade: movementItem.unidade, custo: num(movementItem.custo), motivo: "Entrada de estoque", createdAt: new Date().toISOString() });
+        state.inventoryMovements.push({ id: uid(), inventoryId: movementItem.id, item: movementItem.item, tipo: "entrada", quantidade: num(data.quantidade), unidade: movementItem.unidade, custo: num(data.custo || movementItem.custo), motivo: "Entrada de estoque", createdAt: entradaAt });
+        // Lote FIFO
+        state.inventoryBatches = state.inventoryBatches || [];
+        state.inventoryBatches.push({ id: uid(), inventoryId: movementItem.id, item: movementItem.item, quantidadeInicial: num(data.quantidade), quantidadeRestante: num(data.quantidade), custo: num(data.custo || movementItem.custo), unidade: movementItem.unidade, createdAt: entradaAt });
         form.reset();
         save();
       }
@@ -4519,6 +5633,7 @@
         if (item) {
           const quantity = Math.max(0, num(data.quantidade));
           item.quantidade = Math.max(0, num(item.quantidade) - quantity);
+          consumeFIFO(item.id, quantity);
           state.inventoryMovements = state.inventoryMovements || [];
           state.inventoryMovements.push({ id: uid(), inventoryId: item.id, item: item.item, tipo: "saida", quantidade: quantity, unidade: item.unidade, motivo: data.motivo || "Baixa manual", createdAt: new Date().toISOString() });
         }
@@ -4565,9 +5680,58 @@
         save();
       }
 
+      // ── Acesso principal da empresa ──
+      if (form.id === "mainAccessForm") {
+        const newLogin = (data.mainLogin || "").trim();
+        const newPass  = (data.mainPassword || "").trim();
+        if (!newLogin) return;
+        // Update company entry in master state
+        const companyId = currentSession?.company?.id;
+        if (companyId) {
+          const master = loadMasterState();
+          const co = (master.companies || []).find(x => x.id === companyId);
+          if (co) {
+            co.login = newLogin;
+            if (newPass) co.senha = newPass;
+            saveMasterState(master);
+            // Reflect in current session so badge updates
+            currentSession.company.login = co.login;
+            if (newPass) currentSession.company.senha = co.senha;
+            sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
+          }
+        }
+        // Mirror to company state for reference
+        state.settings.mainLogin = newLogin;
+        if (newPass) state.settings.mainPassword = newPass;
+        save();
+        showToast("✅ Acesso principal atualizado.", 2000);
+      }
+
+      // ── Edição de funcionário existente ──
+      if (form.classList.contains("staffInfoForm")) {
+        const staffId = form.dataset.staffId;
+        const person = (state.staff || []).find(x => x.id === staffId);
+        if (person) {
+          if ((data.nome || "").trim()) person.nome = data.nome.trim();
+          if ((data.login || "").trim()) person.login = data.login.trim();
+          if ((data.senha || "").trim()) person.senha = data.senha.trim();
+          if (data.perfil) person.perfil = data.perfil;
+          person.permissions = ["dashboard", ...formData.getAll("permissions")]
+            .filter((v, i, a) => a.indexOf(v) === i);
+          save();
+          showToast("✅ Funcionário atualizado.", 1800);
+        }
+      }
+
       if (form.id === "reportFilterForm" || form.id === "comparisonForm") {
         state.settings = { ...state.settings, ...data };
         save();
+      }
+
+      if (form.id === "metaDiaForm") {
+        state.settings.metaDia = num(data.metaDia) || 0;
+        save();
+        renderDashboard();
       }
 
       if (form.id === "tableForm") {
@@ -4592,7 +5756,7 @@
         const fileInput = form.querySelector('[name="fotoFile"]');
         const file = fileInput?.files?.[0];
         if (file) {
-          compressImage(file, 480, 360, 0.78).then(b64 => { newItem.foto = b64; save(); });
+          compressImage(file, 900, 675, 0.92).then(b64 => { newItem.foto = b64; save(); });
         } else {
           save();
         }
@@ -4652,7 +5816,9 @@
       }
 
       if (form.id === "commandForm") {
-        const localTaken = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === data.local.toLowerCase());
+        const multiLocal = ["balcão", "delivery"];
+        const allowMulti = multiLocal.includes(data.local.toLowerCase());
+        const localTaken = !allowMulti && state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === data.local.toLowerCase());
         if (!localTaken) {
           const clientName = data.cliente || "Avulso";
           state.commands.push({ id: uid(), local: data.local, cliente: clientName, pessoas: Math.max(1, num(data.pessoas || 1)), status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
@@ -4665,7 +5831,9 @@
 
       if (form.classList.contains("editCommandForm")) {
         const command = state.commands.find(c => c.id === form.dataset.command);
-        const localTaken = state.commands.find(c => c.id !== form.dataset.command && c.status === "aberta" && c.local.toLowerCase() === data.local.toLowerCase());
+        const multiLocal = ["balcão", "delivery"];
+        const allowMulti = multiLocal.includes(data.local.toLowerCase());
+        const localTaken = !allowMulti && state.commands.find(c => c.id !== form.dataset.command && c.status === "aberta" && c.local.toLowerCase() === data.local.toLowerCase());
         if (command && !localTaken) {
           command.local = data.local;
           command.cliente = data.cliente || "Avulso";
@@ -4787,10 +5955,16 @@
 
       if (event.target.id === "logoUploadInput" && event.target.files?.[0]) {
         compressImage(event.target.files[0], 600, 300, 0.9).then(b64 => {
-          state.settings.logoUrl = b64;
-          save();
-          renderMenuAdmin();
-          showToast("Logo salvo!", 2000);
+          if (!b64) return;
+          const tmpImg = new Image();
+          tmpImg.onload = () => {
+            state.settings.logoUrl = b64;
+            state.settings.logoDims = `${tmpImg.naturalWidth} × ${tmpImg.naturalHeight} px`;
+            save();
+            renderMenuAdmin();
+            showToast("Logo salvo!", 2000);
+          };
+          tmpImg.src = b64;
         });
       }
 
@@ -4803,7 +5977,7 @@
         const preview = row?.querySelector("[data-menu-photo-preview]");
         const pending = row?.querySelector("[data-photo-pending]");
         if (!row || !preview) return;
-        compressImage(file, 480, 360, 0.78).then(b64 => {
+        compressImage(file, 900, 675, 0.92).then(b64 => {
           if (!b64) {
             showToast("Não consegui ler essa foto. Tente outra imagem.", 3000);
             return;
@@ -4858,6 +6032,10 @@
             const master = loadMasterState();
             state = normalizeState({ ...structuredClone(defaultState), ...master });
           } else if (sess.type === "company") {
+            storeKey = "gestaoCompany." + sess.company.id + ".v1";
+            state = loadState();
+          } else if (sess.type === "gestor-proxy") {
+            // Gestor browsing a company's data — load that company's store
             storeKey = "gestaoCompany." + sess.company.id + ".v1";
             state = loadState();
           }
