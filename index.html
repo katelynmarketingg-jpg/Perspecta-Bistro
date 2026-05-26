@@ -1769,6 +1769,7 @@
       <div class="brand" id="sidebarBrand"></div>
       <nav class="nav" id="nav"></nav>
       <div class="sidebar-footer">
+        <div id="syncBadge" style="font-size:10px;color:var(--muted);margin-bottom:5px;text-align:center;letter-spacing:.3px"></div>
         <div id="sessionBadge" style="font-size:11px;color:#f6921e;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
         <div id="proxyBanner"></div>
         <button class="btn sidebar-logout" type="button" data-logout>⏏ Sair</button>
@@ -1891,7 +1892,13 @@
         theme: "preto-laranja",
         menuNote: "Pedido finalizado pelo WhatsApp da empresa.",
         logoUrl: null,
-        perspectaLogo: null
+        perspectaLogo: null,
+        nfceToken: "",
+        nfceCnpj: "",
+        nfceAmbiente: "2",
+        nfceSerie: "1",
+        nfceNcm: "21069090",
+        nfceCsosn: "400"
       },
       gestorCredentials: { login: "Perspecta", senha: "001" },
       companies: [],
@@ -2016,6 +2023,29 @@
       renderAll();
       const start = location.hash.replace("#", "");
       if (start && document.getElementById(start)?.classList.contains("section")) setSection(start);
+
+      // Sync no boot: puxa dados da nuvem se forem mais novos
+      loadFromServer().then(ss => {
+        if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
+          state = normalizeState({ ...structuredClone(defaultState), ...ss });
+          localStorage.setItem(storeKey, JSON.stringify(state));
+          renderAll();
+          showToast("☁️ Dados atualizados da nuvem", 2500);
+        }
+        showSyncStatus('ok');
+      }).catch(() => showSyncStatus('err'));
+
+      // Polling a cada 30s: atualiza se outro dispositivo salvou algo mais novo
+      setInterval(() => {
+        loadFromServer().then(ss => {
+          if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
+            state = normalizeState({ ...structuredClone(defaultState), ...ss });
+            localStorage.setItem(storeKey, JSON.stringify(state));
+            renderAll();
+            showToast("☁️ Sincronizado com outro dispositivo", 2500);
+          }
+        }).catch(() => {});
+      }, 30000);
     }
 
     function getSessionLabel() {
@@ -2155,23 +2185,39 @@
         .join("");
     }
 
-    const SERVER_SYNC = 'http://localhost:7342';
+    const FIREBASE_URL = 'https://perspecta-bistro-default-rtdb.firebaseio.com';
+
+    // Firebase keys cannot contain . $ # [ ] /
+    function fbPath(key) { return key.replace(/\./g, '_'); }
+
+    function showSyncStatus(status) {
+      const el = document.getElementById("syncBadge");
+      if (!el) return;
+      if (status === 'ok')      { el.textContent = "☁️ sincronizado"; el.style.color = "#1a7a45"; }
+      else if (status === 'err'){ el.textContent = "⚠️ sem conexão"; el.style.color = "#c0392b"; }
+      else if (status === 'ing'){ el.textContent = "☁️ sincronizando…"; el.style.color = "var(--muted)"; }
+      else                      { el.textContent = ""; }
+    }
 
     function syncToServer(s) {
       try {
-        fetch(SERVER_SYNC + '/state', {
-          method: 'POST',
+        showSyncStatus('ing');
+        const path = fbPath(storeKey);
+        fetch(`${FIREBASE_URL}/data/${path}.json`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(s)
-        }).catch(() => {});
-      } catch(e) {}
+        }).then(r => showSyncStatus(r.ok ? 'ok' : 'err')).catch(() => showSyncStatus('err'));
+      } catch(e) { showSyncStatus('err'); }
     }
 
     async function loadFromServer() {
       try {
-        const r = await fetch(SERVER_SYNC + '/state');
+        const path = fbPath(storeKey);
+        const r = await fetch(`${FIREBASE_URL}/data/${path}.json`);
         if (!r.ok) return null;
-        return await r.json();
+        const data = await r.json();
+        return data; // Firebase returns null if path is empty
       } catch(e) { return null; }
     }
 
@@ -3822,6 +3868,15 @@
             </details>
           </div>
           <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">Liberar mesa</button>
+          ${command.paidAt ? `
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn ghost" type="button" data-print-receipt="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🧾 Cupom</button>
+            ${state.settings.nfceToken
+              ? (command.nfce
+                  ? `<a href="${escapeHTML(command.nfce.linkPdf||'#')}" target="_blank" rel="noopener" class="btn ghost" style="flex:1;font-size:12px;padding:7px 6px;text-align:center;text-decoration:none">📄 NFC-e #${escapeHTML(String(command.nfce.numero))}</a>`
+                  : `<button class="btn ghost" type="button" data-emitir-nfce="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🗒️ Emitir NFC-e</button>`)
+              : ""}
+          </div>` : ""}
           <p class="mini" style="margin-top:6px">${command.paidAt ? `Pago: ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}` : "Registre o pagamento antes de liberar."}</p>
         </div>
       </article>`;
@@ -3888,6 +3943,109 @@
       printArea.classList.remove("hidden");
       window.print();
       printArea.classList.add("hidden");
+    }
+
+    function printCustomerReceipt(command) {
+      const printArea = document.getElementById("printArea");
+      if (!printArea) return;
+      const dateStr = new Date(command.paidAt || Date.now()).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      const total = command.paymentAmount || commandTotal(command);
+      const payMap = { dinheiro:"Dinheiro", pix:"PIX", debito:"Débito", credito:"Crédito", cartao:"Cartão", fiado:"Fiado" };
+      const payLabel = payMap[(command.paymentMethod||"").toLowerCase().replace(/[\s-]/g,"")] || command.paymentMethod || "—";
+      printArea.innerHTML = `<div class="print-ticket">
+        ${state.settings.logoUrl
+          ? `<img src="${state.settings.logoUrl}" style="max-width:80px;max-height:56px;margin:0 auto 6px;display:block;object-fit:contain">`
+          : `<div class="logo-dot"></div>`}
+        <h1>${escapeHTML(state.settings.restaurant || "Perspecta Bistro")}</h1>
+        ${state.settings.whatsapp ? `<p style="font-size:11px">${escapeHTML(state.settings.whatsapp)}</p>` : ""}
+        <hr>
+        <p><strong>${escapeHTML(command.local)}</strong> · ${escapeHTML(command.cliente || "Avulso")}</p>
+        <p style="font-size:11px">${escapeHTML(dateStr)}</p>
+        <hr>
+        ${(command.itens||[]).map(item => {
+          const addExtra = (item.adicionais||[]).reduce((s,a)=>s+num(a.preco),0);
+          const unit = num(item.preco) + addExtra;
+          const qty = Math.max(1, num(item.quantidade));
+          return `<div style="display:flex;justify-content:space-between;margin:2px 0">
+            <span>${qty}× ${escapeHTML(item.nome)}</span><span>${money(unit*qty)}</span></div>
+            ${(item.adicionais||[]).map(a=>`<div style="font-size:10px;color:#666;padding-left:10px">+ ${escapeHTML(a.nome)}</div>`).join("")}
+            ${item.observacao?`<div style="font-size:10px;color:#666;padding-left:10px">📝 ${escapeHTML(item.observacao)}</div>`:""}`;
+        }).join("")}
+        <hr>
+        <div style="display:flex;justify-content:space-between;font-weight:800"><span>TOTAL</span><span>${money(total)}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px"><span>Pagamento</span><span>${escapeHTML(payLabel)}</span></div>
+        ${command.nfce ? `<hr><p style="font-size:10px;text-align:center">NFC-e Nº ${escapeHTML(String(command.nfce.numero))} · ${escapeHTML(command.nfce.status)}</p>` : ""}
+        <hr>
+        <p style="text-align:center;font-size:12px">Obrigado pela preferência! ☺</p>
+        <p style="text-align:center;font-size:9px;color:#999">Este cupom não tem valor fiscal</p>
+      </div>`;
+      printArea.classList.remove("hidden");
+      window.print();
+      printArea.classList.add("hidden");
+    }
+
+    async function emitirNFCe(commandId) {
+      const command = state.commands.find(c => c.id === commandId);
+      if (!command) return;
+      const token = state.settings.nfceToken;
+      const cnpj  = (state.settings.nfceCnpj || "").replace(/\D/g, "");
+      if (!token || !cnpj) {
+        showToast("⚠️ Configure CNPJ e token NFC-e em Configurações.", 3500);
+        return;
+      }
+      if (command.nfce?.status === "autorizado") {
+        showToast("NFC-e já emitida para esta comanda.", 2500);
+        return;
+      }
+      showToast("⏳ Emitindo NFC-e...", 5000);
+      const total = num(command.paymentAmount || commandTotal(command));
+      const _formaMap = { dinheiro:1, pix:17, debito:4, credito:3, cartao:3, fiado:1 };
+      const _formaKey = (command.paymentMethod || "dinheiro").toLowerCase().replace(/[\s-]/g,"");
+      const payload = [{
+        idIntegracao: command.id,
+        cpfCnpjEmitente: cnpj,
+        ambiente: num(state.settings.nfceAmbiente || "2"),
+        serie: num(state.settings.nfceSerie || "1"),
+        infAdic: { infCpl: `Obrigado! ${escapeHTML(state.settings.restaurant||"")}` },
+        itens: (command.itens||[]).map((item, i) => ({
+          codigo: String(i+1).padStart(3,"0"),
+          descricao: item.nome,
+          ncm: state.settings.nfceNcm || "21069090",
+          cfop: "5102",
+          unidade: "UN",
+          quantidade: Math.max(1, num(item.quantidade)),
+          valorUnitario: num(item.preco),
+          valorTotal: num(item.preco) * Math.max(1, num(item.quantidade)),
+          origem: 0,
+          csosn: state.settings.nfceCsosn || "400"
+        })),
+        pagamentos: [{ forma: _formaMap[_formaKey] || 1, valor: total }]
+      }];
+      try {
+        const res = await fetch("https://api.plugnotas.com.br/nfce", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": token },
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        const r = Array.isArray(json) ? json[0] : json;
+        if (res.ok && r) {
+          command.nfce = {
+            status: r.status || "processando",
+            numero: r.numero || r.numeroNota || "—",
+            chave: r.chaveAcesso || "",
+            linkPdf: r.linkPdf || r.linkDanfe || "",
+            emitidaEm: new Date().toISOString()
+          };
+          save();
+          showToast(`✅ NFC-e emitida! Nº ${command.nfce.numero}`, 5000);
+        } else {
+          const msg = r?.message || r?.error || JSON.stringify(r).slice(0,80);
+          showToast("❌ " + msg, 5000);
+        }
+      } catch (e) {
+        showToast("❌ Falha ao conectar com Plugnotas. Verifique o token.", 4000);
+      }
     }
 
     function productRanking() {
@@ -4340,6 +4498,27 @@
       const currentLogo = state.settings.perspectaLogo;
       const co = currentSession?.company;
       const mainLogin = co?.login || state.settings.mainLogin || "";
+      // Check cloud status asynchronously after render
+      setTimeout(() => {
+        loadFromServer().then(ss => {
+          const dot = document.getElementById("cloudStatusDot");
+          const txt = document.getElementById("cloudStatusText");
+          if (!dot || !txt) return;
+          if (ss !== null) {
+            dot.style.background = "#1a7a45";
+            const d = ss?.savedAt ? new Date(ss.savedAt).toLocaleTimeString("pt-BR", {hour:"2-digit",minute:"2-digit"}) : "—";
+            txt.textContent = `Conectado — último sync às ${d}`;
+          } else {
+            dot.style.background = "#e67e22";
+            txt.textContent = "Nenhum dado na nuvem ainda — clique em Sincronizar";
+          }
+        }).catch(() => {
+          const dot = document.getElementById("cloudStatusDot");
+          const txt = document.getElementById("cloudStatusText");
+          if (dot) dot.style.background = "#c0392b";
+          if (txt) txt.textContent = "Sem conexão com a nuvem";
+        });
+      }, 100);
       document.getElementById("dados").innerHTML = `
         <div class="settings-stack">
 
@@ -4409,6 +4588,46 @@
           <div class="panel">
             <h2>📐 Ordem do menu lateral</h2>
             <div class="table-wrap">${menuOrderTable()}</div>
+          </div>
+
+          <!-- ── 🗒️ NFC-e ── -->
+          <div class="panel">
+            <h2>🗒️ NFC-e — Nota Fiscal do Consumidor</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:14px">Integração com <strong>Plugnotas</strong>. Necessário CNPJ ativo, certificado digital e conta no Plugnotas.</p>
+            <form id="nfceSettingsForm">
+              <div class="form-grid form-grid-2col">
+                <label>CNPJ da empresa<input name="nfceCnpj" value="${escapeHTML(state.settings.nfceCnpj||"")}" placeholder="00.000.000/0001-00"></label>
+                <label>Token Plugnotas (API Key)<input name="nfceToken" type="password" value="${escapeHTML(state.settings.nfceToken||"")}" placeholder="Cole seu token aqui" autocomplete="new-password"></label>
+                <label>Ambiente
+                  <select name="nfceAmbiente">
+                    <option value="2" ${(state.settings.nfceAmbiente||"2")==="2"?"selected":""}>Homologação (testes)</option>
+                    <option value="1" ${state.settings.nfceAmbiente==="1"?"selected":""}>Produção</option>
+                  </select>
+                </label>
+                <label>Série<input name="nfceSerie" value="${escapeHTML(state.settings.nfceSerie||"1")}" placeholder="1"></label>
+                <label>NCM padrão (restaurantes: 21069090)<input name="nfceNcm" value="${escapeHTML(state.settings.nfceNcm||"21069090")}" placeholder="21069090"></label>
+                <label>CSOSN (Simples Nacional: 400)<input name="nfceCsosn" value="${escapeHTML(state.settings.nfceCsosn||"400")}" placeholder="400"></label>
+              </div>
+              <div class="actions" style="margin-top:12px"><button class="btn" type="submit">Salvar NFC-e</button></div>
+            </form>
+            <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--panel-2);font-size:12px">
+              ${state.settings.nfceToken
+                ? `<span style="color:#1a7a45;font-weight:700">✅ NFC-e ativa · ${state.settings.nfceAmbiente==="1"?"⚠️ PRODUÇÃO":"Homologação (testes)"}</span>`
+                : `<span style="color:var(--muted)">⚠️ Sem token — botão NFC-e não aparece nas comandas.</span>`}
+            </div>
+          </div>
+
+          <!-- ── ☁️ Nuvem ── -->
+          <div class="panel">
+            <h2>☁️ Sincronização na nuvem</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:14px">Todos os dados são salvos automaticamente no Firebase. Qualquer dispositivo logado nesta conta recebe as atualizações em até 30 segundos.</p>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;background:var(--panel-2);font-size:12px">
+              <span id="cloudStatusDot" style="width:10px;height:10px;border-radius:50%;background:#1a7a45;flex-shrink:0"></span>
+              <span id="cloudStatusText" style="font-weight:600">Verificando conexão…</span>
+            </div>
+            <div class="actions" style="margin-top:12px">
+              <button class="btn secondary" id="forceSyncBtn">☁️ Sincronizar agora</button>
+            </div>
           </div>
 
           <!-- ── 💾 Dados ── -->
@@ -5065,6 +5284,17 @@
           card.querySelector(`[data-staff-view]`).classList.toggle("hidden");
         }
       }
+      // ── Imprimir cupom do cliente ──
+      const printReceipt = event.target.closest("[data-print-receipt]")?.dataset.printReceipt;
+      if (printReceipt) {
+        const cmd = state.commands.find(c => c.id === printReceipt) || state.sales.find(s => s.id === printReceipt);
+        if (cmd) printCustomerReceipt(cmd);
+      }
+
+      // ── Emitir NFC-e ──
+      const emitirNfce = event.target.closest("[data-emitir-nfce]")?.dataset.emitirNfce;
+      if (emitirNfce) emitirNFCe(emitirNfce);
+
       const cancelStaffEdit = event.target.closest("[data-cancel-staff-edit]")?.dataset.cancelStaffEdit;
       if (cancelStaffEdit) {
         const card = document.querySelector(`[data-staff-card="${cancelStaffEdit}"]`);
@@ -5346,6 +5576,35 @@
       const photoMenuInput = event.target.closest("[data-photo-menu]");
       if (photoMenuInput && photoMenuInput.tagName === "LABEL") {
         // click on label triggers the hidden file input — handled via change event
+        return;
+      }
+
+      if (event.target.id === "forceSyncBtn") {
+        showSyncStatus('ing');
+        // Push local → cloud
+        syncToServer(state);
+        // Also pull to check if another device saved something newer
+        loadFromServer().then(ss => {
+          if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
+            state = normalizeState({ ...structuredClone(defaultState), ...ss });
+            localStorage.setItem(storeKey, JSON.stringify(state));
+            renderAll();
+            showToast("☁️ Dados atualizados da nuvem", 2500);
+          } else {
+            showToast("☁️ Tudo em dia!", 2000);
+          }
+          // update cloud panel status
+          const dot = document.getElementById("cloudStatusDot");
+          const txt = document.getElementById("cloudStatusText");
+          if (dot) dot.style.background = "#1a7a45";
+          if (txt) txt.textContent = "Conectado — último sync agora";
+        }).catch(() => {
+          const dot = document.getElementById("cloudStatusDot");
+          const txt = document.getElementById("cloudStatusText");
+          if (dot) dot.style.background = "#c0392b";
+          if (txt) txt.textContent = "Sem conexão com a nuvem";
+          showSyncStatus('err');
+        });
         return;
       }
 
@@ -5721,6 +5980,19 @@
           save();
           showToast("✅ Funcionário atualizado.", 1800);
         }
+      }
+
+      if (form.id === "nfceSettingsForm") {
+        state.settings = { ...state.settings,
+          nfceCnpj: data.nfceCnpj || "",
+          nfceToken: data.nfceToken || "",
+          nfceAmbiente: data.nfceAmbiente || "2",
+          nfceSerie: data.nfceSerie || "1",
+          nfceNcm: data.nfceNcm || "21069090",
+          nfceCsosn: data.nfceCsosn || "400"
+        };
+        save();
+        showToast("✅ Configurações NFC-e salvas.", 2000);
       }
 
       if (form.id === "reportFilterForm" || form.id === "comparisonForm") {
