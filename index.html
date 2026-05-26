@@ -1756,8 +1756,8 @@
       </svg>
       <div class="login-wordmark"><strong>Perspecta</strong><span>Bistro</span></div>
       <form id="loginForm" autocomplete="off" style="width:100%">
-        <label>Login<input type="text" id="loginUser" placeholder="Digite seu login" autocomplete="username"></label>
-        <label>Senha<input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password"></label>
+        <label>Login<input type="text" id="loginUser" placeholder="Digite seu login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label>Senha<input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password" autocapitalize="off" autocorrect="off"></label>
         <div id="loginError" class="login-error hidden">Login ou senha incorretos</div>
         <button type="submit">Entrar</button>
       </form>
@@ -1966,7 +1966,7 @@
     function doLogin(login, senha) {
       const master = loadMasterState();
       const gc = master.gestorCredentials || { login: "Perspecta", senha: "001" };
-      if (login === gc.login && senha === gc.senha) {
+      if (login.toLowerCase() === gc.login.toLowerCase() && senha === gc.senha) {
         currentSession = { type: "gestor" };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
         storeKey = MASTER_KEY;
@@ -1976,7 +1976,7 @@
         return;
       }
       const companies = master.companies || [];
-      const company = companies.find(c => c.login === login && c.senha === senha && c.status !== "inativo");
+      const company = companies.find(c => c.login.toLowerCase() === login.toLowerCase() && c.senha === senha && c.status !== "inativo");
       if (company) {
         currentSession = { type: "company", company };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
