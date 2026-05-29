@@ -2418,7 +2418,7 @@
     }
 
     function commandTotal(command) {
-      return command.itens.reduce((sum, item) => sum + commandItemTotal(item), 0);
+      return (command.itens || []).reduce((sum, item) => sum + commandItemTotal(item), 0);
     }
 
     function commandItemAddons(item) {
