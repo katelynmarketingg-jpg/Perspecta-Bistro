@@ -2066,6 +2066,9 @@
       const start = location.hash.replace("#", "");
       if (start && document.getElementById(start)?.classList.contains("section")) setSection(start);
 
+      // Reenvio de dados que ficaram pendentes (sem conexão no último save)
+      flushPending();
+
       // Sync no boot: puxa dados da nuvem se forem mais novos
       loadFromServer().then(ss => {
         if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
@@ -2245,6 +2248,12 @@
       else                      { el.textContent = ""; }
     }
 
+    const PENDING_KEY = () => 'perspectaPending_' + fbPath(storeKey);
+
+    function markPending() { try { localStorage.setItem(PENDING_KEY(), '1'); } catch(e) {} }
+    function clearPending() { try { localStorage.removeItem(PENDING_KEY()); } catch(e) {} }
+    function hasPending() { return localStorage.getItem(PENDING_KEY()) === '1'; }
+
     function syncToServer(s) {
       try {
         showSyncStatus('ing');
@@ -2253,8 +2262,25 @@
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(s)
-        }).then(r => showSyncStatus(r.ok ? 'ok' : 'err')).catch(() => showSyncStatus('err'));
-      } catch(e) { showSyncStatus('err'); }
+        }).then(r => {
+          if (r.ok) { clearPending(); showSyncStatus('ok'); }
+          else { markPending(); showSyncStatus('err'); }
+        }).catch(() => { markPending(); showSyncStatus('err'); });
+      } catch(e) { markPending(); showSyncStatus('err'); }
+    }
+
+    // Reenvio automático se ficou pendente da última vez
+    async function flushPending() {
+      if (!hasPending()) return;
+      try {
+        const path = fbPath(storeKey);
+        const r = await fetch(`${FIREBASE_URL}/data/${path}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(state)
+        });
+        if (r.ok) { clearPending(); showSyncStatus('ok'); showToast("☁️ Dados pendentes enviados para a nuvem", 2500); }
+      } catch(e) {}
     }
 
     async function loadFromServer() {
