@@ -1598,7 +1598,7 @@
     }
     .sidebar-backdrop.open { display: block; }
 
-    @media (max-width: 1050px) {
+    @media (max-width: 860px) {
       .app-shell { grid-template-columns: 1fr; }
       .hamburger-btn { display: flex; align-items: center; justify-content: center; }
       .topbar-logo-right { display: flex; }
@@ -1759,6 +1759,7 @@
         <label>Login<input type="text" id="loginUser" placeholder="Digite seu login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
         <label>Senha<input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password" autocapitalize="off" autocorrect="off"></label>
         <div id="loginError" class="login-error hidden">Login ou senha incorretos</div>
+        <div id="loginNetworkError" class="login-error hidden" style="background:#e67e22">Sem conexão com a internet. Verifique o Wi-Fi e tente novamente.</div>
         <button type="submit" id="loginBtn">Entrar</button>
       </form>
     </div>
@@ -1976,6 +1977,7 @@
       const errEl = document.getElementById("loginError");
       if (btn) { btn.textContent = "Verificando…"; btn.disabled = true; }
       if (errEl) errEl.classList.add("hidden");
+      document.getElementById("loginNetworkError")?.classList.add("hidden");
 
       // Load master state from localStorage first
       let master = loadMasterState();
@@ -1991,7 +1993,12 @@
               saveMasterState(master); // cache locally for next time
             }
           }
-        } catch(e) {}
+        } catch(e) {
+          // Network error — show friendly message, do not show "wrong password"
+          if (btn) { btn.textContent = "Entrar"; btn.disabled = false; }
+          document.getElementById("loginNetworkError")?.classList.remove("hidden");
+          return;
+        }
       }
 
       if (btn) { btn.textContent = "Entrar"; btn.disabled = false; }
@@ -2125,6 +2132,10 @@
         produto: "",
         ...goal
       }));
+      data.commands  = Array.isArray(data.commands)  ? data.commands  : [];
+      data.sales     = Array.isArray(data.sales)     ? data.sales     : [];
+      data.expenses  = Array.isArray(data.expenses)  ? data.expenses  : [];
+      data.clients   = Array.isArray(data.clients)   ? data.clients   : [];
       data.commandViewMode = data.commandViewMode || "geral";
       data.costs = (data.costs || []).map(row => {
         if (Array.isArray(row.ingredientes)) {
