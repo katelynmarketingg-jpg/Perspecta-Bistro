@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Perspecta Bistro</title>
+  <link rel="icon" id="faviconLink" href="icone-192.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Questrial&display=swap" rel="stylesheet">
   <style>
@@ -1894,6 +1895,7 @@
         menuNote: "Pedido finalizado pelo WhatsApp da empresa.",
         logoUrl: null,
         perspectaLogo: null,
+        favicon: null,
         nfceToken: "",
         nfceCnpj: "",
         nfceAmbiente: "2",
@@ -2090,7 +2092,7 @@
             showToast("☁️ Sincronizado com outro dispositivo", 2500);
           }
         }).catch(() => {});
-      }, 30000);
+      }, 8000);
     }
 
     function getSessionLabel() {
@@ -4646,7 +4648,9 @@
           <!-- ── ⚙️ Preferências ── -->
           <div class="panel">
             <h2>⚙️ Preferências visuais</h2>
-            <div style="display:flex;align-items:center;gap:16px;margin:14px 0">
+
+            <p class="mini" style="color:var(--muted);margin-bottom:10px;font-weight:600">LOGO DA SIDEBAR</p>
+            <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
               ${currentLogo
                 ? `<img src="${currentLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:10px;background:#f0ede8;padding:6px;" alt="Logo">`
                 : `<div style="width:56px;height:56px;border-radius:10px;background:#f0ede8;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
@@ -4657,6 +4661,21 @@
                 </label>
                 ${currentLogo ? `<button class="btn ghost" id="removePerspectaLogo" style="margin:0">Remover logo</button>` : ""}
               </div>
+            </div>
+
+            <p class="mini" style="color:var(--muted);margin-bottom:10px;font-weight:600">FAVICON (ícone da aba do navegador)</p>
+            <div style="display:flex;align-items:center;gap:16px">
+              ${state.settings.favicon
+                ? `<img src="${state.settings.favicon}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#f0ede8;padding:4px;" alt="Favicon">`
+                : `<div style="width:32px;height:32px;border-radius:6px;background:#f0ede8;display:grid;place-items:center;font-size:9px;color:#999;text-align:center">Aba</div>`}
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <label class="btn secondary" style="cursor:pointer;margin:0;font-size:12px">
+                  📁 ${state.settings.favicon ? "Trocar favicon" : "Enviar favicon"}
+                  <input type="file" id="faviconInput" accept="image/*" style="display:none">
+                </label>
+                ${state.settings.favicon ? `<button class="btn ghost" id="removeFavicon" style="margin:0;font-size:12px">Remover</button>` : ""}
+              </div>
+              <span class="mini" style="color:var(--muted)">PNG ou ICO · idealmente 32×32px</span>
             </div>
           </div>
 
@@ -5058,6 +5077,9 @@
     function renderBrand() {
       const el = document.getElementById("sidebarBrand");
       if (!el) return;
+      // Apply favicon
+      const faviconEl = document.getElementById("faviconLink");
+      if (faviconEl && state.settings.favicon) faviconEl.href = state.settings.favicon;
       const logo = state.settings.perspectaLogo;
       el.innerHTML = logo
         ? `<img src="${logo}" class="brand-mark" style="object-fit:contain;background:transparent;" alt="Logo">
@@ -6297,8 +6319,28 @@
           save();
           renderBrand();
           renderDataTools();
-          showToast("Logo da plataforma atualizado! ✅", 2500);
+          showToast("Logo da sidebar atualizado! ✅", 2500);
         });
+      }
+
+      if (event.target.id === "faviconInput" && event.target.files?.[0]) {
+        compressImage(event.target.files[0], 64, 64, 1.0).then(b64 => {
+          state.settings.favicon = b64;
+          const faviconEl = document.getElementById("faviconLink");
+          if (faviconEl) faviconEl.href = b64;
+          save();
+          renderDataTools();
+          showToast("Favicon atualizado! ✅", 2500);
+        });
+      }
+
+      if (event.target.id === "removeFavicon") {
+        state.settings.favicon = null;
+        const faviconEl = document.getElementById("faviconLink");
+        if (faviconEl) faviconEl.href = "icone-192.png";
+        save();
+        renderDataTools();
+        showToast("Favicon removido.", 2000);
       }
 
       if (event.target.id === "logoUploadInput" && event.target.files?.[0]) {
