@@ -2137,7 +2137,7 @@
         produto: "",
         ...goal
       }));
-      data.commands  = Array.isArray(data.commands)  ? data.commands  : [];
+      data.commands  = Array.isArray(data.commands)  ? data.commands.map(c => ({ ...c, itens: Array.isArray(c.itens) ? c.itens : [], pagamentos: Array.isArray(c.pagamentos) ? c.pagamentos : [] })) : [];
       data.sales     = Array.isArray(data.sales)     ? data.sales     : [];
       data.expenses  = Array.isArray(data.expenses)  ? data.expenses  : [];
       data.clients   = Array.isArray(data.clients)   ? data.clients   : [];
