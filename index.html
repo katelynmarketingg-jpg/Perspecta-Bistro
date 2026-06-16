@@ -2042,6 +2042,7 @@
 
     function startApp() {
       if (location.hash.startsWith("#cardapio-publico")) {
+        hideLogin();
         document.getElementById("internalApp").classList.add("hidden");
         document.getElementById("publicMenu").classList.remove("hidden");
         renderPublicMenu();
@@ -2052,6 +2053,19 @@
             renderPublicMenu();
           }
         }).catch(() => {});
+        // Atualiza instantaneamente quando admin salva no mesmo navegador (cross-tab via localStorage)
+        window.addEventListener('storage', (ev) => {
+          if (ev.key === storeKey && ev.newValue) {
+            try {
+              const fresh = normalizeState({ ...structuredClone(defaultState), ...JSON.parse(ev.newValue) });
+              if ((fresh.savedAt || 0) > (state.savedAt || 0)) {
+                state = fresh;
+                renderPublicMenu();
+              }
+            } catch(e) {}
+          }
+        });
+        // Polling Firebase a cada 8s para sincronização entre dispositivos diferentes
         setInterval(() => {
           loadFromServer().then(ss => {
             if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
@@ -2060,7 +2074,7 @@
               renderPublicMenu();
             }
           }).catch(() => {});
-        }, 15000);
+        }, 8000);
         return;
       }
       document.getElementById("internalApp").classList.remove("hidden");
@@ -2070,6 +2084,8 @@
 
       // Reenvio de dados que ficaram pendentes (sem conexão no último save)
       flushPending();
+      // Verifica pedidos do cardápio público que chegaram enquanto o sistema estava fechado
+      checkPendingOrders();
 
       // Sync no boot: puxa dados da nuvem se forem mais novos
       loadFromServer().then(ss => {
@@ -2082,7 +2098,7 @@
         showSyncStatus('ok');
       }).catch(() => showSyncStatus('err'));
 
-      // Polling a cada 30s: atualiza se outro dispositivo salvou algo mais novo
+      // Polling a cada 8s: atualiza se outro dispositivo salvou algo mais novo + verifica pedidos do cardápio público
       setInterval(() => {
         loadFromServer().then(ss => {
           if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
@@ -2092,6 +2108,7 @@
             showToast("☁️ Sincronizado com outro dispositivo", 2500);
           }
         }).catch(() => {});
+        checkPendingOrders();
       }, 8000);
     }
 
@@ -2137,7 +2154,11 @@
         produto: "",
         ...goal
       }));
-      data.commands  = Array.isArray(data.commands)  ? data.commands.map(c => ({ ...c, itens: Array.isArray(c.itens) ? c.itens : [], pagamentos: Array.isArray(c.pagamentos) ? c.pagamentos : [] })) : [];
+      data.commands  = Array.isArray(data.commands)
+        ? data.commands
+            .filter(c => c.status !== "fechada") // fechadas já estão em sales, não precisam ficar aqui
+            .map(c => ({ ...c, itens: Array.isArray(c.itens) ? c.itens : [], pagamentos: Array.isArray(c.pagamentos) ? c.pagamentos : [] }))
+        : [];
       data.sales     = Array.isArray(data.sales)     ? data.sales     : [];
       data.expenses  = Array.isArray(data.expenses)  ? data.expenses  : [];
       data.clients   = Array.isArray(data.clients)   ? data.clients   : [];
@@ -2260,14 +2281,18 @@
       try {
         showSyncStatus('ing');
         const path = fbPath(storeKey);
+        const ctrl = new AbortController();
+        const tmo = setTimeout(() => { ctrl.abort(); markPending(); showSyncStatus('err'); }, 20000);
         fetch(`${FIREBASE_URL}/data/${path}.json`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(s)
+          body: JSON.stringify(s),
+          signal: ctrl.signal
         }).then(r => {
+          clearTimeout(tmo);
           if (r.ok) { clearPending(); showSyncStatus('ok'); }
           else { markPending(); showSyncStatus('err'); }
-        }).catch(() => { markPending(); showSyncStatus('err'); });
+        }).catch(() => { clearTimeout(tmo); markPending(); showSyncStatus('err'); });
       } catch(e) { markPending(); showSyncStatus('err'); }
     }
 
@@ -2282,6 +2307,49 @@
           body: JSON.stringify(state)
         });
         if (r.ok) { clearPending(); showSyncStatus('ok'); showToast("☁️ Dados pendentes enviados para a nuvem", 2500); }
+      } catch(e) {}
+    }
+
+    // Verifica pedidos pendentes feitos pelo cardápio público e cria comandas automaticamente
+    async function checkPendingOrders() {
+      if (!storeKey) return;
+      try {
+        const path = fbPath(storeKey);
+        const r = await fetch(`${FIREBASE_URL}/orders/${path}.json`);
+        if (!r.ok) return;
+        const orders = await r.json();
+        if (!orders || typeof orders !== 'object') return;
+        let newCmds = 0;
+        for (const [orderId, order] of Object.entries(orders)) {
+          // Ignora se já foi processado (comanda aberta ou fechada com esse sourceOrderId)
+          if ((state.commands || []).find(c => c.sourceOrderId === orderId)) continue;
+          if ((state.sales || []).find(s => s.sourceOrderId === orderId)) continue;
+          state.commands = state.commands || [];
+          state.commands.push({
+            id: uid(),
+            sourceOrderId: orderId,
+            local: order.local || "Cardápio online",
+            cliente: order.nome || "WhatsApp",
+            pessoas: 1,
+            status: "aberta",
+            itens: Array.isArray(order.itens) ? order.itens : [],
+            pagamentos: [],
+            createdAt: order.createdAt || new Date().toISOString(),
+            source: "whatsapp",
+            referencia: order.referencia || "",
+            tipoEntrega: order.tipo || "retirada",
+            tipoLabel: order.tipoLabel || "",
+            telefone: order.telefone || ""
+          });
+          ensureClientFromCommand(order.nome || "WhatsApp");
+          newCmds++;
+          // Remove o pedido do Firebase após processar
+          fetch(`${FIREBASE_URL}/orders/${path}/${orderId}.json`, { method: 'DELETE' }).catch(() => {});
+        }
+        if (newCmds > 0) {
+          save();
+          showToast(`📲 ${newCmds} novo${newCmds > 1 ? 's' : ''} pedido${newCmds > 1 ? 's' : ''} chegou!`, 4000);
+        }
       } catch(e) {}
     }
 
@@ -3885,7 +3953,7 @@
       const activeItems = state.menu.filter(m => m.ativo);
       const activeAddons = (state.addons || []).filter(addon => addon.ativo);
       const locations = commandLocations();
-      const waBadge = command.source === "whatsapp" ? `<span class="badge-wa">📲 WhatsApp</span>` : "";
+      const waBadge = command.source === "whatsapp" ? `<span class="badge-wa">📲 Online</span>` : "";
       const clienteName = escapeHTML(command.cliente || "Avulso");
       const pessoas = Math.max(1, num(command.pessoas || 1));
       const _cs = commandStatus(command);
@@ -3894,11 +3962,12 @@
       const _ci=_ord.indexOf(_cur);
       const _stps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
       const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#d8d8d8;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
+      const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
           <div class="command-head-info">
             <h3>👤 ${clienteName}${waBadge}</h3>
-            <div class="command-client-name">${escapeHTML(command.local)}</div>
+            <div class="command-client-name">${localLabel}</div>
             <p class="mini">${pessoas} cliente(s) · ${commandStatusText(command)}</p>
           </div>
           <strong>${money(commandTotal(command))}</strong>
@@ -4909,10 +4978,14 @@
             </div>
             <form id="pmCheckoutForm">
               <label>Seu nome *<input name="nome" required placeholder="João Silva" autocomplete="name"></label>
+              <label>WhatsApp <span style="font-weight:400;font-size:12px">(para receber notificações)</span>
+                <input name="telefone" type="tel" placeholder="11999999999" autocomplete="tel" inputmode="numeric">
+              </label>
               <label>Como deseja receber?
                 <select name="tipo" id="pmTipoSelect">
                   <option value="retirada">Retirada no local</option>
-                  <option value="tele">Tele-entrega</option>
+                  <option value="tele">Delivery</option>
+                  <option value="mesa">Comer no local</option>
                 </select>
               </label>
               <div id="pmReferenceWrap" class="hidden">
@@ -5456,10 +5529,14 @@
             if (stepI > curI) {
               if (step === "cozinha") {
                 if (!(command.itens||[]).length) { showToast("Adicione itens antes de mandar para a cozinha.", 2500); }
-                else { command.kitchenSentAt = _now; save(); printKitchenCommand(command); }
+                else {
+                  command.kitchenSentAt = _now; save(); printKitchenCommand(command);
+                  if (command.telefone) { window.open(whatsappLink(command.telefone, `Olá *${command.cliente}*! 👨‍🍳\nSeu pedido foi enviado para a cozinha.\nEm breve estará pronto! 🍽️`), "_blank"); }
+                }
               } else if (step === "entregue") {
                 if (!command.kitchenSentAt) command.kitchenSentAt = _now;
                 command.deliveredAt = _now; save(); renderCommands();
+                if (command.telefone) { window.open(whatsappLink(command.telefone, `Olá *${command.cliente}*! ✅\nSeu pedido está pronto! 🎉\n_${command.tipoEntrega === "tele" ? "O entregador está a caminho!" : command.tipoEntrega === "mesa" ? "Seu pedido está na mesa!" : "Pode retirar no balcão!"}_`), "_blank"); }
               } else if (step === "pago") {
                 if (!command.kitchenSentAt) command.kitchenSentAt = _now;
                 if (!command.deliveredAt) command.deliveredAt = _now;
@@ -5488,6 +5565,11 @@
             command.kitchenSentAt = new Date().toISOString();
             save();
             printKitchenCommand(command);
+            // Notifica cliente pelo WhatsApp se tiver telefone
+            if (command.telefone) {
+              const msgCoz = `Olá *${command.cliente}*! 👨‍🍳\nSeu pedido foi enviado para a cozinha.\nEm breve estará pronto! 🍽️`;
+              window.open(whatsappLink(command.telefone, msgCoz), "_blank");
+            }
           }
         }
       }
@@ -5499,6 +5581,11 @@
           command.deliveredAt = new Date().toISOString();
           save();
           renderCommands();
+          // Notifica cliente pelo WhatsApp se tiver telefone
+          if (command.telefone) {
+            const msgPronto = `Olá *${command.cliente}*! ✅\nSeu pedido está pronto! 🎉\n_${command.tipoEntrega === "tele" ? "O entregador está a caminho!" : command.tipoEntrega === "mesa" ? "Seu pedido está na mesa!" : "Pode retirar no balcão!"}_`;
+            window.open(whatsappLink(command.telefone, msgPronto), "_blank");
+          }
         }
       }
 
@@ -5513,6 +5600,8 @@
             command.closedAt = new Date().toISOString();
             command.total = commandTotal(command);
             state.sales.push({ id: uid(), createdAt: command.closedAt, local: command.local, cliente: command.cliente || "Avulso", pessoas: Math.max(1, num(command.pessoas || 1)), total: command.total, itens: command.itens, kitchenSentAt: command.kitchenSentAt || "", deliveredAt: command.deliveredAt || "", paidAt: command.paidAt || "", paymentMethod: command.paymentMethod });
+            // remove comanda fechada de state.commands — dados já estão em state.sales
+            state.commands = state.commands.filter(c => c.id !== closeCommand);
           }
         }
         save();
@@ -6133,46 +6222,38 @@
         const nome = escapeHTML(data.nome || "").trim();
         const tipo = data.tipo || "retirada";
         const referencia = escapeHTML(data.referencia || "").trim();
+        const telefone = (data.telefone || "").replace(/\D/g, "");
         if (!nome) return;
-        const baseUrl = location.href.split("#")[0].split("?")[0];
-        const local = tipo === "tele" ? "Delivery" : "Pedido por link";
         const itemsForComanda = publicCart.map(item => ({
           id: item.id, nome: item.nome, preco: item.preco,
           quantidade: item.quantidade,
           adicionais: item.adicionais || [],
           observacao: item.observacao || ""
         }));
-        const payload = { nome, tipo, referencia, itens: itemsForComanda, total: pmCartTotal(), ts: Date.now() };
-        const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-        const deepLink = `${baseUrl}?pedido=${encoded}`;
+        const orderId = uid();
+        const tipoLabel = tipo === "tele" ? `Delivery${referencia ? ` — ${referencia}` : ""}` : tipo === "mesa" ? `${referencia ? referencia : "Comer no local"}` : "Retirada no local";
+        const payload = { id: orderId, nome, tipo, referencia, telefone, itens: itemsForComanda, total: pmCartTotal(), ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel };
         const lines = publicCart.map(item => {
           const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
           const addNames = (item.adicionais || []).filter(a => a.nome).map(a => `  + ${a.nome}`).join("\n");
           const obs = item.observacao ? `  📝 ${item.observacao}` : "";
           return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${obs ? "\n" + obs : ""}`;
         }).join("\n");
-        const tipoLabel = tipo === "tele" ? `Tele-entrega${referencia ? ` — ${referencia}` : ""}` : "Retirada no local";
-        state.commands = state.commands || [];
-        state.commands.push({
-          id: uid(),
-          local,
-          cliente: nome,
-          pessoas: 1,
-          status: "aberta",
-          itens: itemsForComanda,
-          pagamentos: [],
-          createdAt: new Date().toISOString(),
-          source: "cardapio-publico",
-          referencia
-        });
-        ensureClientFromCommand(nome);
-        localStorage.setItem(storeKey, JSON.stringify(state));
-        const msg = `*🍽️ Novo Pedido — ${escapeHTML(state.settings.restaurant)}*\nCliente: ${nome}\nTipo: ${tipoLabel}\n\n📦 *Itens:*\n${lines}\n\n💰 *Total: ${money(pmCartTotal())}*\n\n👉 Criar comanda: ${deepLink}`;
+        // Grava no Firebase — sistema do restaurante detecta em até 8s e cria a comanda automaticamente
+        try {
+          fetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(() => {});
+        } catch(e) {}
+        // Mensagem WhatsApp de notificação (comanda já criada automaticamente no sistema)
+        const msg = `*🍽️ Novo Pedido — ${escapeHTML(state.settings.restaurant)}*\nCliente: ${nome}\nTipo: ${tipoLabel}\n\n📦 *Itens:*\n${lines}\n\n💰 *Total: ${money(pmCartTotal())}*\n\n✅ Pedido registrado no sistema!`;
         window.open(whatsappLink(state.settings.whatsapp, msg), "_blank");
         document.getElementById("pmCheckoutOverlay")?.classList.add("hidden");
         publicCart = [];
         updatePmFab();
-        showToast("Pedido enviado e criado em Comandas! ✅", 3500);
+        showToast("Pedido enviado! ✅ Em breve o restaurante confirma.", 3500);
       }
 
       if (form.id === "addonForm") {
@@ -6300,6 +6381,11 @@
         if (tipo === "retirada") {
           wrap.classList.add("hidden");
           input.required = false;
+        } else if (tipo === "mesa") {
+          wrap.classList.remove("hidden");
+          label.childNodes[0].textContent = "Número da mesa";
+          input.placeholder = "Ex: Mesa 3";
+          input.required = false;
         } else {
           wrap.classList.remove("hidden");
           label.childNodes[0].textContent = "Endereço de entrega";
@@ -6383,6 +6469,7 @@
 
     window.addEventListener("hashchange", () => {
       if (location.hash.startsWith("#cardapio-publico")) {
+        hideLogin();
         document.getElementById("internalApp").classList.add("hidden");
         document.getElementById("publicMenu").classList.remove("hidden");
         renderPublicMenu();
