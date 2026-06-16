@@ -2427,13 +2427,17 @@
 
     function ingredientChange(row) {
       const inv = inventoryById(row.inventoryId);
-      const fifo = inv ? fifoCostForItem(inv.id) : null;
-      const current = fifo !== null
-        ? fifo * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un")
+      const fifoRaw = inv ? fifoCostForItem(inv.id) : null;
+      // fifoCostForItem retorna custo por unidade de estoque (ex: R$/kg)
+      // precisa normalizar para por unidade base (R$/g) antes de multiplicar por convertToBase
+      const stockBase = inv ? (convertToBase(1, inv.unidade || "un") || 1) : 1;
+      const fifoPerBase = fifoRaw !== null ? fifoRaw / stockBase : null;
+      const current = fifoPerBase !== null
+        ? fifoPerBase * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un")
         : ingredientCost(row);
       const original = ingredientOriginalCost(row);
       const delta = current - original;
-      return { current, original, delta, changed: Math.abs(delta) >= 0.01, isFifo: fifo !== null };
+      return { current, original, delta, changed: Math.abs(delta) >= 0.01, isFifo: fifoRaw !== null };
     }
 
     function costCalc(row) {
@@ -2630,11 +2634,8 @@
           const recipe = (state.costs || []).find(r => r.produto && r.produto.toLowerCase() === String(item.nome||"").toLowerCase());
           if (!recipe) { _semFH++; return; }
           _comFH++;
-          const ci = (recipe.ingredientes||[]).reduce((s,ing) => {
-            const inv = inventoryById(ing.inventoryId);
-            return s + num(ing.quantidade) * (num(ing.custo)||num(inv&&inv.custo)||0);
-          }, 0);
-          _custoHoje += ci * qty;
+          const ci = costCalc(recipe);
+          _custoHoje += ci.costPerUnit * qty;
         });
       });
       const lucroHoje  = totalHoje - _custoHoje;
@@ -4288,7 +4289,7 @@
             const inv = inventoryById(ing.inventoryId);
             const nome = inv?.item || ing.inventoryId || "Insumo";
             const unidade = inv?.unidade || "";
-            addConsumo(nome, unidade, num(ing.quantidade) * qty, "vendas");
+            addConsumo(nome, unidade, num(ing.quantidadeUsada) * qty, "vendas");
           });
         });
       });
@@ -4345,12 +4346,8 @@
           const recipe = (state.costs || []).find(r => r.produto && r.produto.toLowerCase() === String(item.nome || "").toLowerCase());
           if (!recipe) { _semFicha++; return; }
           _comFicha++;
-          const custoItem = (recipe.ingredientes || []).reduce((s, ing) => {
-            const inv = inventoryById(ing.inventoryId);
-            const cu = num(ing.custo) || num(inv && inv.custo) || 0;
-            return s + num(ing.quantidade) * cu;
-          }, 0);
-          _custoVendas += custoItem * qty;
+          const ci2 = costCalc(recipe);
+          _custoVendas += ci2.costPerUnit * qty;
         });
       });
       const margemBruta = (_comFicha > 0 && summary.vendas > 0)
