@@ -5369,10 +5369,10 @@
             canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
             resolve(canvas.toDataURL("image/jpeg", quality));
           } catch {
-            resolve(reader.result);
+            resolve(null);
           }
         };
-        img.onerror = () => resolve(reader.result);
+        img.onerror = () => resolve(null); // imagem ilegível (ex.: HEIC) → não guarda quebrada
         reader.onload = () => {
           if (typeof reader.result === "string" && reader.result.startsWith("data:image/")) img.src = reader.result;
           else resolve(null);
@@ -5380,6 +5380,43 @@
         reader.onerror = () => resolve(null);
         reader.readAsDataURL(file);
       });
+    }
+
+    // Fotos de iPhone vêm em HEIC, que o navegador não exibe. Convertemos
+    // para JPEG sob demanda (a lib só é baixada quando aparece um HEIC).
+    function isHeicFile(file) {
+      return !!file && (/hei[cf]/i.test(file.type || "") || /\.(heic|heif)$/i.test(file.name || ""));
+    }
+    let _heicLibPromise = null;
+    function loadHeicLib() {
+      if (window.heic2any) return Promise.resolve(window.heic2any);
+      if (_heicLibPromise) return _heicLibPromise;
+      _heicLibPromise = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
+        s.onload = () => resolve(window.heic2any);
+        s.onerror = () => { _heicLibPromise = null; reject(new Error("cdn")); };
+        document.head.appendChild(s);
+      });
+      return _heicLibPromise;
+    }
+    // Lê qualquer foto (inclusive HEIC) e devolve um JPEG comprimido (ou null).
+    async function fileToCompressed(file, maxW, maxH, quality) {
+      let input = file;
+      if (isHeicFile(file)) {
+        try {
+          showToast("Convertendo foto do iPhone…", 2500);
+          const heic2any = await loadHeicLib();
+          const out = await Promise.race([
+            heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 }),
+            new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 25000))
+          ]);
+          input = Array.isArray(out) ? out[0] : out;
+        } catch (e) {
+          return null; // não deu para converter (sem internet ou arquivo inválido)
+        }
+      }
+      return compressImage(input, maxW, maxH, quality);
     }
 
     function showToast(msg, duration = 4000) {
@@ -6454,7 +6491,7 @@
         const fileInput = form.querySelector('[name="fotoFile"]');
         const file = fileInput?.files?.[0];
         if (file) {
-          compressImage(file, 800, 600, 0.82).then(async b64 => { if (b64) await setItemPhoto(newItem, b64); save(); });
+          fileToCompressed(file, 800, 600, 0.82).then(async b64 => { if (b64) await setItemPhoto(newItem, b64); else showToast("Não consegui ler a foto. Se for HEIC do iPhone, conecte na internet e tente de novo, ou envie em JPG/PNG.", 5000); save(); });
         } else {
           save();
         }
@@ -6639,7 +6676,8 @@
       // ── Upload logo do cardápio ──
       // ── Upload logo Perspecta (sidebar) ──
       if (event.target.id === "perspectaLogoInput" && event.target.files?.[0]) {
-        compressImage(event.target.files[0], 400, 400, 0.92).then(b64 => {
+        fileToCompressed(event.target.files[0], 400, 400, 0.92).then(b64 => {
+          if (!b64) { showToast("Não consegui ler essa imagem. Use JPG ou PNG.", 4000); return; }
           state.settings.perspectaLogo = b64;
           save();
           renderBrand();
@@ -6649,7 +6687,8 @@
       }
 
       if (event.target.id === "faviconInput" && event.target.files?.[0]) {
-        compressImage(event.target.files[0], 64, 64, 1.0).then(b64 => {
+        fileToCompressed(event.target.files[0], 64, 64, 1.0).then(b64 => {
+          if (!b64) { showToast("Não consegui ler essa imagem. Use JPG ou PNG.", 4000); return; }
           state.settings.favicon = b64;
           const faviconEl = document.getElementById("faviconLink");
           if (faviconEl) faviconEl.href = b64;
@@ -6669,7 +6708,7 @@
       }
 
       if (event.target.id === "logoUploadInput" && event.target.files?.[0]) {
-        compressImage(event.target.files[0], 600, 300, 0.9).then(b64 => {
+        fileToCompressed(event.target.files[0], 600, 300, 0.9).then(b64 => {
           if (!b64) return;
           const tmpImg = new Image();
           tmpImg.onload = () => {
@@ -6691,9 +6730,9 @@
         const row = event.target.closest("[data-menu-row]");
         const preview = row?.querySelector("[data-menu-photo-preview]");
         if (!row || !preview) return;
-        compressImage(file, 800, 600, 0.82).then(async b64 => {
+        fileToCompressed(file, 800, 600, 0.82).then(async b64 => {
           if (!b64) {
-            showToast("Não consegui ler essa foto. Tente outra imagem.", 3000);
+            showToast("Não consegui ler essa foto. Se for HEIC do iPhone, conecte na internet e tente de novo, ou envie em JPG/PNG.", 5000);
             return;
           }
           const item = state.menu.find(x => x.id === photoMenu);
