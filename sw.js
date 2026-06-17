@@ -1,4 +1,4 @@
-const CACHE = 'alianca-v18';
+const CACHE = 'alianca-v19';
 const ASSETS = ['./'];
 
 self.addEventListener('install', e => {
@@ -15,10 +15,33 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const req = e.request;
+  const isDoc = req.mode === 'navigate' || req.destination === 'document';
+
+  if (isDoc) {
+    // HTML: network-first — sempre pega a versão nova quando há internet
+    // (timeout de 4s para não travar em conexão lenta); cai no cache se offline.
+    e.respondWith((async () => {
+      try {
+        const res = await Promise.race([
+          fetch(req),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000))
+        ]);
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+        return res;
+      } catch (err) {
+        const cached = await caches.match(req);
+        return cached || caches.match('./');
+      }
+    })());
+    return;
+  }
+
+  // Demais assets (ícones, manifest): cache-first com atualização em segundo plano.
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      const network = fetch(e.request).then(res => {
-        if (res.ok) caches.open(CACHE).then(c => c.put(e.request, res.clone()));
+    caches.match(req).then(cached => {
+      const network = fetch(req).then(res => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
         return res;
       }).catch(() => cached);
       return cached || network;
