@@ -1880,6 +1880,9 @@
       dados: ["Configurações", ""]
     };
 
+    // Coleções sincronizadas item a item (cada registro tem id + updatedAt).
+    const MERGE_COLLECTIONS = ['companies','staff','costs','tables','goals','inventory','inventoryMovements','inventoryBatches','expenses','cash','cashSessions','clients','menu','addons','commands','sales'];
+
     const defaultState = {
       settings: {
         whatsapp: "",
@@ -2047,38 +2050,19 @@
         document.getElementById("publicMenu").classList.remove("hidden");
         renderPublicMenu();
         initPhotos();
-        loadFromServer().then(ss => {
-          if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
-            state = normalizeState({ ...structuredClone(defaultState), ...ss });
-            localStorage.setItem(storeKey, JSON.stringify(state));
-            renderPublicMenu();
-            hydratePhotos();
-          }
-        }).catch(() => {});
+        pollSync();
         // Atualiza instantaneamente quando admin salva no mesmo navegador (cross-tab via localStorage)
         window.addEventListener('storage', (ev) => {
           if (ev.key === storeKey && ev.newValue) {
             try {
-              const fresh = normalizeState({ ...structuredClone(defaultState), ...JSON.parse(ev.newValue) });
-              if ((fresh.savedAt || 0) > (state.savedAt || 0)) {
-                state = fresh;
-                renderPublicMenu();
-                hydratePhotos();
-              }
+              state = normalizeState(mergeStates(JSON.parse(ev.newValue), state));
+              renderPublicMenu();
+              hydratePhotos();
             } catch(e) {}
           }
         });
         // Polling Firebase a cada 8s para sincronização entre dispositivos diferentes
-        setInterval(() => {
-          loadFromServer().then(ss => {
-            if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
-              state = normalizeState({ ...structuredClone(defaultState), ...ss });
-              localStorage.setItem(storeKey, JSON.stringify(state));
-              renderPublicMenu();
-              hydratePhotos();
-            }
-          }).catch(() => {});
-        }, 8000);
+        setInterval(pollSync, 8000);
         return;
       }
       document.getElementById("internalApp").classList.remove("hidden");
@@ -2092,31 +2076,11 @@
       // Verifica pedidos do cardápio público que chegaram enquanto o sistema estava fechado
       checkPendingOrders();
 
-      // Sync no boot: puxa dados da nuvem se forem mais novos
-      loadFromServer().then(ss => {
-        if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
-          state = normalizeState({ ...structuredClone(defaultState), ...ss });
-          localStorage.setItem(storeKey, JSON.stringify(state));
-          renderAll();
-          hydratePhotos();
-          showToast("☁️ Dados atualizados da nuvem", 2500);
-        }
-        showSyncStatus('ok');
-      }).catch(() => showSyncStatus('err'));
+      // Sync no boot: puxa e junta dados da nuvem (merge por item)
+      pollSync();
 
-      // Polling a cada 8s: atualiza se outro dispositivo salvou algo mais novo + verifica pedidos do cardápio público
-      setInterval(() => {
-        loadFromServer().then(ss => {
-          if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
-            state = normalizeState({ ...structuredClone(defaultState), ...ss });
-            localStorage.setItem(storeKey, JSON.stringify(state));
-            renderAll();
-            hydratePhotos();
-            showToast("☁️ Sincronizado com outro dispositivo", 2500);
-          }
-        }).catch(() => {});
-        checkPendingOrders();
-      }, 8000);
+      // Polling a cada 8s: junta o que outro aparelho salvou + verifica pedidos do cardápio público
+      setInterval(() => { pollSync(); checkPendingOrders(); }, 8000);
     }
 
     function getSessionLabel() {
@@ -2201,6 +2165,17 @@
           }]
         };
       });
+      // Sync por merge: garante id em todo registro e poda tombstones antigos (>30 dias).
+      MERGE_COLLECTIONS.forEach(coll => {
+        if (Array.isArray(data[coll])) data[coll].forEach(r => { if (r && typeof r === "object" && r.id == null) r.id = uid(); });
+      });
+      if (data._tomb && typeof data._tomb === "object") {
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        for (const coll of Object.keys(data._tomb)) {
+          const m = data._tomb[coll] || {};
+          for (const id of Object.keys(m)) if ((m[id] || 0) < cutoff) delete m[id];
+        }
+      }
       return data;
     }
 
@@ -2266,8 +2241,11 @@
 
     const FIREBASE_URL = 'https://perspecta-bistro-default-rtdb.firebaseio.com';
 
+    // Em desenvolvimento (localhost) usamos um namespace de teste para NUNCA
+    // tocar os dados de produção. Em produção (github.io) isso é sempre false.
+    const TEST_MODE = /^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname);
     // Firebase keys cannot contain . $ # [ ] /
-    function fbPath(key) { return key.replace(/\./g, '_'); }
+    function fbPath(key) { return key.replace(/\./g, '_') + (TEST_MODE ? '__TESTE' : ''); }
 
     // ─────────────────────────────────────────────────────────────
     //  FOTOS — armazenadas SEPARADAS do estado (não incham o sync)
@@ -2441,37 +2419,138 @@
     function clearPending() { try { localStorage.removeItem(PENDING_KEY()); } catch(e) {} }
     function hasPending() { return localStorage.getItem(PENDING_KEY()) === '1'; }
 
-    function syncToServer(s) {
+    // ── Motor de merge: junta dados por item em vez de sobrescrever o blob ──
+    function _recNoTs(r) { const c = { ...r }; delete c.updatedAt; return JSON.stringify(c); }
+
+    // Carimba updatedAt só no que mudou desde o último salvamento (baseline = snap)
+    // e registra exclusões como tombstones. Não precisa tocar nas telas de CRUD.
+    function stampChanges(cur, snap) {
+      const now = Date.now();
+      cur._tomb = cur._tomb || {};
+      for (const coll of MERGE_COLLECTIONS) {
+        const arr = Array.isArray(cur[coll]) ? cur[coll] : [];
+        const snapArr = (snap && Array.isArray(snap[coll])) ? snap[coll] : [];
+        const snapById = new Map(snapArr.filter(r => r && r.id != null).map(r => [r.id, r]));
+        const curIds = new Set();
+        for (const r of arr) {
+          if (!r || typeof r !== 'object') continue;
+          if (r.id == null) r.id = uid();
+          curIds.add(r.id);
+          const prev = snapById.get(r.id);
+          if (!prev) { if (r.updatedAt == null) r.updatedAt = now; }
+          else if (_recNoTs(r) !== _recNoTs(prev)) r.updatedAt = now;
+          else if (r.updatedAt == null) r.updatedAt = prev.updatedAt || now;
+        }
+        cur._tomb[coll] = cur._tomb[coll] || {};
+        for (const r of snapArr) if (r && r.id != null && !curIds.has(r.id)) cur._tomb[coll][r.id] = now;
+      }
+      if (!snap || JSON.stringify(cur.settings) !== JSON.stringify(snap.settings)) cur._settingsUpdatedAt = now;
+    }
+
+    function _mergeTomb(a, b) {
+      const out = {};
+      for (const src of [a || {}, b || {}]) for (const coll of Object.keys(src)) {
+        out[coll] = out[coll] || {};
+        for (const id of Object.keys(src[coll] || {})) out[coll][id] = Math.max(out[coll][id] || 0, src[coll][id] || 0);
+      }
+      return out;
+    }
+
+    // Junta duas listas por id: vence quem tem updatedAt maior; tombstone novo remove.
+    function _mergeArr(localArr, serverArr, tombMap) {
+      localArr = Array.isArray(localArr) ? localArr : [];
+      serverArr = Array.isArray(serverArr) ? serverArr : [];
+      const lById = new Map(localArr.filter(r => r && r.id != null).map(r => [r.id, r]));
+      const sById = new Map(serverArr.filter(r => r && r.id != null).map(r => [r.id, r]));
+      const order = [], seen = new Set();
+      for (const r of localArr)  if (r && r.id != null && !seen.has(r.id)) { order.push(r.id); seen.add(r.id); }
+      for (const r of serverArr) if (r && r.id != null && !seen.has(r.id)) { order.push(r.id); seen.add(r.id); }
+      const out = [];
+      for (const id of order) {
+        const l = lById.get(id), s = sById.get(id);
+        const pick = (l && s) ? (((s.updatedAt || 0) > (l.updatedAt || 0)) ? s : l) : (l || s);
+        const td = tombMap && tombMap[id];
+        if (td && td >= (pick.updatedAt || 0)) continue; // exclusão mais nova vence
+        out.push(pick);
+      }
+      return out;
+    }
+
+    function mergeStates(server, local) {
+      const out = { ...structuredClone(defaultState), ...structuredClone(local) };
+      const tomb = _mergeTomb(server && server._tomb, local && local._tomb);
+      out._tomb = tomb;
+      for (const coll of MERGE_COLLECTIONS) out[coll] = _mergeArr(local && local[coll], server && server[coll], tomb[coll]);
+      const sT = (server && server._settingsUpdatedAt) || 0, lT = (local && local._settingsUpdatedAt) || 0;
+      if (sT > lT && server.settings) { out.settings = server.settings; out._settingsUpdatedAt = sT; }
+      else out._settingsUpdatedAt = lT;
+      out.savedAt = Math.max((server && server.savedAt) || 0, (local && local.savedAt) || 0);
+      return out;
+    }
+
+    // Envia para a nuvem com merge: lê o servidor, junta com o local e regrava.
+    // Assim dois aparelhos salvando ao mesmo tempo não apagam o trabalho um do outro.
+    let _syncing = false, _syncQueued = false;
+    async function syncToServer() {
+      if (_syncing) { _syncQueued = true; return; }
+      _syncing = true;
+      showSyncStatus('ing');
+      const path = fbPath(storeKey);
       try {
-        showSyncStatus('ing');
-        const path = fbPath(storeKey);
-        const ctrl = new AbortController();
-        const tmo = setTimeout(() => { ctrl.abort(); markPending(); showSyncStatus('err'); }, 20000);
-        fetch(`${FIREBASE_URL}/data/${path}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(s),
-          signal: ctrl.signal
-        }).then(r => {
+        let server = null;
+        try {
+          const ctrl = new AbortController();
+          const tmo = setTimeout(() => ctrl.abort(), 15000);
+          const r = await fetch(`${FIREBASE_URL}/data/${path}.json`, { signal: ctrl.signal });
           clearTimeout(tmo);
-          if (r.ok) { clearPending(); showSyncStatus('ok'); }
-          else { markPending(); showSyncStatus('err'); }
-        }).catch(() => { clearTimeout(tmo); markPending(); showSyncStatus('err'); });
-      } catch(e) { markPending(); showSyncStatus('err'); }
+          if (r.ok) server = await r.json();
+        } catch (e) {}
+        const merged = server ? mergeStates(server, state) : state;
+        merged.savedAt = Date.now();
+        const ctrl2 = new AbortController();
+        const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
+        const w = await fetch(`${FIREBASE_URL}/data/${path}.json`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(merged), signal: ctrl2.signal
+        });
+        clearTimeout(tmo2);
+        if (w.ok) {
+          state = normalizeState(merged);
+          localStorage.setItem(storeKey, JSON.stringify(state));
+          clearPending(); showSyncStatus('ok');
+          if (!isUserBusy()) { softRerender(); hydratePhotos(); }
+        } else { markPending(); showSyncStatus('err'); }
+      } catch (e) { markPending(); showSyncStatus('err'); }
+      finally {
+        _syncing = false;
+        if (_syncQueued) { _syncQueued = false; setTimeout(syncToServer, 200); }
+      }
+    }
+
+    // Puxa da nuvem e junta (sem apagar o que é local). Não recria a tela se o
+    // usuário está digitando/com modal aberto. Reenvia pendências, se houver.
+    async function pollSync() {
+      if (isUserBusy()) return;
+      try {
+        const server = await loadFromServer();
+        if (server) {
+          const merged = mergeStates(server, state);
+          if (JSON.stringify(merged) !== JSON.stringify(state)) {
+            state = normalizeState(merged);
+            localStorage.setItem(storeKey, JSON.stringify(state));
+            softRerender();
+            hydratePhotos();
+          }
+          showSyncStatus('ok');
+        }
+        if (hasPending()) syncToServer();
+      } catch (e) { showSyncStatus('err'); }
     }
 
     // Reenvio automático se ficou pendente da última vez
     async function flushPending() {
       if (!hasPending()) return;
-      try {
-        const path = fbPath(storeKey);
-        const r = await fetch(`${FIREBASE_URL}/data/${path}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(state)
-        });
-        if (r.ok) { clearPending(); showSyncStatus('ok'); showToast("☁️ Dados pendentes enviados para a nuvem", 2500); }
-      } catch(e) {}
+      syncToServer(); // reenvia com merge (não sobrescreve o que outro aparelho salvou)
     }
 
     // Verifica pedidos pendentes feitos pelo cardápio público e cria comandas automaticamente
@@ -2529,10 +2608,14 @@
 
     function save(opts = {}) {
       try {
+        // baseline = último estado salvo no localStorage; carimba só o que mudou
+        let snap = null;
+        try { snap = JSON.parse(localStorage.getItem(storeKey) || 'null'); } catch (e) {}
+        stampChanges(state, snap);
         state.savedAt = Date.now();
         localStorage.setItem(storeKey, JSON.stringify(state));
-        syncToServer(state);
         if (!opts.silent) renderAll();
+        syncToServer();
       } catch (error) {
         alert("Não foi possível salvar. Tente novamente; se persistir, recarregue a página.");
       }
@@ -5930,23 +6013,17 @@
 
       if (event.target.id === "forceSyncBtn") {
         showSyncStatus('ing');
-        // Push local → cloud
-        syncToServer(state);
-        // Also pull to check if another device saved something newer
+        syncToServer(); // empurra E junta (merge) com a nuvem num passo só
         loadFromServer().then(ss => {
-          if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
-            state = normalizeState({ ...structuredClone(defaultState), ...ss });
-            localStorage.setItem(storeKey, JSON.stringify(state));
-            renderAll();
-            showToast("☁️ Dados atualizados da nuvem", 2500);
+          const dot = document.getElementById("cloudStatusDot");
+          const txt = document.getElementById("cloudStatusText");
+          if (ss) {
+            if (dot) dot.style.background = "#1a7a45";
+            if (txt) txt.textContent = "Conectado — último sync agora";
+            showToast("☁️ Sincronizado!", 2000);
           } else {
             showToast("☁️ Tudo em dia!", 2000);
           }
-          // update cloud panel status
-          const dot = document.getElementById("cloudStatusDot");
-          const txt = document.getElementById("cloudStatusText");
-          if (dot) dot.style.background = "#1a7a45";
-          if (txt) txt.textContent = "Conectado — último sync agora";
         }).catch(() => {
           const dot = document.getElementById("cloudStatusDot");
           const txt = document.getElementById("cloudStatusText");
@@ -6649,6 +6726,7 @@
       state = loadState();
       if (location.hash.startsWith("#cardapio-publico")) renderPublicMenu();
       else renderAll();
+      hydratePhotos();
     });
 
     // ── App boot: check session, show login or start ──
