@@ -2046,11 +2046,13 @@
         document.getElementById("internalApp").classList.add("hidden");
         document.getElementById("publicMenu").classList.remove("hidden");
         renderPublicMenu();
+        initPhotos();
         loadFromServer().then(ss => {
           if (ss && (ss.savedAt || 0) > (state.savedAt || 0)) {
             state = normalizeState({ ...structuredClone(defaultState), ...ss });
             localStorage.setItem(storeKey, JSON.stringify(state));
             renderPublicMenu();
+            hydratePhotos();
           }
         }).catch(() => {});
         // Atualiza instantaneamente quando admin salva no mesmo navegador (cross-tab via localStorage)
@@ -2061,6 +2063,7 @@
               if ((fresh.savedAt || 0) > (state.savedAt || 0)) {
                 state = fresh;
                 renderPublicMenu();
+                hydratePhotos();
               }
             } catch(e) {}
           }
@@ -2072,6 +2075,7 @@
               state = normalizeState({ ...structuredClone(defaultState), ...ss });
               localStorage.setItem(storeKey, JSON.stringify(state));
               renderPublicMenu();
+              hydratePhotos();
             }
           }).catch(() => {});
         }, 8000);
@@ -2079,6 +2083,7 @@
       }
       document.getElementById("internalApp").classList.remove("hidden");
       renderAll();
+      initPhotos();
       const start = location.hash.replace("#", "");
       if (start && document.getElementById(start)?.classList.contains("section")) setSection(start);
 
@@ -2093,6 +2098,7 @@
           state = normalizeState({ ...structuredClone(defaultState), ...ss });
           localStorage.setItem(storeKey, JSON.stringify(state));
           renderAll();
+          hydratePhotos();
           showToast("☁️ Dados atualizados da nuvem", 2500);
         }
         showSyncStatus('ok');
@@ -2105,6 +2111,7 @@
             state = normalizeState({ ...structuredClone(defaultState), ...ss });
             localStorage.setItem(storeKey, JSON.stringify(state));
             renderAll();
+            hydratePhotos();
             showToast("☁️ Sincronizado com outro dispositivo", 2500);
           }
         }).catch(() => {});
@@ -2138,7 +2145,7 @@
       data.inventoryBatches = data.inventoryBatches || [];
       const savedMenu = Array.isArray(data.menu) && data.menu.length ? data.menu : structuredClone(defaultState.menu);
       const savedAddons = Array.isArray(data.addons) && data.addons.length ? data.addons : structuredClone(defaultState.addons);
-      data.menu = savedMenu.map(item => ({ foto: null, ...item, preco: num(item.preco) }));
+      data.menu = savedMenu.map(item => ({ foto: null, ...item, id: item.id || uid(), preco: num(item.preco) }));
       data.addons = savedAddons.map(addon => ({ ativo: true, ...addon, preco: num(addon.preco) }));
       data.companies = data.companies || structuredClone(defaultState.companies);
       data.staff = data.staff || structuredClone(defaultState.staff);
@@ -2262,6 +2269,163 @@
     // Firebase keys cannot contain . $ # [ ] /
     function fbPath(key) { return key.replace(/\./g, '_'); }
 
+    // ─────────────────────────────────────────────────────────────
+    //  FOTOS — armazenadas SEPARADAS do estado (não incham o sync)
+    //  • Fotos enviadas pelo usuário ficam no IndexedDB (local, sem o limite
+    //    de 5 MB do localStorage) e na nuvem em /photos/{loja}/{itemId}={b64,tag}.
+    //  • No estado só guardamos referências minúsculas: item.photoUpload (bool)
+    //    e item.photoTag (muda quando a foto muda → detecta troca entre aparelhos).
+    //  • item.foto continua aceitando um arquivo fixo (ex.: "fotos/x.jpg").
+    // ─────────────────────────────────────────────────────────────
+    let photoMem = {};       // { [itemId]: dataURL }  espelho em memória p/ render síncrono
+    let _photoTagMem = {};   // { [itemId]: tag }      versão da foto que está em cache
+
+    const PHOTO_STORE = 'img';
+    let _photoDbPromise = null;
+    function photoDb() {
+      if (_photoDbPromise) return _photoDbPromise;
+      _photoDbPromise = new Promise((resolve, reject) => {
+        try {
+          const req = indexedDB.open('perspectaPhotos', 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(PHOTO_STORE);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        } catch (e) { reject(e); }
+      });
+      return _photoDbPromise;
+    }
+    function _idbReq(mode, fn) {
+      return photoDb().then(db => new Promise(resolve => {
+        try {
+          const r = fn(db.transaction(PHOTO_STORE, mode).objectStore(PHOTO_STORE));
+          r.onsuccess = () => resolve(r.result);
+          r.onerror = () => resolve(null);
+        } catch (e) { resolve(null); }
+      })).catch(() => null);
+    }
+    const idbGet = key => _idbReq('readonly', s => s.get(key));
+    const idbSet = (key, val) => _idbReq('readwrite', s => s.put(val, key));
+    const idbDel = key => _idbReq('readwrite', s => s.delete(key));
+    function idbAll() {
+      return photoDb().then(db => new Promise(resolve => {
+        try {
+          const out = {};
+          const cur = db.transaction(PHOTO_STORE, 'readonly').objectStore(PHOTO_STORE).openCursor();
+          cur.onsuccess = e => { const c = e.target.result; if (c) { out[c.key] = c.value; c.continue(); } else resolve(out); };
+          cur.onerror = () => resolve(out);
+        } catch (e) { resolve({}); }
+      })).catch(() => ({}));
+    }
+    function photoStoreKey(itemId) { return fbPath(storeKey) + ':' + itemId; }
+    function newPhotoTag() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+    // Carrega no boot todas as fotos desta loja do IndexedDB para a memória,
+    // migra fotos antigas (base64 dentro do estado) e busca novidades na nuvem.
+    async function initPhotos() {
+      photoMem = {}; _photoTagMem = {};
+      const prefix = fbPath(storeKey) + ':';
+      const all = await idbAll();
+      Object.keys(all || {}).forEach(k => {
+        if (k.indexOf(prefix) === 0) {
+          const id = k.slice(prefix.length), v = all[k] || {};
+          if (v.b64) { photoMem[id] = v.b64; _photoTagMem[id] = v.tag || ''; }
+        }
+      });
+      softRerender();           // mostra de imediato as fotos já em cache
+      await migrateInlinePhotos();
+      hydratePhotos();          // busca da nuvem o que falta / mudou em outro aparelho
+    }
+
+    // Move fotos antigas (base64 dentro do estado) para o armazenamento separado.
+    // Roda uma única vez, na primeira abertura com o novo código.
+    async function migrateInlinePhotos() {
+      let changed = false;
+      for (const item of (state.menu || [])) {
+        if (typeof item.foto === 'string' && item.foto.startsWith('data:image/')) {
+          const tag = newPhotoTag(), b64 = item.foto;
+          photoMem[item.id] = b64; _photoTagMem[item.id] = tag;
+          await idbSet(photoStoreKey(item.id), { b64, tag });
+          syncPhotoToServer(item.id, b64, tag);
+          item.foto = null; item.photoUpload = true; item.photoTag = tag;
+          changed = true;
+        }
+      }
+      if (changed) save({ silent: true });
+    }
+
+    // Busca na nuvem fotos que faltam localmente ou que mudaram em outro aparelho.
+    async function hydratePhotos() {
+      for (const item of (state.menu || []).filter(m => m.photoUpload)) {
+        if (photoMem[item.id] && _photoTagMem[item.id] === (item.photoTag || '')) continue;
+        try {
+          const r = await fetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${item.id}.json`);
+          if (!r.ok) continue;
+          const data = await r.json();
+          const b64 = data && (data.b64 || (typeof data === 'string' ? data : null));
+          if (!b64) continue;
+          const t = (data && data.tag) || item.photoTag || '';
+          photoMem[item.id] = b64; _photoTagMem[item.id] = t;
+          idbSet(photoStoreKey(item.id), { b64, tag: t });
+          document.querySelectorAll(`img[data-photo-item="${item.id}"]`).forEach(img => { img.src = b64; });
+        } catch (e) {}
+      }
+    }
+
+    function syncPhotoToServer(itemId, b64, tag) {
+      try {
+        fetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${itemId}.json`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ b64, tag })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+    function deletePhotoEverywhere(itemId) {
+      delete photoMem[itemId]; delete _photoTagMem[itemId];
+      idbDel(photoStoreKey(itemId));
+      try { fetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${itemId}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+    }
+
+    // Aplica uma foto recém-escolhida: salva local (IndexedDB) + nuvem + marca o item.
+    async function setItemPhoto(item, b64) {
+      const tag = newPhotoTag();
+      photoMem[item.id] = b64; _photoTagMem[item.id] = tag;
+      await idbSet(photoStoreKey(item.id), { b64, tag });
+      syncPhotoToServer(item.id, b64, tag);
+      item.photoUpload = true; item.photoTag = tag; item.foto = null;
+    }
+
+    // Resolve qual imagem mostrar: foto enviada (vence) → arquivo fixo → nenhuma.
+    function resolvePhoto(item) {
+      if (!item) return null;
+      if (item.photoUpload && photoMem[item.id]) return photoMem[item.id];
+      if (validBundledSrc(item.foto)) return item.foto;
+      return null;
+    }
+    function validBundledSrc(src) {
+      return typeof src === 'string' && src.length > 0 &&
+        (/^https?:\/\//.test(src) || /^file:\/\//.test(src) || /^data:image\//.test(src) ||
+         /^[\w./-]+\.(jpe?g|png|webp|gif|avif)$/i.test(src)); // caminho relativo: fotos/x.jpg
+    }
+    function hasPhoto(item) { return !!(item && (item.photoUpload || validBundledSrc(item.foto))); }
+
+    // Re-render seguro: não recria a tela se o usuário está digitando ou com modal aberto.
+    function isUserBusy() {
+      const a = document.activeElement;
+      if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+      if (document.querySelector('.pm-overlay:not(.hidden), #kbModal:not(.hidden)')) return true;
+      return false;
+    }
+    function softRerender() {
+      if (isUserBusy()) return;
+      if (location.hash.startsWith('#cardapio-publico')) {
+        const pm = document.getElementById('publicMenu');
+        if (pm && !pm.classList.contains('hidden')) renderPublicMenu();
+      } else {
+        const app = document.getElementById('internalApp');
+        if (app && !app.classList.contains('hidden')) renderAll();
+      }
+    }
+
     function showSyncStatus(status) {
       const el = document.getElementById("syncBadge");
       if (!el) return;
@@ -2363,14 +2527,14 @@
       } catch(e) { return null; }
     }
 
-    function save() {
+    function save(opts = {}) {
       try {
         state.savedAt = Date.now();
         localStorage.setItem(storeKey, JSON.stringify(state));
         syncToServer(state);
-        renderAll();
+        if (!opts.silent) renderAll();
       } catch (error) {
-        alert("Não foi possível salvar. A imagem pode estar pesada demais; tente uma foto menor.");
+        alert("Não foi possível salvar. Tente novamente; se persistir, recarregue a página.");
       }
     }
 
@@ -2382,17 +2546,15 @@
       item.categoria = row.querySelector("[data-edit-menu-category]").value;
       item.preco = num(row.querySelector("[data-edit-menu-price]").value);
       item.ativo = row.querySelector("[data-edit-menu-active]").value === "true";
-      const pendingPhoto = row.querySelector("[data-menu-photo-preview]")?.dataset.pendingPhoto;
-      if (pendingPhoto) item.foto = pendingPhoto;
     }
 
-    function validPhotoSrc(src) {
-      return typeof src === "string" && (/^data:image\//.test(src) || /^https?:\/\//.test(src) || /^file:\/\//.test(src));
-    }
+    // mantido por compatibilidade; agora delega para a resolução de fotos nova
+    function validPhotoSrc(src) { return validBundledSrc(src); }
 
     function menuPhotoPreview(item) {
-      if (!validPhotoSrc(item.foto)) return `<span class="menu-thumb-empty">${escapeHTML(item.emoji || "🍽️")}</span>`;
-      return `<img class="menu-thumb" src="${item.foto}" alt="${escapeHTML(item.nome)}" data-emoji="${escapeHTML(item.emoji || "🍽️")}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'menu-thumb-empty',textContent:this.dataset.emoji||'🍽️'}))">`;
+      const src = resolvePhoto(item);
+      if (!src) return `<span class="menu-thumb-empty">${escapeHTML(item.emoji || "🍽️")}</span>`;
+      return `<img class="menu-thumb" src="${src}" data-photo-item="${item.id}" alt="${escapeHTML(item.nome)}" data-emoji="${escapeHTML(item.emoji || "🍽️")}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'menu-thumb-empty',textContent:this.dataset.emoji||'🍽️'}))">`;
     }
 
     function money(value) {
@@ -3759,9 +3921,9 @@
             </span>
             <label style="display:inline-block;margin-left:4px;cursor:pointer;font-size:12px;color:var(--muted)">
               <input type="file" accept="image/*" data-photo-menu="${item.id}" style="display:none">
-              ${validPhotoSrc(item.foto) ? "trocar" : "+ foto"}
+              ${hasPhoto(item) ? "trocar" : "+ foto"}
             </label>
-            ${validPhotoSrc(item.foto) ? `<button class="btn ghost btn-sm" type="button" data-clear-menu-photo="${item.id}">remover</button>` : ""}
+            ${hasPhoto(item) ? `<button class="btn ghost btn-sm" type="button" data-clear-menu-photo="${item.id}">remover</button>` : ""}
             <span class="mini hidden" data-photo-pending>foto pendente</span>
           </td>
           <td>
@@ -5066,8 +5228,9 @@
     }
 
     function pmItemCard(item) {
-      const imgHtml = validPhotoSrc(item.foto)
-        ? `<img src="${item.foto}" alt="${escapeHTML(item.nome)}" data-emoji="${escapeHTML(item.emoji || "🍽️")}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pm-card-emoji',textContent:this.dataset.emoji||'🍽️'}))">`
+      const _pmSrc = resolvePhoto(item);
+      const imgHtml = _pmSrc
+        ? `<img src="${_pmSrc}" data-photo-item="${item.id}" alt="${escapeHTML(item.nome)}" data-emoji="${escapeHTML(item.emoji || "🍽️")}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pm-card-emoji',textContent:this.dataset.emoji||'🍽️'}))">`
         : `<span class="pm-card-emoji">${escapeHTML(item.emoji || "🍽️")}</span>`;
       return `<div class="pm-card">
         <div class="pm-card-img">${imgHtml}</div>
@@ -5348,7 +5511,7 @@
       if (delClient) { state.clients = state.clients.filter(x => x.id !== delClient); save(); }
 
       const delMenu = event.target.closest("[data-delete-menu]")?.dataset.deleteMenu;
-      if (delMenu) { state.menu = state.menu.filter(x => x.id !== delMenu); save(); }
+      if (delMenu) { deletePhotoEverywhere(delMenu); state.menu = state.menu.filter(x => x.id !== delMenu); save(); }
 
       const delAddon = event.target.closest("[data-delete-addon]")?.dataset.deleteAddon;
       if (delAddon) { state.addons = (state.addons || []).filter(x => x.id !== delAddon); save(); }
@@ -5357,9 +5520,10 @@
       if (clearMenuPhoto) {
         const item = state.menu.find(x => x.id === clearMenuPhoto);
         if (item) {
-          item.foto = null;
+          deletePhotoEverywhere(item.id);
+          item.foto = null; item.photoUpload = false; item.photoTag = null;
           save();
-          showToast("Foto removida. Envie a nova foto e salve.", 2500);
+          showToast("Foto removida.", 2500);
         }
       }
 
@@ -5616,7 +5780,8 @@
         pmAddonQty = 1;
         document.getElementById("pmAddonTitle").textContent = item.nome;
         const imgEl = document.getElementById("pmAddonImg");
-        if (imgEl) imgEl.innerHTML = item.foto ? `<img src="${item.foto}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px" alt="">` : "";
+        const _amSrc = resolvePhoto(item);
+        if (imgEl) imgEl.innerHTML = _amSrc ? `<img src="${_amSrc}" data-photo-item="${item.id}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px" alt="">` : "";
         document.querySelectorAll("#pmAddonList input[type=checkbox]").forEach(cb => cb.checked = false);
         const obsEl = document.getElementById("pmAddonObs");
         if (obsEl) obsEl.value = "";
@@ -6212,7 +6377,7 @@
         const fileInput = form.querySelector('[name="fotoFile"]');
         const file = fileInput?.files?.[0];
         if (file) {
-          compressImage(file, 900, 675, 0.92).then(b64 => { newItem.foto = b64; save(); });
+          compressImage(file, 800, 600, 0.82).then(async b64 => { if (b64) await setItemPhoto(newItem, b64); save(); });
         } else {
           save();
         }
@@ -6448,20 +6613,18 @@
         if (!file) return;
         const row = event.target.closest("[data-menu-row]");
         const preview = row?.querySelector("[data-menu-photo-preview]");
-        const pending = row?.querySelector("[data-photo-pending]");
         if (!row || !preview) return;
-        compressImage(file, 900, 675, 0.92).then(b64 => {
+        compressImage(file, 800, 600, 0.82).then(async b64 => {
           if (!b64) {
             showToast("Não consegui ler essa foto. Tente outra imagem.", 3000);
             return;
           }
           const item = state.menu.find(x => x.id === photoMenu);
           if (!item) return;
-          preview.dataset.pendingPhoto = b64;
-          preview.innerHTML = `<img class="menu-thumb" src="${b64}" alt="Prévia da foto">`;
-          pending?.classList.remove("hidden");
-          saveMenuRow(row, item);
-          save();
+          if (row.querySelector("[data-edit-menu-name]")) saveMenuRow(row, item); // preserva edições de texto da linha
+          await setItemPhoto(item, b64);
+          preview.innerHTML = `<img class="menu-thumb" src="${b64}" data-photo-item="${item.id}" alt="Prévia da foto">`;
+          save({ silent: true }); // não recria a tela: não perde edições de outras linhas
           showToast("Foto salva e atualizada no cardápio público.", 2600);
         });
       }
@@ -6525,6 +6688,7 @@
           hideLogin();
           document.getElementById("internalApp").classList.remove("hidden");
           renderAll();
+          initPhotos();
           if (pedidoParam) {
             try {
               const deepLinkOrder = JSON.parse(decodeURIComponent(escape(atob(pedidoParam))));
