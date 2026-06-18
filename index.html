@@ -3581,7 +3581,8 @@
       </article>`;
     }
 
-    let _openCostId = null;
+    let _openCosts = new Set(); // fichas de custo abertas (mantém aberto entre re-renders)
+    let _scrollCostId = null;   // rola até a ficha recém-criada (uma vez)
 
     function renderCosts() {
       document.getElementById("custos").innerHTML = `
@@ -3611,10 +3612,10 @@
         </div>
         <div class="panel" style="padding:0">${costsTable()}</div>
       `;
-      if (_openCostId) {
-        const el = document.getElementById("cost-detail-" + _openCostId);
-        if (el) { el.style.display = ""; el.scrollIntoView({ behavior: "smooth", block: "start" }); }
-        _openCostId = null;
+      if (_scrollCostId) {
+        const el = document.getElementById("cost-detail-" + _scrollCostId);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        _scrollCostId = null;
       }
     }
 
@@ -3731,7 +3732,7 @@
           </div>` : "";
         const fifoBadge = fifoItems.length ? ` <span style="font-size:10px;font-weight:700;background:#fff3cd;color:#856404;border-radius:20px;padding:2px 7px;vertical-align:middle;border:1px solid #f0ad4e">FIFO ↑</span>` : "";
         const detail = `
-          <tr id="cost-detail-${row.id}" style="display:none">
+          <tr id="cost-detail-${row.id}" style="${_openCosts.has(row.id) ? "" : "display:none"}">
             <td colspan="3" style="padding:0;border-top:1px solid var(--line)">
               <div style="padding:14px 16px;background:var(--panel-2)">
                 ${fifoBanner}
@@ -3804,8 +3805,9 @@
     function toggleCostDetail(id) {
       const el = document.getElementById("cost-detail-" + id);
       if (!el) return;
-      const open = el.style.display !== "none";
-      el.style.display = open ? "none" : "";
+      const isOpen = el.style.display !== "none";
+      if (isOpen) { el.style.display = "none"; _openCosts.delete(id); }
+      else { el.style.display = ""; _openCosts.add(id); }
     }
 
     function toggleCatPicker() {
@@ -6306,7 +6308,7 @@
           outrosCustos: 0,
           ingredientes: []
         });
-        _openCostId = newId;
+        _openCosts.add(newId); _scrollCostId = newId;
         save();
         return;
       }
