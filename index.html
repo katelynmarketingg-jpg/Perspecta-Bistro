@@ -3426,16 +3426,23 @@
             const low = num(item.quantidade) <= num(item.minimo);
             if (_editInvId === item.id) {
               const units = ["kg","g","l","ml","un","cx","pct"];
-              const inS = "width:100%;box-sizing:border-box;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel)";
-              return `<tr data-inv-row="${item.id}">
-                <td><input data-inv-edit="item" value="${escapeHTML(item.item)}" style="${inS}"><input data-inv-edit="fornecedor" value="${escapeHTML(item.fornecedor || "")}" placeholder="Fornecedor" style="${inS};margin-top:3px;font-size:11px"></td>
-                <td><input data-inv-edit="quantidade" type="number" step="0.001" value="${num(item.quantidade)}" style="${inS};text-align:right;max-width:90px"></td>
-                <td><select data-inv-edit="unidade" style="${inS}">${units.map(u => `<option ${(item.unidade || "") === u ? "selected" : ""}>${u}</option>`).join("")}</select></td>
-                <td><input data-inv-edit="custo" type="number" step="0.01" value="${num(item.custo)}" style="${inS};text-align:right;max-width:90px"></td>
-                <td><input data-inv-edit="minimo" type="number" step="0.001" value="${num(item.minimo)}" style="${inS};text-align:right;max-width:80px"></td>
-                <td><span class="mini">—</span></td>
-                <td style="white-space:nowrap"><button class="btn secondary" style="padding:4px 8px;font-size:11px" data-save-inventory="${item.id}">Salvar</button> <button class="btn ghost" style="padding:4px 8px;font-size:11px" data-cancel-inv-edit="1">Cancelar</button></td>
-              </tr>`;
+              const inS = "width:100%;box-sizing:border-box;font-size:13px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel)";
+              const lab = "display:flex;flex-direction:column;gap:3px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px";
+              return `<tr data-inv-row="${item.id}"><td colspan="7" style="background:var(--panel-2);padding:14px 16px">
+                <div style="font-size:12px;font-weight:700;color:var(--brand);margin-bottom:8px">✏️ Editando insumo</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">
+                  <label style="${lab};grid-column:1/-1">Nome do insumo<input data-inv-edit="item" value="${escapeHTML(item.item)}" style="${inS}"></label>
+                  <label style="${lab}">Quantidade<input data-inv-edit="quantidade" type="number" step="0.001" value="${num(item.quantidade)}" style="${inS}"></label>
+                  <label style="${lab}">Unidade<select data-inv-edit="unidade" style="${inS}">${units.map(u => `<option ${(item.unidade || "") === u ? "selected" : ""}>${u}</option>`).join("")}</select></label>
+                  <label style="${lab}">Custo (R$/un)<input data-inv-edit="custo" type="number" step="0.01" value="${num(item.custo)}" style="${inS}"></label>
+                  <label style="${lab}">Estoque mínimo<input data-inv-edit="minimo" type="number" step="0.001" value="${num(item.minimo)}" style="${inS}"></label>
+                  <label style="${lab};grid-column:1/-1">Fornecedor<input data-inv-edit="fornecedor" value="${escapeHTML(item.fornecedor || "")}" placeholder="Opcional" style="${inS}"></label>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:12px">
+                  <button class="btn secondary" style="font-size:13px" data-save-inventory="${item.id}">Salvar</button>
+                  <button class="btn ghost" style="font-size:13px" data-cancel-inv-edit="1">Cancelar</button>
+                </div>
+              </td></tr>`;
             }
             return `<tr>
               <td><strong>${escapeHTML(item.item)}</strong>${item.fornecedor ? `<br><span class="mini">${escapeHTML(item.fornecedor)}</span>` : ""}</td>
@@ -3804,8 +3811,8 @@
                 </div>
                 <form class="costMarginForm" data-cost="${row.id}">
                   <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">Nome do produto<input name="produto" value="${escapeHTML(row.produto)}" style="font-size:13px"></label>
-                  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
-                    ${!isInsumo ? `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Lucro %<input name="margem" type="number" step="1" value="${num(row.margem)}" style="font-size:13px"></label>` : `<span></span>`}
+                  <div style="display:grid;grid-template-columns:repeat(${isInsumo ? 2 : 3},1fr);gap:6px">
+                    ${!isInsumo ? `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Lucro %<input name="margem" type="number" step="1" value="${num(row.margem)}" style="font-size:13px"></label>` : ``}
                     <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Outros custos<input name="outrosCustos" type="number" step="0.01" value="${num(row.outrosCustos)}" style="font-size:13px"></label>
                     <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Rendimento<input name="rendimento" type="number" step="1" min="1" value="${num(row.rendimento)||1}" style="font-size:13px"></label>
                   </div>
