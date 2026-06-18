@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Perspecta Bistro</title>
   <link rel="icon" id="faviconLink" href="icone-192.png" type="image/png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#f6921e">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Questrial&display=swap" rel="stylesheet">
   <style>
@@ -6846,6 +6848,28 @@
       } catch {}
       showLogin();
     })();
+
+    // ── Service worker: registra, procura versão nova a cada 1 min e aplica sozinho ──
+    // (resolve o "minhas mudanças não aparecem": antes a página nem registrava o SW,
+    //  então um SW antigo ficava preso servindo cache.)
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        const hadController = !!navigator.serviceWorker.controller;
+        let pendingReload = false, reloaded = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          // só recarrega quando é ATUALIZAÇÃO (não na primeira instalação)
+          if (hadController) pendingReload = true;
+        });
+        // aplica a versão nova quando a pessoa não estiver no meio de um cadastro/modal
+        setInterval(() => {
+          if (pendingReload && !reloaded && !isUserBusy()) { reloaded = true; location.reload(); }
+        }, 3000);
+        navigator.serviceWorker.register("sw.js").then(reg => {
+          reg.update();
+          setInterval(() => reg.update(), 60000);
+        }).catch(() => {});
+      });
+    }
   </script>
 </body>
 </html>
