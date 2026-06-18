@@ -2682,19 +2682,27 @@
       return inventory ? inventoryUnitCost(inventory) : purchaseUnitCost(row);
     }
 
+    // Perda/merma: ingrediente que perde X% no preparo (ex.: carne -18% ao cozinhar)
+    // custa mais por unidade usável → custo ÷ (1 − perda%). Perda 0 = sem efeito.
+    function lossFactor(row) {
+      const p = num(row && row.perda) || 0;
+      return (p > 0 && p < 100) ? 1 / (1 - p / 100) : 1;
+    }
+
     function ingredientCost(row) {
+      const f = lossFactor(row);
       if (row.costId) {
         const sub = state.costs.find(c => c.id === row.costId);
-        if (sub) return costCalc(sub).costPerUnit * num(row.quantidadeUsada);
+        if (sub) return costCalc(sub).costPerUnit * num(row.quantidadeUsada) * f;
       }
       const usedBase = convertToBase(row.quantidadeUsada, row.unidadeUsada);
       const unitCost = currentIngredientUnitCost(row);
-      return unitCost * usedBase;
+      return unitCost * usedBase * f;
     }
 
     function ingredientOriginalCost(row) {
       const usedBase = convertToBase(row.quantidadeUsada, row.unidadeUsada);
-      return num(row.baseUnitCost || purchaseUnitCost(row)) * usedBase;
+      return num(row.baseUnitCost || purchaseUnitCost(row)) * usedBase * lossFactor(row);
     }
 
     // ── FIFO ────────────────────────────────────────────────
@@ -2748,7 +2756,7 @@
       const stockBase = inv ? (convertToBase(1, inv.unidade || "un") || 1) : 1;
       const fifoPerBase = fifoRaw !== null ? fifoRaw / stockBase : null;
       const current = fifoPerBase !== null
-        ? fifoPerBase * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un")
+        ? fifoPerBase * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un") * lossFactor(row)
         : ingredientCost(row);
       const original = ingredientOriginalCost(row);
       const delta = current - original;
@@ -3583,6 +3591,7 @@
 
     let _openCosts = new Set(); // fichas de custo abertas (mantém aberto entre re-renders)
     let _scrollCostId = null;   // rola até a ficha recém-criada (uma vez)
+    let _editIngred = null;     // ingrediente em edição na ficha: "costId:index"
 
     function renderCosts() {
       document.getElementById("custos").innerHTML = `
@@ -3742,29 +3751,47 @@
                   <tbody>
                     ${(row.ingredientes || []).length ? (row.ingredientes || []).map((item, index) => {
                       const change = ingredientChange(item);
+                      const key = `${row.id}:${index}`;
+                      if (_editIngred === key) {
+                        const units = ["g","kg","ml","l","un"];
+                        const inS = "box-sizing:border-box;font-size:12px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel)";
+                        return `<tr data-ingred-row="${key}">
+                          <td><strong>${escapeHTML(item.nome)}</strong></td>
+                          <td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                            <input data-ingred-edit="quantidadeUsada" type="number" step="0.001" value="${num(item.quantidadeUsada)}" style="${inS};width:62px;text-align:right">
+                            <select data-ingred-edit="unidadeUsada" style="${inS}">${units.map(u => `<option ${(item.unidadeUsada || "") === u ? "selected" : ""}>${u}</option>`).join("")}</select>
+                            <span style="font-size:10px;color:var(--muted)">perda</span><input data-ingred-edit="perda" type="number" step="1" min="0" max="99" value="${num(item.perda) || 0}" style="${inS};width:46px;text-align:right"><span style="font-size:10px;color:var(--muted)">%</span>
+                          </div></td>
+                          <td><span class="mini">—</span></td>
+                          <td style="white-space:nowrap"><button class="btn secondary" style="padding:2px 8px;font-size:11px" data-save-ingredient="${key}">✓ Salvar</button> <button class="btn ghost" style="padding:2px 7px;font-size:11px" data-cancel-ingredient="1">✕</button></td>
+                        </tr>`;
+                      }
                       const tag = item.refType === "cost" ? `<span style="font-size:10px;color:#1a6fa8">sub-receita</span>`
                                 : item.inventoryId ? `<span style="font-size:10px;color:var(--muted)">estoque</span>`
                                 : `<span style="font-size:10px;color:var(--muted)">manual</span>`;
+                      const perdaTxt = num(item.perda) > 0 ? ` <span style="font-size:10px;color:#b85c00;font-weight:700">· perda ${num(item.perda)}%</span>` : "";
                       return `<tr>
                         <td><strong>${escapeHTML(item.nome)}</strong> ${tag}</td>
-                        <td>${escapeHTML(String(item.quantidadeUsada))} ${escapeHTML(item.unidadeUsada||"")}</td>
+                        <td>${escapeHTML(String(item.quantidadeUsada))} ${escapeHTML(item.unidadeUsada||"")}${perdaTxt}</td>
                         <td><strong>${money(change.current)}</strong>${change.changed ? ` <span class="change-note" style="font-size:10px">${change.delta>0?"↑":"↓"} ${money(Math.abs(change.delta))}</span>` : ""}</td>
-                        <td><button class="btn ghost" style="padding:2px 7px;font-size:11px" data-delete-ingredient="${row.id}:${index}">×</button></td>
+                        <td style="white-space:nowrap"><button class="btn ghost" style="padding:2px 7px;font-size:11px" data-edit-ingredient="${key}">editar</button> <button class="btn ghost" style="padding:2px 7px;font-size:11px" data-delete-ingredient="${row.id}:${index}">×</button></td>
                       </tr>`;
                     }).join("") : `<tr><td colspan="4" style="color:var(--muted);font-size:12px">Nenhum ingrediente ainda.</td></tr>`}
                   </tbody>
                 </table></div>
                 <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:8px">
                   <form class="addIngredientForm" data-cost="${row.id}" style="display:contents">
-                    <div style="display:grid;grid-template-columns:2fr 80px 70px;gap:6px;align-items:end">
+                    <div style="display:grid;grid-template-columns:2fr 64px 60px 64px;gap:6px;align-items:end">
                       <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Ingrediente<select name="inventoryId" style="font-size:12px">${allIngredientOptions()}</select></label>
                       <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Qtd<input name="quantidadeUsada" type="number" step="0.001" required placeholder="0" style="font-size:12px"></label>
                       <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Un.<select name="unidadeUsada" style="font-size:12px"><option>g</option><option>kg</option><option>ml</option><option>l</option><option>un</option></select></label>
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)" title="Perda no preparo, ex.: carne -18% ao cozinhar">Perda %<input name="perda" type="number" step="1" min="0" max="99" placeholder="0" style="font-size:12px"></label>
                     </div>
                     <button class="btn ghost" type="submit" style="align-self:end;font-size:12px;padding:8px 12px">+ Add</button>
                   </form>
                 </div>
                 <form class="costMarginForm" data-cost="${row.id}">
+                  <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">Nome do produto<input name="produto" value="${escapeHTML(row.produto)}" style="font-size:13px"></label>
                   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
                     ${!isInsumo ? `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Lucro %<input name="margem" type="number" step="1" value="${num(row.margem)}" style="font-size:13px"></label>` : `<span></span>`}
                     <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Outros custos<input name="outrosCustos" type="number" step="0.01" value="${num(row.outrosCustos)}" style="font-size:13px"></label>
@@ -5619,7 +5646,29 @@
         const [costId, index] = delIngredient.split(":");
         const recipe = state.costs.find(x => x.id === costId);
         if (recipe) recipe.ingredientes.splice(Number(index), 1);
+        _editIngred = null;
         save();
+      }
+
+      // ── Editar ingrediente da ficha (quantidade, unidade, perda %) ──
+      const editIng = event.target.closest("[data-edit-ingredient]")?.dataset.editIngredient;
+      if (editIng) { _editIngred = editIng; renderCosts(); }
+      if (event.target.closest("[data-cancel-ingredient]")) { _editIngred = null; renderCosts(); }
+      const saveIng = event.target.closest("[data-save-ingredient]")?.dataset.saveIngredient;
+      if (saveIng) {
+        const [costId, idx] = saveIng.split(":");
+        const recipe = state.costs.find(x => x.id === costId);
+        const row = event.target.closest("[data-ingred-row]");
+        const ing = recipe && recipe.ingredientes[Number(idx)];
+        if (ing && row) {
+          const g = f => row.querySelector(`[data-ingred-edit="${f}"]`);
+          ing.quantidadeUsada = num(g("quantidadeUsada")?.value);
+          ing.unidadeUsada = g("unidadeUsada")?.value || ing.unidadeUsada;
+          ing.perda = Math.max(0, Math.min(99, num(g("perda")?.value)));
+          _editIngred = null;
+          save();
+          showToast("Ingrediente atualizado.", 2000);
+        }
       }
 
       const cmdView = event.target.closest("[data-cmd-view]")?.dataset.cmdView;
@@ -6317,7 +6366,9 @@
         const recipe = state.costs.find(c => c.id === form.dataset.cost);
         if (recipe) {
           recipe.ingredientes = recipe.ingredientes || [];
-          recipe.ingredientes.push(ingredientFromFormData(data));
+          const ing = ingredientFromFormData(data);
+          ing.perda = num(data.perda) || 0;
+          recipe.ingredientes.push(ing);
         }
         form.reset();
         save();
@@ -6326,11 +6377,13 @@
       if (form.classList.contains("costMarginForm")) {
         const recipe = state.costs.find(c => c.id === form.dataset.cost);
         if (recipe) {
+          if ((data.produto || "").trim()) recipe.produto = data.produto.trim();
           recipe.margem = data.margem;
           recipe.outrosCustos = data.outrosCustos;
           recipe.rendimento = data.rendimento;
         }
         save();
+        showToast("Ficha atualizada.", 2000);
       }
 
       if (form.id === "expenseForm") {
