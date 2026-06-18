@@ -1842,7 +1842,7 @@
     const MASTER_KEY = "gestaoMaster.v1";
     let storeKey = MASTER_KEY;
     let _kbModalId = null;
-    let _dragId = null, _pdrag = null, _justDragged = false;
+    let _dragId = null, _pdrag = null, _justDragged = false, _editInvId = null;
     let currentSession = null; // { type:'gestor'} | { type:'company', company:{...} }
 
     const icons = {
@@ -3416,6 +3416,19 @@
         <tbody>
           ${items.map(item => {
             const low = num(item.quantidade) <= num(item.minimo);
+            if (_editInvId === item.id) {
+              const units = ["kg","g","l","ml","un","cx","pct"];
+              const inS = "width:100%;box-sizing:border-box;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel)";
+              return `<tr data-inv-row="${item.id}">
+                <td><input data-inv-edit="item" value="${escapeHTML(item.item)}" style="${inS}"><input data-inv-edit="fornecedor" value="${escapeHTML(item.fornecedor || "")}" placeholder="Fornecedor" style="${inS};margin-top:3px;font-size:11px"></td>
+                <td><input data-inv-edit="quantidade" type="number" step="0.001" value="${num(item.quantidade)}" style="${inS};text-align:right;max-width:90px"></td>
+                <td><select data-inv-edit="unidade" style="${inS}">${units.map(u => `<option ${(item.unidade || "") === u ? "selected" : ""}>${u}</option>`).join("")}</select></td>
+                <td><input data-inv-edit="custo" type="number" step="0.01" value="${num(item.custo)}" style="${inS};text-align:right;max-width:90px"></td>
+                <td><input data-inv-edit="minimo" type="number" step="0.001" value="${num(item.minimo)}" style="${inS};text-align:right;max-width:80px"></td>
+                <td><span class="mini">—</span></td>
+                <td style="white-space:nowrap"><button class="btn secondary" style="padding:4px 8px;font-size:11px" data-save-inventory="${item.id}">Salvar</button> <button class="btn ghost" style="padding:4px 8px;font-size:11px" data-cancel-inv-edit="1">Cancelar</button></td>
+              </tr>`;
+            }
             return `<tr>
               <td><strong>${escapeHTML(item.item)}</strong>${item.fornecedor ? `<br><span class="mini">${escapeHTML(item.fornecedor)}</span>` : ""}</td>
               <td style="text-align:right;font-variant-numeric:tabular-nums">${num(item.quantidade).toLocaleString("pt-BR", {maximumFractionDigits:3})}</td>
@@ -3423,7 +3436,7 @@
               <td style="text-align:right;font-variant-numeric:tabular-nums">${money(item.custo)}</td>
               <td style="text-align:right;font-variant-numeric:tabular-nums">${num(item.minimo).toLocaleString("pt-BR", {maximumFractionDigits:3})}</td>
               <td><span class="status${low ? " paused" : ""}">${low ? "repor" : "ok"}</span></td>
-              <td><button class="btn ghost" style="padding:4px 8px;font-size:11px" data-delete-inventory="${item.id}">×</button></td>
+              <td style="white-space:nowrap"><button class="btn ghost" style="padding:4px 8px;font-size:11px" data-edit-inventory="${item.id}">editar</button> <button class="btn ghost" style="padding:4px 8px;font-size:11px" data-delete-inventory="${item.id}">×</button></td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -5673,6 +5686,31 @@
 
       const delInventory = event.target.closest("[data-delete-inventory]")?.dataset.deleteInventory;
       if (delInventory) { state.inventory = (state.inventory || []).filter(x => x.id !== delInventory); save(); }
+
+      // ── Editar insumo do estoque (inline) ──
+      const editInv = event.target.closest("[data-edit-inventory]")?.dataset.editInventory;
+      if (editInv) { _editInvId = editInv; renderInventory(); }
+      if (event.target.closest("[data-cancel-inv-edit]")) { _editInvId = null; renderInventory(); }
+      const saveInv = event.target.closest("[data-save-inventory]")?.dataset.saveInventory;
+      if (saveInv) {
+        const it = (state.inventory || []).find(x => x.id === saveInv);
+        const row = event.target.closest("[data-inv-row]");
+        if (it && row) {
+          const g = f => row.querySelector(`[data-inv-edit="${f}"]`);
+          const nome = (g("item")?.value || "").trim();
+          if (nome) it.item = nome;
+          const novoCusto = num(g("custo")?.value);
+          if (novoCusto !== num(it.custo)) it.previousCost = it.custo;
+          it.quantidade = num(g("quantidade")?.value);
+          it.minimo = num(g("minimo")?.value);
+          it.unidade = g("unidade")?.value || it.unidade;
+          it.custo = novoCusto;
+          it.fornecedor = (g("fornecedor")?.value || "").trim();
+          _editInvId = null;
+          save();
+          showToast("Insumo atualizado.", 2000);
+        }
+      }
 
       const delTable = event.target.closest("[data-delete-table]")?.dataset.deleteTable;
       if (delTable) { state.tables = (state.tables || []).filter(x => x.id !== delTable); save(); }
