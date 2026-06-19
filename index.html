@@ -1817,6 +1817,7 @@
       <section id="caixa" class="section"></section>
       <section id="mesas" class="section"></section>
       <section id="estoque" class="section"></section>
+      <section id="insumos" class="section"></section>
       <section id="custos" class="section"></section>
       <section id="metas" class="section"></section>
       <section id="previsao" class="section"></section>
@@ -1851,6 +1852,7 @@
       mesas: '<rect width="16" height="10" x="4" y="7" rx="2"></rect><path d="M8 7V4"></path><path d="M16 7V4"></path><path d="M8 17v3"></path><path d="M16 17v3"></path>',
       caixa: '<rect width="20" height="14" x="2" y="5" rx="2"></rect><path d="M2 10h20"></path><path d="M6 15h.01"></path><path d="M10 15h.01"></path><path d="M14 15h.01"></path><path d="M18 15h.01"></path>',
       estoque: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><path d="M3.3 7 12 12l8.7-5"></path><path d="M12 22V12"></path>',
+      insumos: '<path d="M2 12h20"></path><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"></path><path d="m5 8 14-3"></path>',
       custos: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path><path d="M8 13h8"></path><path d="M8 17h5"></path>',
       metas: '<path d="M12 20V10"></path><path d="M18 20V4"></path><path d="M6 20v-6"></path>',
       previsao: '<path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path>',
@@ -1862,7 +1864,7 @@
     };
 
     const navItems = [
-      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque e insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
+      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
       ["cardapio", "Cardápio"], ["comandas", "Comandas"], ["relatorios", "Relatórios"], ["dados", "Configurações"]
     ];
 
@@ -1871,7 +1873,8 @@
       empresas: ["Empresas", ""],
       caixa: ["Caixa", ""],
       mesas: ["Mesas e áreas", ""],
-      estoque: ["Estoque e insumos", ""],
+      estoque: ["Estoque", ""],
+      insumos: ["Insumos", ""],
       custos: ["Fichas de custo", ""],
       metas: ["Metas", ""],
       previsao: ["Planejamento", ""],
@@ -2209,9 +2212,11 @@
       const byId = new Map(saved.map((item, index) => [item.id, { ...item, order: num(item.order || index + 1) }]));
       return getNavItems().map(([id, label], index) => {
         const current = byId.get(id) || {};
+        // Migração: ao separar "Insumos" em aba própria, renomeamos o rótulo antigo.
+        const savedLabel = (id === "estoque" && current.label === "Estoque e insumos") ? "Estoque" : current.label;
         return {
           id,
-          label: current.label || label,
+          label: savedLabel || label,
           order: current.order || index + 1,
           visible: id === "dashboard" || id === "dados" ? true : current.visible !== false
         };
@@ -3600,37 +3605,37 @@
     let _scrollCostId = null;   // rola até a ficha recém-criada (uma vez)
     let _editIngred = null;     // ingrediente em edição na ficha: "costId:index"
 
-    function renderCosts() {
-      document.getElementById("custos").innerHTML = `
+    function renderCosts(tipo = "produto") {
+      const isIns = tipo === "insumo";
+      const el = document.getElementById(isIns ? "insumos" : "custos");
+      if (!el) return;
+      el.innerHTML = `
         <div class="panel">
+          <h2 style="margin:0 0 4px">${isIns ? "Novo insumo (preparo)" : "Novo produto"}</h2>
+          <p class="mini" style="color:var(--muted);margin:0 0 12px">${isIns ? "O que você prepara na cozinha (ex.: strogonoff, carne de panela). Depois pode ser usado como ingrediente dos produtos." : "O produto final que você vende. Pode usar insumos preparados como ingrediente."}</p>
           <form id="costForm">
-            <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:10px">
-              Nome
-              <input name="produto" required placeholder="Pastel de frango, Massa do pastel…" style="font-size:14px">
-            </label>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
-              <label style="display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;padding:7px 6px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2)">
-                <input type="radio" name="tipo" value="produto" checked style="accent-color:var(--accent)"> Produto
+            <input type="hidden" name="tipo" value="${tipo}">
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+              <label style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--muted)">
+                Nome
+                <input name="produto" required placeholder="${isIns ? "Strogonoff, Carne de panela, Molho…" : "Pastel de frango, Prato feito…"}" style="font-size:14px">
               </label>
-              <label style="display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font-size:12px;font-weight:600;padding:7px 6px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2)">
-                <input type="radio" name="tipo" value="insumo" style="accent-color:var(--accent)"> Insumo
-              </label>
-              <label style="display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--muted);padding:4px 6px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel-2)">
+              <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--muted)">
                 Rende
-                <div style="display:flex;align-items:center;gap:3px">
-                  <input name="rendimento" type="number" step="1" min="1" value="1" style="width:38px;font-size:13px;padding:2px 4px;text-align:center">
-                  <span style="font-size:11px">un.</span>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <input name="rendimento" type="number" step="1" min="1" value="1" style="width:54px;font-size:13px;padding:6px;text-align:center;border:1px solid var(--line);border-radius:7px">
+                  <span style="font-size:11px">${isIns ? "porções" : "un."}</span>
                 </div>
               </label>
+              <button class="btn" type="submit" style="height:38px">${icon("custos")}Cadastrar</button>
             </div>
-            <button class="btn" type="submit" style="width:100%">${icon("custos")}Cadastrar</button>
           </form>
         </div>
-        <div class="panel" style="padding:0">${costsTable()}</div>
+        <div class="panel" style="padding:0">${costsTable(tipo)}</div>
       `;
       if (_scrollCostId) {
-        const el = document.getElementById("cost-detail-" + _scrollCostId);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        const sc = document.getElementById("cost-detail-" + _scrollCostId);
+        if (sc) sc.scrollIntoView({ behavior: "smooth", block: "start" });
         _scrollCostId = null;
       }
     }
@@ -3722,12 +3727,13 @@
       return manual;
     }
 
-    function costsTable() {
-      if (!state.costs.length) return `<div style="padding:16px">${empty("Nenhuma ficha cadastrada ainda.")}</div>`;
+    function costsTable(tipo = "produto") {
+      const list = (state.costs || []).filter(c => (c.tipo || "produto") === tipo);
+      if (!list.length) return `<div style="padding:16px">${empty(tipo === "insumo" ? "Nenhum insumo (preparo) cadastrado ainda. Cadastre acima o que você prepara (strogonoff, carne de panela…)." : "Nenhuma ficha de produto cadastrada ainda.")}</div>`;
       const tipoBadge = tipo => tipo === "insumo"
         ? `<span style="font-size:10px;font-weight:700;background:#e8f4fd;color:#1a6fa8;border-radius:20px;padding:2px 8px">sub-receita</span>`
         : `<span style="font-size:10px;font-weight:700;background:#fff3e0;color:#b85c00;border-radius:20px;padding:2px 8px">produto</span>`;
-      const rows = state.costs.map(row => {
+      const rows = list.map(row => {
         const calc = costCalc(row);
         const isInsumo = row.tipo === "insumo";
         const fifoItems = (row.ingredientes||[]).map(ing => ({ ing, change: ingredientChange(ing) })).filter(x => x.change.changed && x.change.isFifo);
@@ -3749,7 +3755,7 @@
         const fifoBadge = fifoItems.length ? ` <span style="font-size:10px;font-weight:700;background:#fff3cd;color:#856404;border-radius:20px;padding:2px 7px;vertical-align:middle;border:1px solid #f0ad4e">FIFO ↑</span>` : "";
         const detail = `
           <tr id="cost-detail-${row.id}" style="${_openCosts.has(row.id) ? "" : "display:none"}">
-            <td colspan="3" style="padding:0;border-top:1px solid var(--line)">
+            <td colspan="${isInsumo ? 2 : 3}" style="padding:0;border-top:1px solid var(--line)">
               <div style="padding:14px 16px;background:var(--panel-2)">
                 ${fifoBanner}
                 <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">
@@ -3828,21 +3834,16 @@
           <tr style="cursor:pointer" data-tipo="${row.tipo}" onclick="toggleCostDetail('${row.id}')">
             <td style="line-height:1.3"><strong style="font-size:13px">${escapeHTML(row.produto)}</strong> ${tipoBadge(row.tipo)}${fifoBadge}</td>
             <td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${money(calc.costPerUnit)}</td>
-            <td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${!isInsumo ? money(calc.suggested) : "—"}</td>
+            ${!isInsumo ? `<td style="text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap">${money(calc.suggested)}</td>` : ""}
           </tr>
           ${detail}`;
       }).join("");
       return `
-        <div id="costFilterBar" style="display:flex;gap:6px;padding:12px 16px;border-bottom:1px solid var(--line)">
-          <button onclick="filterCosts('todos',this)" class="btn ghost" style="font-size:12px;padding:5px 14px;border-radius:20px;background:var(--accent);color:#fff;border-color:var(--accent)">Todos</button>
-          <button onclick="filterCosts('produto',this)" class="btn ghost" style="font-size:12px;padding:5px 14px;border-radius:20px">Produtos</button>
-          <button onclick="filterCosts('insumo',this)" class="btn ghost" style="font-size:12px;padding:5px 14px;border-radius:20px">Insumos</button>
-        </div>
         <div class="table-wrap"><table id="costsMainTable">
           <thead><tr>
             <th>Nome</th>
             <th style="text-align:right">Custo/un</th>
-            <th style="text-align:right">Sugerido</th>
+            ${tipo === "insumo" ? "" : `<th style="text-align:right">Sugerido</th>`}
           </tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`;
@@ -5529,7 +5530,8 @@
       renderCash();
       renderTables();
       renderInventory();
-      renderCosts();
+      renderCosts("produto");
+      renderCosts("insumo");
       renderGoals();
       renderForecast();
       renderClients();
@@ -5671,8 +5673,8 @@
 
       // ── Editar ingrediente da ficha (quantidade, unidade, perda %) ──
       const editIng = event.target.closest("[data-edit-ingredient]")?.dataset.editIngredient;
-      if (editIng) { _editIngred = editIng; renderCosts(); }
-      if (event.target.closest("[data-cancel-ingredient]")) { _editIngred = null; renderCosts(); }
+      if (editIng) { _editIngred = editIng; renderCosts("produto"); renderCosts("insumo"); }
+      if (event.target.closest("[data-cancel-ingredient]")) { _editIngred = null; renderCosts("produto"); renderCosts("insumo"); }
       const saveIng = event.target.closest("[data-save-ingredient]")?.dataset.saveIngredient;
       if (saveIng) {
         const [costId, idx] = saveIng.split(":");
