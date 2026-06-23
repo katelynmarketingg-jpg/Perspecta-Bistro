@@ -1843,7 +1843,7 @@
     const MASTER_KEY = "gestaoMaster.v1";
     let storeKey = MASTER_KEY;
     let _kbModalId = null;
-    let _dragId = null, _pdrag = null, _justDragged = false, _editInvId = null;
+    let _dragId = null, _pdrag = null, _justDragged = false, _editInvId = null, _addStockId = null;
     let currentSession = null; // { type:'gestor'} | { type:'company', company:{...} }
 
     const icons = {
@@ -3413,6 +3413,28 @@
       `;
     }
 
+    // Custo médio ponderado ao adicionar uma compra ao estoque (preview ao vivo).
+    function calcStockAvg(id) {
+      const item = (state.inventory || []).find(x => x.id === id);
+      const row = document.querySelector(`[data-addstock-row="${id}"]`);
+      if (!item || !row) return;
+      const q1 = num(row.querySelector('[data-addstock="qtd"]')?.value);
+      const v1 = num(row.querySelector('[data-addstock="valor"]')?.value);
+      const q0 = num(item.quantidade), c0 = num(item.custo);
+      const newQty = q0 + q1;
+      const newAvg = newQty > 0 ? (q0 * c0 + v1) / newQty : 0;
+      const prev = row.querySelector(`[data-addstock-preview="${id}"]`);
+      if (!prev) return;
+      const un = escapeHTML(item.unidade || "");
+      if (q1 > 0 || v1 > 0) {
+        prev.style.color = "var(--ink)";
+        prev.innerHTML = `Novo saldo: <strong>${newQty.toLocaleString("pt-BR",{maximumFractionDigits:3})} ${un}</strong> · Novo custo médio: <strong style="color:var(--brand)">${money(newAvg)}/${un}</strong>${q1 > 0 ? ` <span style="color:var(--muted)">(esta compra: ${money(v1 / q1)}/${un})</span>` : ""}`;
+      } else {
+        prev.style.color = "var(--muted)";
+        prev.innerHTML = "Preencha a quantidade e o valor pago para ver o novo custo médio.";
+      }
+    }
+
     function inventoryListTable() {
       const items = state.inventory || [];
       if (!items.length) return empty("Nenhum insumo cadastrado ainda.");
@@ -3449,6 +3471,24 @@
                 </div>
               </td></tr>`;
             }
+            if (_addStockId === item.id) {
+              const inS = "width:100%;box-sizing:border-box;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)";
+              const lab = "display:flex;flex-direction:column;gap:3px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px";
+              const un = escapeHTML(item.unidade || "");
+              return `<tr data-addstock-row="${item.id}"><td colspan="7" style="background:#fff6ec;padding:14px 16px;border-left:3px solid var(--brand)">
+                <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:2px">➕ Adicionar ao estoque — ${escapeHTML(item.item)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Saldo atual: <strong>${num(item.quantidade).toLocaleString("pt-BR",{maximumFractionDigits:3})} ${un}</strong> · custo médio atual <strong>${money(item.custo)}</strong></div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
+                  <label style="${lab}">Quantidade comprada (${un})<input data-addstock="qtd" type="number" step="0.001" min="0" placeholder="0" oninput="calcStockAvg('${item.id}')" style="${inS}"></label>
+                  <label style="${lab}">Valor pago nessa compra (R$)<input data-addstock="valor" type="number" step="0.01" min="0" placeholder="0,00" oninput="calcStockAvg('${item.id}')" style="${inS}"></label>
+                </div>
+                <div data-addstock-preview="${item.id}" style="margin-top:10px;font-size:13px;background:var(--panel);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;color:var(--muted)">Preencha a quantidade e o valor pago para ver o novo custo médio.</div>
+                <div style="display:flex;gap:8px;margin-top:12px">
+                  <button class="btn" style="font-size:13px" data-save-addstock="${item.id}">Adicionar ao estoque</button>
+                  <button class="btn ghost" style="font-size:13px" data-cancel-addstock="1">Cancelar</button>
+                </div>
+              </td></tr>`;
+            }
             return `<tr>
               <td><strong>${escapeHTML(item.item)}</strong>${item.fornecedor ? `<br><span class="mini">${escapeHTML(item.fornecedor)}</span>` : ""}</td>
               <td style="text-align:right;font-variant-numeric:tabular-nums">${num(item.quantidade).toLocaleString("pt-BR", {maximumFractionDigits:3})}</td>
@@ -3456,7 +3496,7 @@
               <td style="text-align:right;font-variant-numeric:tabular-nums">${money(item.custo)}</td>
               <td style="text-align:right;font-variant-numeric:tabular-nums">${num(item.minimo).toLocaleString("pt-BR", {maximumFractionDigits:3})}</td>
               <td><span class="status${low ? " paused" : ""}">${low ? "repor" : "ok"}</span></td>
-              <td style="white-space:nowrap"><button class="btn ghost" style="padding:4px 8px;font-size:11px" data-edit-inventory="${item.id}">editar</button> <button class="btn ghost" style="padding:4px 8px;font-size:11px" data-delete-inventory="${item.id}">×</button></td>
+              <td style="white-space:nowrap"><button class="btn ok" style="padding:4px 8px;font-size:11px" data-add-stock="${item.id}">+ estoque</button> <button class="btn ghost" style="padding:4px 8px;font-size:11px" data-edit-inventory="${item.id}">editar</button> <button class="btn ghost" style="padding:4px 8px;font-size:11px" data-delete-inventory="${item.id}">×</button></td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -5761,7 +5801,7 @@
 
       // ── Editar insumo do estoque (inline) ──
       const editInv = event.target.closest("[data-edit-inventory]")?.dataset.editInventory;
-      if (editInv) { _editInvId = editInv; renderInventory(); }
+      if (editInv) { _editInvId = editInv; _addStockId = null; renderInventory(); }
       if (event.target.closest("[data-cancel-inv-edit]")) { _editInvId = null; renderInventory(); }
       const saveInv = event.target.closest("[data-save-inventory]")?.dataset.saveInventory;
       if (saveInv) {
@@ -5781,6 +5821,38 @@
           _editInvId = null;
           save();
           showToast("Insumo atualizado.", 2000);
+        }
+      }
+
+      // ── Adicionar ao estoque com custo médio ponderado ──
+      const addStockOpen = event.target.closest("[data-add-stock]")?.dataset.addStock;
+      if (addStockOpen) { _addStockId = addStockOpen; _editInvId = null; renderInventory(); }
+      if (event.target.closest("[data-cancel-addstock]")) { _addStockId = null; renderInventory(); }
+      const saveAddStock = event.target.closest("[data-save-addstock]")?.dataset.saveAddstock;
+      if (saveAddStock) {
+        const it = (state.inventory || []).find(x => x.id === saveAddStock);
+        const row = event.target.closest("[data-addstock-row]");
+        if (it && row) {
+          const q1 = num(row.querySelector('[data-addstock="qtd"]')?.value);
+          const v1 = num(row.querySelector('[data-addstock="valor"]')?.value);
+          if (q1 <= 0) {
+            showToast("Informe a quantidade comprada.", 3000);
+          } else {
+            const q0 = num(it.quantidade), c0 = num(it.custo);
+            const newQty = q0 + q1;
+            it.previousCost = c0;
+            it.quantidade = newQty;
+            it.custo = newQty > 0 ? (q0 * c0 + v1) / newQty : it.custo; // custo médio ponderado
+            const unitNew = q1 > 0 ? v1 / q1 : 0;
+            const at = new Date().toISOString();
+            state.inventoryMovements = state.inventoryMovements || [];
+            state.inventoryMovements.push({ id: uid(), inventoryId: it.id, item: it.item, tipo: "entrada", quantidade: q1, unidade: it.unidade, custo: unitNew, motivo: "Compra (custo médio)", createdAt: at });
+            state.inventoryBatches = state.inventoryBatches || [];
+            state.inventoryBatches.push({ id: uid(), inventoryId: it.id, item: it.item, quantidadeInicial: q1, quantidadeRestante: q1, custo: unitNew, unidade: it.unidade, createdAt: at });
+            _addStockId = null;
+            save();
+            showToast(`Estoque atualizado: ${newQty.toLocaleString("pt-BR",{maximumFractionDigits:3})} ${it.unidade} · custo médio ${money(it.custo)}`, 3800);
+          }
         }
       }
 
