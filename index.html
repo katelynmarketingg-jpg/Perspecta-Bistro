@@ -1995,7 +1995,7 @@
       // If localStorage has no companies, pull from Firebase (new device / fresh browser)
       if (!master.companies || master.companies.length === 0) {
         try {
-          const r = await fetch(`${FIREBASE_URL}/data/${fbPath(MASTER_KEY)}.json`);
+          const r = await authedFetch(`${FIREBASE_URL}/data/${fbPath(MASTER_KEY)}.json`);
           if (r.ok) {
             const fb = await r.json();
             if (fb && fb.companies) {
@@ -2032,7 +2032,7 @@
         state = loadState();
         // Also pull company state from Firebase if localStorage empty
         try {
-          const r2 = await fetch(`${FIREBASE_URL}/data/${fbPath(storeKey)}.json`);
+          const r2 = await authedFetch(`${FIREBASE_URL}/data/${fbPath(storeKey)}.json`);
           if (r2.ok) {
             const fb2 = await r2.json();
             if (fb2 && (fb2.savedAt || 0) > (state.savedAt || 0)) {
@@ -2255,6 +2255,74 @@
     function fbPath(key) { return key.replace(/\./g, '_') + (TEST_MODE ? '__TESTE' : ''); }
 
     // ─────────────────────────────────────────────────────────────
+    //  SEGURANÇA — autenticação anônima do Firebase
+    //  Sem uma chave aqui, o app funciona como antes (fetch normal, sem token).
+    //  Ao preencher a "Chave de API da Web" do Firebase e ativar o login
+    //  anônimo no console, todas as chamadas passam a levar um token e as
+    //  regras do banco podem exigir login — barrando robôs/curl sem token.
+    //  Obs.: a chave da Web é PÚBLICA por natureza (fica em todo app web
+    //  Firebase); pode ficar no código sem risco.
+    // ─────────────────────────────────────────────────────────────
+    const FIREBASE_API_KEY = ""; // ← cole aqui a Chave de API da Web para ligar a segurança
+
+    let _fbAuth = null; // { idToken, refreshToken, exp }
+    try { _fbAuth = JSON.parse(localStorage.getItem('perspectaFbAuth') || 'null'); } catch (e) {}
+    let _fbAuthPromise = null;
+
+    async function ensureFbToken() {
+      if (!FIREBASE_API_KEY) return null;                                  // segurança desligada
+      const now = Date.now();
+      if (_fbAuth && _fbAuth.idToken && now < _fbAuth.exp - 60000) return _fbAuth.idToken;
+      if (_fbAuthPromise) return _fbAuthPromise;                           // evita corrida entre chamadas
+      _fbAuthPromise = (async () => {
+        try {
+          // 1) tenta renovar com o refresh token (evita criar usuário anônimo novo toda hora)
+          if (_fbAuth && _fbAuth.refreshToken) {
+            const r = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+              method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(_fbAuth.refreshToken)}`
+            });
+            if (r.ok) {
+              const d = await r.json();
+              _fbAuth = { idToken: d.id_token, refreshToken: d.refresh_token, exp: Date.now() + (+d.expires_in) * 1000 };
+              localStorage.setItem('perspectaFbAuth', JSON.stringify(_fbAuth));
+              return _fbAuth.idToken;
+            }
+          }
+          // 2) cria um usuário anônimo
+          const r2 = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ returnSecureToken: true })
+          });
+          if (r2.ok) {
+            const d = await r2.json();
+            _fbAuth = { idToken: d.idToken, refreshToken: d.refreshToken, exp: Date.now() + (+d.expiresIn) * 1000 };
+            localStorage.setItem('perspectaFbAuth', JSON.stringify(_fbAuth));
+            return _fbAuth.idToken;
+          }
+        } catch (e) {}
+        return _fbAuth && _fbAuth.idToken ? _fbAuth.idToken : null;
+      })();
+      const t = await _fbAuthPromise;
+      _fbAuthPromise = null;
+      return t;
+    }
+
+    // Igual ao fetch(), mas anexa ?auth=token nas chamadas do Firebase.
+    // Segurança desligada (sem API key) → fetch normal, comportamento idêntico ao de antes.
+    async function authedFetch(url, opts) {
+      const token = await ensureFbToken();
+      const build = (u, t) => t ? u + (u.includes('?') ? '&' : '?') + 'auth=' + t : u;
+      let res = await fetch(build(url, token), opts);
+      if (res.status === 401 && FIREBASE_API_KEY) { // token venceu → renova e tenta 1x
+        _fbAuth = null;
+        const t2 = await ensureFbToken();
+        if (t2) res = await fetch(build(url, t2), opts);
+      }
+      return res;
+    }
+
+    // ─────────────────────────────────────────────────────────────
     //  FOTOS — armazenadas SEPARADAS do estado (não incham o sync)
     //  • Fotos enviadas pelo usuário ficam no IndexedDB (local, sem o limite
     //    de 5 MB do localStorage) e na nuvem em /photos/{loja}/{itemId}={b64,tag}.
@@ -2343,7 +2411,7 @@
       for (const item of (state.menu || []).filter(m => m.photoUpload)) {
         if (photoMem[item.id] && _photoTagMem[item.id] === (item.photoTag || '')) continue;
         try {
-          const r = await fetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${item.id}.json`);
+          const r = await authedFetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${item.id}.json`);
           if (!r.ok) continue;
           const data = await r.json();
           const b64 = data && (data.b64 || (typeof data === 'string' ? data : null));
@@ -2358,7 +2426,7 @@
 
     function syncPhotoToServer(itemId, b64, tag) {
       try {
-        fetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${itemId}.json`, {
+        authedFetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${itemId}.json`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ b64, tag })
         }).catch(() => {});
@@ -2367,7 +2435,7 @@
     function deletePhotoEverywhere(itemId) {
       delete photoMem[itemId]; delete _photoTagMem[itemId];
       idbDel(photoStoreKey(itemId));
-      try { fetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${itemId}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
+      try { authedFetch(`${FIREBASE_URL}/photos/${fbPath(storeKey)}/${itemId}.json`, { method: 'DELETE' }).catch(() => {}); } catch (e) {}
     }
 
     // Aplica uma foto recém-escolhida: salva local (IndexedDB) + nuvem + marca o item.
@@ -2508,7 +2576,7 @@
         try {
           const ctrl = new AbortController();
           const tmo = setTimeout(() => ctrl.abort(), 15000);
-          const r = await fetch(`${FIREBASE_URL}/data/${path}.json`, { signal: ctrl.signal });
+          const r = await authedFetch(`${FIREBASE_URL}/data/${path}.json`, { signal: ctrl.signal });
           clearTimeout(tmo);
           if (r.ok) server = await r.json();
         } catch (e) {}
@@ -2516,7 +2584,7 @@
         merged.savedAt = Date.now();
         const ctrl2 = new AbortController();
         const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
-        const w = await fetch(`${FIREBASE_URL}/data/${path}.json`, {
+        const w = await authedFetch(`${FIREBASE_URL}/data/${path}.json`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(merged), signal: ctrl2.signal
         });
@@ -2565,7 +2633,7 @@
       if (!storeKey) return;
       try {
         const path = fbPath(storeKey);
-        const r = await fetch(`${FIREBASE_URL}/orders/${path}.json`);
+        const r = await authedFetch(`${FIREBASE_URL}/orders/${path}.json`);
         if (!r.ok) return;
         const orders = await r.json();
         if (!orders || typeof orders !== 'object') return;
@@ -2594,7 +2662,7 @@
           ensureClientFromCommand(order.nome || "WhatsApp");
           newCmds++;
           // Remove o pedido do Firebase após processar
-          fetch(`${FIREBASE_URL}/orders/${path}/${orderId}.json`, { method: 'DELETE' }).catch(() => {});
+          authedFetch(`${FIREBASE_URL}/orders/${path}/${orderId}.json`, { method: 'DELETE' }).catch(() => {});
         }
         if (newCmds > 0) {
           save();
@@ -2606,7 +2674,7 @@
     async function loadFromServer() {
       try {
         const path = fbPath(storeKey);
-        const r = await fetch(`${FIREBASE_URL}/data/${path}.json`);
+        const r = await authedFetch(`${FIREBASE_URL}/data/${path}.json`);
         if (!r.ok) return null;
         const data = await r.json();
         return data; // Firebase returns null if path is empty
@@ -6730,7 +6798,7 @@
         }).join("\n");
         // Grava no Firebase — sistema do restaurante detecta em até 8s e cria a comanda automaticamente
         try {
-          fetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
+          authedFetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

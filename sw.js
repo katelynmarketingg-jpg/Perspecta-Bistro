@@ -1,4 +1,4 @@
-const CACHE = 'alianca-v28';
+const CACHE = 'alianca-v29';
 const ASSETS = ['./'];
 
 self.addEventListener('install', e => {
@@ -16,6 +16,11 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const req = e.request;
+
+  // Chamadas de API (Firebase / login Google) NUNCA são cacheadas — sempre rede.
+  // Evita servir dados velhos do banco (sync) e respostas de token vencidas.
+  if (/firebaseio\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/.test(req.url)) return;
+
   const isDoc = req.mode === 'navigate' || req.destination === 'document';
 
   if (isDoc) {
