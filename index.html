@@ -2755,27 +2755,38 @@
       return inventory ? inventoryUnitCost(inventory) : purchaseUnitCost(row);
     }
 
-    // Perda/merma: ingrediente que perde X% no preparo (ex.: carne -18% ao cozinhar)
-    // custa mais por unidade usável → custo ÷ (1 − perda%). Perda 0 = sem efeito.
-    function lossFactor(row) {
+    // Perda/merma: ingrediente que perde X% no preparo (ex.: carne -18% ao cozinhar).
+    // A perda NÃO altera o custo — o valor pago pelo que foi usado segue o mesmo.
+    // Ela só indica que RENDE MENOS: yieldFactor = (1 − perda%). Perda 0 = sem efeito.
+    function yieldFactor(row) {
       const p = num(row && row.perda) || 0;
-      return (p > 0 && p < 100) ? 1 / (1 - p / 100) : 1;
+      return (p > 0 && p < 100) ? (1 - p / 100) : 1;
+    }
+
+    // Quantidade que sobra depois da perda, já em unidade legível
+    // (ex.: 1 kg com 18% de perda → "820 g").
+    function usableQtyLabel(row) {
+      const base = convertToBase(num(row.quantidadeUsada), row.unidadeUsada) * yieldFactor(row);
+      const u = (row.unidadeUsada || "").toLowerCase();
+      const fmt = n => (Math.round(n * 100) / 100).toString().replace(".", ",");
+      if (u === "kg" || u === "g") return base >= 1000 ? fmt(base / 1000) + " kg" : Math.round(base) + " g";
+      if (u === "l" || u === "ml") return base >= 1000 ? fmt(base / 1000) + " l" : Math.round(base) + " ml";
+      return fmt(base) + " un";
     }
 
     function ingredientCost(row) {
-      const f = lossFactor(row);
       if (row.costId) {
         const sub = state.costs.find(c => c.id === row.costId);
-        if (sub) return costCalc(sub).costPerUnit * num(row.quantidadeUsada) * f;
+        if (sub) return costCalc(sub).costPerUnit * num(row.quantidadeUsada);
       }
       const usedBase = convertToBase(row.quantidadeUsada, row.unidadeUsada);
       const unitCost = currentIngredientUnitCost(row);
-      return unitCost * usedBase * f;
+      return unitCost * usedBase;
     }
 
     function ingredientOriginalCost(row) {
       const usedBase = convertToBase(row.quantidadeUsada, row.unidadeUsada);
-      return num(row.baseUnitCost || purchaseUnitCost(row)) * usedBase * lossFactor(row);
+      return num(row.baseUnitCost || purchaseUnitCost(row)) * usedBase;
     }
 
     // ── FIFO ────────────────────────────────────────────────
@@ -2829,7 +2840,7 @@
       const stockBase = inv ? (convertToBase(1, inv.unidade || "un") || 1) : 1;
       const fifoPerBase = fifoRaw !== null ? fifoRaw / stockBase : null;
       const current = fifoPerBase !== null
-        ? fifoPerBase * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un") * lossFactor(row)
+        ? fifoPerBase * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un")
         : ingredientCost(row);
       const original = ingredientOriginalCost(row);
       const delta = current - original;
@@ -3902,7 +3913,7 @@
                       const tag = item.refType === "cost" ? `<span style="font-size:10px;color:#1a6fa8">sub-receita</span>`
                                 : item.inventoryId ? `<span style="font-size:10px;color:var(--muted)">estoque</span>`
                                 : `<span style="font-size:10px;color:var(--muted)">manual</span>`;
-                      const perdaTxt = num(item.perda) > 0 ? ` <span style="font-size:10px;color:#b85c00;font-weight:700">· perda ${num(item.perda)}%</span>` : "";
+                      const perdaTxt = num(item.perda) > 0 ? ` <span style="font-size:10px;color:#b85c00;font-weight:700">· perda ${num(item.perda)}% → rende ${usableQtyLabel(item)}</span>` : "";
                       return `<tr>
                         <td><strong>${escapeHTML(item.nome)}</strong> ${tag}</td>
                         <td>${escapeHTML(String(item.quantidadeUsada))} ${escapeHTML(item.unidadeUsada||"")}${perdaTxt}</td>
