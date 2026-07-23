@@ -1759,11 +1759,13 @@
       </svg>
       <div class="login-wordmark"><strong>Perspecta</strong><span>Bistro</span></div>
       <form id="loginForm" autocomplete="off" style="width:100%">
-        <label>Login<input type="text" id="loginUser" placeholder="Digite seu login" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label>Empresa<input type="text" id="loginEmpresa" placeholder="Nome da empresa" autocomplete="organization" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <label>Nome<input type="text" id="loginPessoa" placeholder="Seu nome" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
         <label>Senha<input type="password" id="loginPass" placeholder="Digite sua senha" autocomplete="current-password" autocapitalize="off" autocorrect="off"></label>
-        <div id="loginError" class="login-error hidden">Login ou senha incorretos</div>
+        <div id="loginError" class="login-error hidden">Empresa, nome ou senha incorretos</div>
         <div id="loginNetworkError" class="login-error hidden" style="background:#e67e22">Sem conexão com a internet. Verifique o Wi-Fi e tente novamente.</div>
         <button type="submit" id="loginBtn">Entrar</button>
+        <button type="button" id="loginTrocar" class="hidden" style="margin-top:8px;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;width:100%">Entrar com outra conta</button>
       </form>
     </div>
   </div>
@@ -1967,21 +1969,41 @@
       localStorage.setItem(MASTER_KEY, JSON.stringify(master));
     }
 
+    // Guarda o último acesso deste aparelho: empresa + nome (nunca a senha).
+    const BISTRO_REMEMBER = "perspectaBistroLastLogin";
+    function loadRemembered() {
+      try { return JSON.parse(localStorage.getItem(BISTRO_REMEMBER) || "null"); } catch { return null; }
+    }
+
     function showLogin() {
       document.getElementById("loginScreen").classList.remove("hidden");
       document.getElementById("internalApp").classList.add("hidden");
       document.getElementById("publicMenu").classList.add("hidden");
       document.getElementById("loginError").classList.add("hidden");
-      document.getElementById("loginUser").value = "";
+      const rem = loadRemembered();
+      const empEl = document.getElementById("loginEmpresa");
+      const pesEl = document.getElementById("loginPessoa");
+      const trocar = document.getElementById("loginTrocar");
+      // Se já entrou antes neste aparelho, deixa empresa+nome prontos e pede só a senha.
+      empEl.value = rem?.empresa || "";
+      pesEl.value = rem?.pessoa || "";
       document.getElementById("loginPass").value = "";
-      setTimeout(() => document.getElementById("loginUser").focus(), 100);
+      if (rem) {
+        trocar.classList.remove("hidden");
+        setTimeout(() => document.getElementById("loginPass").focus(), 100);
+      } else {
+        trocar.classList.add("hidden");
+        setTimeout(() => empEl.focus(), 100);
+      }
     }
 
     function hideLogin() {
       document.getElementById("loginScreen").classList.add("hidden");
     }
 
-    async function doLogin(login, senha) {
+    async function doLogin(empresa, pessoa, senha) {
+      const norm = (s) => String(s || "").trim().toLowerCase();
+      const emp = norm(empresa), pes = norm(pessoa);
       // Show loading state
       const btn = document.getElementById("loginBtn");
       const errEl = document.getElementById("loginError");
@@ -2013,19 +2035,35 @@
 
       if (btn) { btn.textContent = "Entrar"; btn.disabled = false; }
 
+      // Guarda empresa+nome deste acesso (nunca a senha) para o próximo login.
+      const lembrar = () => {
+        try { localStorage.setItem(BISTRO_REMEMBER, JSON.stringify({ empresa, pessoa })); } catch {}
+      };
+
       const gc = master.gestorCredentials || { login: "Perspecta", senha: "001" };
-      if (login.toLowerCase() === gc.login.toLowerCase() && senha === gc.senha) {
+      // Gestor: pode digitar o login do gestor no campo Empresa OU no campo Nome.
+      if (senha === gc.senha && (emp === norm(gc.login) || pes === norm(gc.login))) {
         currentSession = { type: "gestor" };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
         storeKey = MASTER_KEY;
         state = normalizeState({ ...structuredClone(defaultState), ...master });
+        lembrar();
         hideLogin();
         startApp();
         return;
       }
       const companies = master.companies || [];
-      const company = companies.find(c => c.login.toLowerCase() === login.toLowerCase() && c.senha === senha && c.status !== "inativo");
+      // Casa por Empresa (nome) + Nome (responsável) + Senha. Retrocompatível:
+      // quem tinha só "login" ainda entra digitando o login no campo Empresa ou Nome.
+      const company = companies.find(c => {
+        if (c.senha !== senha || c.status === "inativo") return false;
+        const nomeOk = norm(c.nome) === emp;
+        const pessoaOk = !c.responsavel || norm(c.responsavel) === pes;
+        const loginAntigo = c.login && (norm(c.login) === emp || norm(c.login) === pes);
+        return (nomeOk && pessoaOk) || loginAntigo;
+      });
       if (company) {
+        lembrar();
         currentSession = { type: "company", company };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
         storeKey = "gestaoCompany." + company.id + ".v1";
@@ -5760,9 +5798,16 @@
 
     document.getElementById("loginForm").addEventListener("submit", async function(e) {
       e.preventDefault();
-      const login = document.getElementById("loginUser").value.trim();
+      const empresa = document.getElementById("loginEmpresa").value.trim();
+      const pessoa = document.getElementById("loginPessoa").value.trim();
       const senha = document.getElementById("loginPass").value;
-      await doLogin(login, senha);
+      await doLogin(empresa, pessoa, senha);
+    });
+
+    // "Entrar com outra conta": esquece empresa+nome salvos e volta ao formulário em branco.
+    document.getElementById("loginTrocar").addEventListener("click", function() {
+      try { localStorage.removeItem(BISTRO_REMEMBER); } catch {}
+      showLogin();
     });
 
     document.addEventListener("click", event => {
@@ -6665,7 +6710,7 @@
         state.companies = master.companies;
         form.reset();
         save();
-        showToast("Empresa \"" + newCompany.nome + "\" criada. Login: " + newCompany.login + " / Senha: " + newCompany.senha, 5000);
+        showToast("Empresa \"" + newCompany.nome + "\" criada. Entrar com: Empresa \"" + newCompany.nome + "\"" + (newCompany.responsavel ? " / Nome \"" + newCompany.responsavel + "\"" : "") + " / Senha \"" + newCompany.senha + "\"", 6000);
       }
 
       if (form.id === "staffForm") {
