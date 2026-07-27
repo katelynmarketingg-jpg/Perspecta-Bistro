@@ -2870,19 +2870,36 @@
       return alerts;
     }
 
+    // Dimensão da unidade — evita comparar coisas incompatíveis (un × kg dá conta errada)
+    function unitDim(u) {
+      u = (u || "").toLowerCase();
+      if (u === "kg" || u === "g") return "peso";
+      if (u === "l" || u === "ml") return "volume";
+      return "un";
+    }
+
     function ingredientChange(row) {
+      // Sub-receita (preparo): o custo vem da ficha do preparo, NUNCA do estoque/FIFO.
+      // (Sem isso, uma massa-preparo ligada a um item de estoque em kg dava R$0,01 no lugar de R$0,53.)
+      if (row.costId && state.costs.find(c => c.id === row.costId)) {
+        const c = ingredientCost(row);
+        return { current: c, original: c, delta: 0, changed: false, isFifo: false };
+      }
       const inv = inventoryById(row.inventoryId);
       const fifoRaw = inv ? fifoCostForItem(inv.id) : null;
+      // Só compara FIFO quando a unidade usada é compatível com a do estoque
+      // (peso com peso, volume com volume). Senão, cai no custo normal — sem conta sem sentido.
+      const sameDim = !!inv && unitDim(row.unidadeUsada) === unitDim(inv.unidade);
       // fifoCostForItem retorna custo por unidade de estoque (ex: R$/kg)
       // precisa normalizar para por unidade base (R$/g) antes de multiplicar por convertToBase
       const stockBase = inv ? (convertToBase(1, inv.unidade || "un") || 1) : 1;
-      const fifoPerBase = fifoRaw !== null ? fifoRaw / stockBase : null;
+      const fifoPerBase = (fifoRaw !== null && sameDim) ? fifoRaw / stockBase : null;
       const current = fifoPerBase !== null
         ? fifoPerBase * convertToBase(num(row.quantidadeUsada), row.unidadeUsada || inv?.unidade || "un")
         : ingredientCost(row);
       const original = ingredientOriginalCost(row);
       const delta = current - original;
-      return { current, original, delta, changed: Math.abs(delta) >= 0.01, isFifo: fifoRaw !== null };
+      return { current, original, delta, changed: Math.abs(delta) >= 0.01, isFifo: fifoRaw !== null && sameDim };
     }
 
     function costCalc(row) {
