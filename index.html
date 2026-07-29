@@ -2805,8 +2805,11 @@
     // A perda NÃO altera o custo — o valor pago pelo que foi usado segue o mesmo.
     // Ela só indica que RENDE MENOS: yieldFactor = (1 − perda%). Perda 0 = sem efeito.
     function yieldFactor(row) {
-      const p = num(row && row.perda) || 0;
-      return (p > 0 && p < 100) ? (1 - p / 100) : 1;
+      const p = num(row && row.perda) || 0;      // perda: rende MENOS (ex.: carne -18%)
+      const a = num(row && row.aumento) || 0;    // aumento: rende MAIS (ex.: arroz +150%)
+      const fPerda = (p > 0 && p < 100) ? (1 - p / 100) : 1;
+      const fAumento = a > 0 ? (1 + a / 100) : 1;
+      return fPerda * fAumento;                   // nenhum dos dois mexe no custo, só na quantidade
     }
 
     // Quantidade que sobra depois da perda, já em unidade legível
@@ -3967,7 +3970,8 @@
                           <td><div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                             <input data-ingred-edit="quantidadeUsada" type="number" step="0.001" value="${num(item.quantidadeUsada)}" style="${inS};width:62px;text-align:right">
                             <select data-ingred-edit="unidadeUsada" style="${inS}">${units.map(u => `<option ${(item.unidadeUsada || "") === u ? "selected" : ""}>${u}</option>`).join("")}</select>
-                            <span style="font-size:10px;color:var(--muted)">perda</span><input data-ingred-edit="perda" type="number" step="1" min="0" max="99" value="${num(item.perda) || 0}" style="${inS};width:46px;text-align:right"><span style="font-size:10px;color:var(--muted)">%</span>
+                            <span style="font-size:10px;color:var(--muted)">perda</span><input data-ingred-edit="perda" type="number" step="1" min="0" max="99" value="${num(item.perda) || 0}" style="${inS};width:42px;text-align:right"><span style="font-size:10px;color:var(--muted)">%</span>
+                            <span style="font-size:10px;color:var(--muted)">aum.</span><input data-ingred-edit="aumento" type="number" step="1" min="0" value="${num(item.aumento) || 0}" style="${inS};width:42px;text-align:right"><span style="font-size:10px;color:var(--muted)">%</span>
                           </div></td>
                           <td><span class="mini">—</span></td>
                           <td style="white-space:nowrap"><button class="btn secondary" style="padding:2px 8px;font-size:11px" data-save-ingredient="${key}">✓ Salvar</button> <button class="btn ghost" style="padding:2px 7px;font-size:11px" data-cancel-ingredient="1">✕</button></td>
@@ -3976,7 +3980,8 @@
                       const tag = item.refType === "cost" ? `<span style="font-size:10px;color:#1a6fa8">sub-receita</span>`
                                 : item.inventoryId ? `<span style="font-size:10px;color:var(--muted)">estoque</span>`
                                 : `<span style="font-size:10px;color:var(--muted)">manual</span>`;
-                      const perdaTxt = num(item.perda) > 0 ? ` <span style="font-size:10px;color:#b85c00;font-weight:700">· perda ${num(item.perda)}% → rende ${usableQtyLabel(item)}</span>` : "";
+                      const _rp = []; if (num(item.perda) > 0) _rp.push(`perda ${num(item.perda)}%`); if (num(item.aumento) > 0) _rp.push(`aumento ${num(item.aumento)}%`);
+                      const perdaTxt = _rp.length ? ` <span style="font-size:10px;color:#b85c00;font-weight:700">· ${_rp.join(" · ")} → rende ${usableQtyLabel(item)}</span>` : "";
                       return `<tr>
                         <td><strong>${escapeHTML(item.nome)}</strong> ${tag}</td>
                         <td>${escapeHTML(String(item.quantidadeUsada))} ${escapeHTML(item.unidadeUsada||"")}${perdaTxt}</td>
@@ -3988,11 +3993,12 @@
                 </table></div>
                 <div style="display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;margin-bottom:8px">
                   <form class="addIngredientForm" data-cost="${row.id}" style="display:contents">
-                    <div style="display:grid;grid-template-columns:2fr 64px 60px 64px;gap:6px;align-items:end">
+                    <div style="display:grid;grid-template-columns:2fr 58px 54px 58px 58px;gap:6px;align-items:end">
                       <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Ingrediente<select name="inventoryId" style="font-size:12px">${allIngredientOptions()}</select></label>
-                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Qtd<input name="quantidadeUsada" type="number" step="0.001" required placeholder="0" style="font-size:12px"></label>
-                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Un.<select name="unidadeUsada" style="font-size:12px"><option>g</option><option>kg</option><option>ml</option><option>l</option><option>un</option></select></label>
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Qtd<input name="quantidadeUsada" type="number" step="0.001" required value="1" style="font-size:12px"></label>
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Un.<select name="unidadeUsada" style="font-size:12px"><option selected>un</option><option>g</option><option>kg</option><option>ml</option><option>l</option></select></label>
                       <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)" title="Perda no preparo, ex.: carne -18% ao cozinhar">Perda %<input name="perda" type="number" step="1" min="0" max="99" placeholder="0" style="font-size:12px"></label>
+                      <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)" title="Aumento no preparo, ex.: arroz +150% ao cozinhar">Aumento %<input name="aumento" type="number" step="1" min="0" placeholder="0" style="font-size:12px"></label>
                     </div>
                     <button class="btn ghost" type="submit" style="align-self:end;font-size:12px;padding:8px 12px">+ Add</button>
                   </form>
@@ -5875,6 +5881,7 @@
           ing.quantidadeUsada = num(g("quantidadeUsada")?.value);
           ing.unidadeUsada = g("unidadeUsada")?.value || ing.unidadeUsada;
           ing.perda = Math.max(0, Math.min(99, num(g("perda")?.value)));
+          ing.aumento = Math.max(0, num(g("aumento")?.value));
           _editIngred = null;
           save();
           showToast("Ingrediente atualizado.", 2000);
@@ -6610,6 +6617,7 @@
           recipe.ingredientes = recipe.ingredientes || [];
           const ing = ingredientFromFormData(data);
           ing.perda = num(data.perda) || 0;
+          ing.aumento = num(data.aumento) || 0;
           recipe.ingredientes.push(ing);
         }
         form.reset();
