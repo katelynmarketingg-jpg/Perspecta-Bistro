@@ -2500,10 +2500,18 @@
     function hasPhoto(item) { return !!(item && (item.photoUpload || validBundledSrc(item.foto))); }
 
     // Re-render seguro: não recria a tela se o usuário está digitando ou com modal aberto.
+    // Atividade recente — evita re-desenhar/recarregar a tela no meio de um cadastro
+    // (era isso que "fechava a tela e sumia o que estava sendo digitado").
+    let _lastActivity = 0;
+    ['keydown', 'input', 'change', 'pointerdown', 'touchstart', 'click'].forEach(ev =>
+      document.addEventListener(ev, () => { _lastActivity = Date.now(); }, true)
+    );
     function isUserBusy() {
       const a = document.activeElement;
       if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
       if (document.querySelector('.pm-overlay:not(.hidden), #kbModal:not(.hidden)')) return true;
+      // Mexeu há menos de 30s → ocupada: não apaga o que está fazendo
+      if (Date.now() - _lastActivity < 30000) return true;
       return false;
     }
     function softRerender() {
