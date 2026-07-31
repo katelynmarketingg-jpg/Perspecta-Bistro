@@ -1333,8 +1333,8 @@
     .pm-hero::after {
       content: '';
       display: block;
-      height: 4px;
-      background: linear-gradient(90deg, #f6921e, #ffe597, #f6921e);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
       margin-top: 32px;
     }
     .pm-hero-logo-img {
@@ -1349,7 +1349,7 @@
       font-family: 'Anton', sans-serif;
       font-size: clamp(48px, 12vw, 80px);
       letter-spacing: 2px;
-      color: #f6921e;
+      color: #fff;
       line-height: 1;
       margin: 0;
       text-transform: uppercase;
@@ -1359,7 +1359,7 @@
       font-weight: 700;
       letter-spacing: 4px;
       text-transform: uppercase;
-      color: #ffe597;
+      color: rgba(255,255,255,.5);
       margin: 6px 0 0;
     }
     .pm-hero-note {
@@ -1384,7 +1384,7 @@
     /* Category tabs */
     .pm-cats-wrap {
       background: #161616;
-      border-bottom: 2px solid #f6921e;
+      border-bottom: 1px solid #262626;
       position: sticky; top: 0; z-index: 10;
       overflow-x: auto; scrollbar-width: none;
     }
@@ -1396,7 +1396,7 @@
       white-space: nowrap; cursor: pointer; transition: all .15s;
       font-family: 'Questrial', sans-serif; text-transform: uppercase; letter-spacing: .5px;
     }
-    .pm-cat.active, .pm-cat:hover { background: #f6921e; color: #000; border-color: #f6921e; }
+    .pm-cat.active, .pm-cat:hover { background: #fff; color: #000; border-color: #fff; }
 
     /* Content */
     .pm-content { max-width: 960px; margin: 0 auto; padding: 24px 16px 120px; background: #000; }
@@ -1417,7 +1417,7 @@
       overflow: hidden; display: flex; flex-direction: column;
       transition: border-color .2s, transform .15s;
     }
-    .pm-card:hover { border-color: #f6921e; transform: translateY(-2px); }
+    .pm-card:hover { border-color: #555; transform: translateY(-2px); }
 
     .pm-card-img {
       width: 100%; aspect-ratio: 4/3; background: #1e1e1e;
