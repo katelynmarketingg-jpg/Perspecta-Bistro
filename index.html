@@ -2093,7 +2093,7 @@
         document.getElementById("publicMenu").classList.remove("hidden");
         renderPublicMenu();
         initPhotos();
-        pollSync();
+        loadPublicMenu();
         // Atualiza instantaneamente quando admin salva no mesmo navegador (cross-tab via localStorage)
         window.addEventListener('storage', (ev) => {
           if (ev.key === storeKey && ev.newValue) {
@@ -2725,6 +2725,30 @@
         const data = await r.json();
         return data; // Firebase returns null if path is empty
       } catch(e) { return null; }
+    }
+
+    // ── Cardápio público: carga inicial com estados visíveis (carregando/erro/vazio) ──
+    // Um visitante novo não tem localStorage, então SÓ vê o cardápio se a leitura do
+    // Firebase der certo. Se a leitura falhar (regra do banco bloqueando, sem internet,
+    // ou login anônimo indisponível), antes ficava um branco silencioso ("Nenhum item").
+    // Aqui distinguimos os casos e deixamos o cliente tentar de novo.
+    async function loadPublicMenu() {
+      try {
+        const path = fbPath(storeKey);
+        const r = await authedFetch(`${FIREBASE_URL}/data/${path}.json`);
+        if (!r.ok) throw new Error('HTTP ' + r.status); // 401/403 = regra do banco bloqueou
+        const data = await r.json();
+        if (data) {
+          state = normalizeState(mergeStates(data, state));
+          try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch (e) {}
+        }
+        pmLoaded = true; pmLoadError = false;
+        showSyncStatus('ok');
+      } catch (e) {
+        pmLoadError = true; // mostra "não foi possível carregar" + botão tentar de novo
+        showSyncStatus('err');
+      }
+      if (location.hash.startsWith('#cardapio-publico')) { renderPublicMenu(); hydratePhotos(); }
     }
 
     function save(opts = {}) {
@@ -5506,6 +5530,8 @@
     let pmAddonTarget = null;
     let pmAddonQty = 1;
     let pmActiveCat = "all";
+    let pmLoaded = false;    // true quando a leitura do cardápio no Firebase já concluiu
+    let pmLoadError = false; // true quando a leitura falhou (bloqueio de regra / sem rede)
     let tableDrag = null;
     let tableResize = null;
     let suppressTableClick = false;
@@ -5581,7 +5607,12 @@
     }
 
     function renderPmItems(active, cats, activeCat) {
-      if (!active.length) return empty("Nenhum item disponível no momento.");
+      if (!active.length) {
+        // Visitante novo: distingue "ainda carregando", "falhou" e "loja realmente sem itens"
+        if (pmLoadError) return `<div class="empty">Não foi possível carregar o cardápio agora.<br><span style="font-size:13px;color:var(--muted)">Verifique sua conexão e tente de novo.</span><br><button class="btn secondary" id="pmRetryBtn" style="margin-top:12px">Tentar de novo</button></div>`;
+        if (!pmLoaded)   return `<div class="empty">Carregando cardápio…</div>`;
+        return empty("Nenhum item disponível no momento.");
+      }
       const filtered = activeCat === "all" ? active : active.filter(m => m.categoria === activeCat);
       if (!filtered.length) return empty("Nenhum item nesta categoria.");
       if (activeCat !== "all") return `<div class="pm-grid">${filtered.map(pmItemCard).join("")}</div>`;
@@ -6251,6 +6282,15 @@
           }
         }
         save();
+      }
+
+      // ── Public menu: tentar carregar o cardápio de novo ──
+      if (event.target.closest("#pmRetryBtn")) {
+        pmLoadError = false;
+        const content = document.getElementById("pmContent");
+        if (content) content.innerHTML = `<div class="empty">Carregando cardápio…</div>`;
+        loadPublicMenu();
+        return;
       }
 
       // ── Public menu: open addon modal ──
