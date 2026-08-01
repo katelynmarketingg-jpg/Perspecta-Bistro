@@ -3399,7 +3399,10 @@
               <label>Movimento
                 <select name="tipo" id="cashTipo" onchange="
                   var s=document.getElementById('cashSangriaRow');
-                  s.style.display=this.value==='sangria'?'contents':'none';
+                  var show=this.value==='sangria';
+                  s.style.display=show?'contents':'none';
+                  var r=s.querySelector('[name=responsavelSangria]');
+                  if(r) r.required=show;
                 ">
                   <option value="entrada">Entrada</option>
                   <option value="saida">Saída</option>
@@ -3411,7 +3414,7 @@
               <label>Forma${cselBuild("forma",[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro")}</label>
               <span id="cashSangriaRow" style="display:none;contents">
                 <label style="grid-column:1/-1">Motivo da sangria<input name="motivoSangria" placeholder="Ex: pagamento fornecedor, troco extra…"></label>
-                <label style="grid-column:1/-1">Quem retirou<input name="responsavelSangria" placeholder="Nome do responsável" required></label>
+                <label style="grid-column:1/-1">Quem retirou<input name="responsavelSangria" placeholder="Nome do responsável"></label>
               </span>
             </div>
             <div class="actions">
@@ -3802,7 +3805,7 @@
         <div class="panel">
           <h2 style="margin:0 0 4px">${isIns ? "Novo insumo (preparo)" : "Novo produto"}</h2>
           <p class="mini" style="color:var(--muted);margin:0 0 12px">${isIns ? "O que você prepara na cozinha (ex.: strogonoff, carne de panela). Depois pode ser usado como ingrediente dos produtos." : "O produto final que você vende. Pode usar insumos preparados como ingrediente."}</p>
-          <form id="costForm">
+          <form id="costForm-${tipo}">
             <input type="hidden" name="tipo" value="${tipo}">
             <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
               <label style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--muted)">
@@ -6600,7 +6603,7 @@
       const formData = new FormData(form);
       const data = Object.fromEntries(formData.entries());
 
-      if (form.id === "costForm") {
+      if (form.id === "costForm-produto" || form.id === "costForm-insumo") {
         const newId = uid();
         state.costs.push({
           id: newId,
