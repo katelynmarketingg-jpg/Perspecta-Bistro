@@ -5462,6 +5462,7 @@
       const cats = [...new Set(active.map(m => m.categoria))];
       const activeAddons = (state.addons || []).filter(a => a.ativo);
       pmActiveCat = "all";
+      loadPmClient();
 
       root.innerHTML = `
         <div class="pm-wrap">
@@ -5471,6 +5472,7 @@
               : `<h1 class="pm-hero-wordmark">${escapeHTML(state.settings.restaurant || "Perspecta Bistro")}</h1>
                  <p class="pm-hero-sub">Bistro</p>`}
             <p class="pm-hero-note">${escapeHTML(state.settings.menuNote || "Escolha os itens e finalize no WhatsApp.")}</p>
+            <div id="pmClientBadge"></div>
           </div>
           <div class="pm-cats-wrap">
             <div class="pm-cats">
@@ -5484,6 +5486,22 @@
           <button class="pm-fab hidden" id="pmFab">
             <span>🛒</span><span id="pmFabLabel">0 itens</span>
           </button>
+        </div>
+
+        <!-- Login rápido (antes de adicionar ao carrinho) -->
+        <div class="pm-overlay hidden" id="pmLoginOverlay">
+          <div class="pm-checkout-panel">
+            <div class="pm-panel-head">
+              <h2>Vamos começar seu pedido</h2>
+              <button class="pm-close-btn" id="pmLoginClose">×</button>
+            </div>
+            <p style="margin:0 0 12px;color:var(--muted);font-size:14px">Informe seu nome e celular para adicionar itens ao carrinho.</p>
+            <form id="pmLoginForm">
+              <label>Nome completo *<input name="nome" required autocomplete="name" placeholder="João da Silva"></label>
+              <label>Celular (WhatsApp) *<input name="telefone" required type="tel" inputmode="numeric" autocomplete="tel" placeholder="11999999999"></label>
+              <button type="submit" class="pm-btn-full pm-btn-green" style="margin-top:12px">Entrar e escolher →</button>
+            </form>
+          </div>
         </div>
 
         <!-- Cart overlay -->
@@ -5567,11 +5585,53 @@
         </div>
       `;
       updatePmFab();
+      updatePmClientBadge();
     }
 
     let publicCart = [];
     let pmAddonTarget = null;
     let pmAddonQty = 1;
+    // Cliente do cardápio público (login rápido: nome completo + celular), salvo no aparelho.
+    const PM_CLIENT_KEY = "perspectaPmClient";
+    let pmClient = null;
+    let _pmPendingAdd = null;
+    function loadPmClient() {
+      try { pmClient = JSON.parse(localStorage.getItem(PM_CLIENT_KEY) || "null"); } catch { pmClient = null; }
+      return pmClient;
+    }
+    function savePmClient(c) {
+      pmClient = c;
+      try { localStorage.setItem(PM_CLIENT_KEY, JSON.stringify(c)); } catch {}
+    }
+    function clearPmClient() {
+      pmClient = null;
+      try { localStorage.removeItem(PM_CLIENT_KEY); } catch {}
+    }
+    function updatePmClientBadge() {
+      const el = document.getElementById("pmClientBadge");
+      if (!el) return;
+      if (pmClient && pmClient.nome) {
+        el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:rgba(0,0,0,.06);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:700">👤 ${escapeHTML(pmClient.nome)} <button type="button" id="pmClientLogout" style="background:none;border:none;color:#f6921e;font-weight:800;cursor:pointer;font-size:13px;padding:0 2px">trocar</button></span>`;
+      } else {
+        el.innerHTML = "";
+      }
+    }
+    // Abre o modal do item (extraído para ser reusado após o login rápido).
+    function pmOpenAddon(item) {
+      if (!item) return;
+      pmAddonTarget = item;
+      pmAddonQty = 1;
+      document.getElementById("pmAddonTitle").textContent = item.nome;
+      const imgEl = document.getElementById("pmAddonImg");
+      const _amSrc = resolvePhoto(item);
+      if (imgEl) imgEl.innerHTML = _amSrc ? `<img src="${_amSrc}" data-photo-item="${item.id}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px" alt="">` : "";
+      document.querySelectorAll("#pmAddonList input[type=checkbox]").forEach(cb => cb.checked = false);
+      const obsEl = document.getElementById("pmAddonObs");
+      if (obsEl) obsEl.value = "";
+      const qEl = document.getElementById("pmAddonQtyNum");
+      if (qEl) qEl.textContent = "1";
+      document.getElementById("pmAddonOverlay")?.classList.remove("hidden");
+    }
     let pmActiveCat = "all";
     let tableDrag = null;
     let tableResize = null;
@@ -6320,23 +6380,34 @@
         save();
       }
 
-      // ── Public menu: open addon modal ──
+      // ── Public menu: open addon modal (exige login rápido antes de escolher) ──
       const pmAdd = event.target.closest("[data-pm-add]")?.dataset.pmAdd;
       if (pmAdd) {
         const item = state.menu.find(m => m.id === pmAdd);
         if (!item) return;
-        pmAddonTarget = item;
-        pmAddonQty = 1;
-        document.getElementById("pmAddonTitle").textContent = item.nome;
-        const imgEl = document.getElementById("pmAddonImg");
-        const _amSrc = resolvePhoto(item);
-        if (imgEl) imgEl.innerHTML = _amSrc ? `<img src="${_amSrc}" data-photo-item="${item.id}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px" alt="">` : "";
-        document.querySelectorAll("#pmAddonList input[type=checkbox]").forEach(cb => cb.checked = false);
-        const obsEl = document.getElementById("pmAddonObs");
-        if (obsEl) obsEl.value = "";
-        const qEl = document.getElementById("pmAddonQtyNum");
-        if (qEl) qEl.textContent = "1";
-        document.getElementById("pmAddonOverlay")?.classList.remove("hidden");
+        if (!pmClient || !pmClient.nome) {
+          _pmPendingAdd = pmAdd;
+          document.getElementById("pmLoginOverlay")?.classList.remove("hidden");
+          setTimeout(() => document.querySelector('#pmLoginForm input[name="nome"]')?.focus(), 60);
+          return;
+        }
+        pmOpenAddon(item);
+        return;
+      }
+
+      // ── Public menu: trocar cliente (logout do carrinho) ──
+      if (event.target.id === "pmClientLogout") {
+        clearPmClient();
+        publicCart = [];
+        updatePmClientBadge();
+        updatePmFab();
+        showToast("Você saiu. Informe seus dados no próximo item.", 2500);
+        return;
+      }
+
+      // ── Public menu: fechar login ──
+      if (event.target.id === "pmLoginClose" || event.target.id === "pmLoginOverlay") {
+        document.getElementById("pmLoginOverlay")?.classList.add("hidden");
         return;
       }
 
@@ -6376,6 +6447,13 @@
         if (!publicCart.length) { showToast("Adicione itens ao pedido primeiro."); return; }
         document.getElementById("pmCartOverlay")?.classList.add("hidden");
         renderPmOrderRecap();
+        // pré-preenche com o login rápido
+        if (pmClient) {
+          const nEl = document.querySelector('#pmCheckoutForm input[name="nome"]');
+          const tEl = document.querySelector('#pmCheckoutForm input[name="telefone"]');
+          if (nEl && !nEl.value) nEl.value = pmClient.nome || "";
+          if (tEl && !tEl.value) tEl.value = pmClient.telefone || "";
+        }
         document.getElementById("pmCheckoutOverlay")?.classList.remove("hidden");
         return;
       }
@@ -6943,6 +7021,22 @@
         } else {
           save();
         }
+      }
+
+      if (form.id === "pmLoginForm") {
+        const nome = (data.nome || "").trim();
+        const telefone = (data.telefone || "").replace(/\D/g, "");
+        if (!nome || !telefone) return;
+        savePmClient({ nome, telefone });
+        document.getElementById("pmLoginOverlay")?.classList.add("hidden");
+        form.reset();
+        updatePmClientBadge();
+        if (_pmPendingAdd) {
+          const item = state.menu.find(m => m.id === _pmPendingAdd);
+          _pmPendingAdd = null;
+          if (item) pmOpenAddon(item);
+        }
+        return;
       }
 
       if (form.id === "pmCheckoutForm") {
