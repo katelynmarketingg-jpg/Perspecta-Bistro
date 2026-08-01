@@ -1903,6 +1903,7 @@
         clientPassword: "",
         theme: "preto-laranja",
         menuNote: "Pedido finalizado pelo WhatsApp da empresa.",
+        customDomain: "",
         logoUrl: null,
         perspectaLogo: null,
         favicon: null,
@@ -4188,7 +4189,10 @@
     }
 
     function renderMenuAdmin() {
-      const baseUrl = location.href.split("#")[0].split("?")[0];
+      const rawBase = location.href.split("#")[0].split("?")[0];
+      // Domínio próprio (opcional): se preenchido, o link divulgado usa ele.
+      const dom = (state.settings.customDomain || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+      const baseUrl = dom ? `https://${dom}/` : rawBase;
       // Include company ID in URL so the public menu knows which data to load
       const companyId = currentSession?.company?.id || null;
       const publicUrl = companyId
@@ -4201,9 +4205,13 @@
             <div class="form-grid">
               <label>Nome do restaurante<input name="restaurant" value="${escapeHTML(state.settings.restaurant)}"></label>
               <label>WhatsApp para pedidos<input name="whatsapp" value="${escapeHTML(state.settings.whatsapp)}"></label>
-              <label style="grid-column:span 2">Logo do cardápio público
+              <label style="grid-column:span 2">Logo da empresa (aparece no topo do cardápio público)
                 <input type="file" accept="image/*" id="logoUploadInput" style="font-size:13px">
-                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · máx 600 × 300 px</span>`}
+                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · máx 600 × 300 px · cada empresa tem a sua</span>`}
+              </label>
+              <label style="grid-column:span 2">Domínio próprio no link (opcional)
+                <input name="customDomain" value="${escapeHTML(state.settings.customDomain || "")}" placeholder="ex: cardapio.suaempresa.com.br" style="font-size:13px">
+                <span class="mini" style="display:block;margin-top:4px">Em branco = link padrão. Para funcionar, aponte esse domínio (CNAME) para o site e ative-o em <strong>Settings → Pages</strong> do GitHub.</span>
               </label>
             </div>
             <div class="actions">
@@ -4282,7 +4290,7 @@
               <input type="file" accept="image/*" data-photo-menu="${item.id}" style="display:none">
               ${hasPhoto(item) ? "trocar" : "+ foto"}
             </label>
-            ${hasPhoto(item) ? `<button class="btn ghost btn-sm" type="button" data-clear-menu-photo="${item.id}">remover</button>` : ""}
+            ${hasPhoto(item) ? `<button class="btn ghost btn-sm" type="button" data-rotate-menu-photo="${item.id}">girar</button> <button class="btn ghost btn-sm" type="button" data-clear-menu-photo="${item.id}">remover</button>` : ""}
             <span class="mini hidden" data-photo-pending>foto pendente</span>
           </td>
           <td>
@@ -5640,6 +5648,28 @@
     }
 
     function compressImage(file, maxW, maxH, quality) {
+      // Caminho moderno: createImageBitmap respeita a orientação EXIF
+      // (fotos de celular deixavam de aparecer "ao contrário"/de lado).
+      if (typeof createImageBitmap === "function") {
+        return createImageBitmap(file, { imageOrientation: "from-image" })
+          .then(bmp => {
+            try {
+              const scale = Math.min(1, maxW / bmp.width, maxH / bmp.height);
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.max(1, Math.round(bmp.width * scale));
+              canvas.height = Math.max(1, Math.round(bmp.height * scale));
+              canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+              if (bmp.close) bmp.close();
+              return canvas.toDataURL("image/jpeg", quality);
+            } catch { return null; }
+          })
+          .catch(() => compressImageLegacy(file, maxW, maxH, quality)); // navegador antigo
+      }
+      return compressImageLegacy(file, maxW, maxH, quality);
+    }
+
+    // Fallback para navegadores sem createImageBitmap (não corrige EXIF, mas funciona).
+    function compressImageLegacy(file, maxW, maxH, quality) {
       return new Promise(resolve => {
         const reader = new FileReader();
         const img = new Image();
@@ -5662,6 +5692,27 @@
         };
         reader.onerror = () => resolve(null);
         reader.readAsDataURL(file);
+      });
+    }
+
+    // Gira uma imagem (dataURL) 90° no sentido horário e devolve novo JPEG.
+    function rotateImage90(dataUrl) {
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.height;
+            canvas.height = img.width;
+            const ctx = canvas.getContext("2d");
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(Math.PI / 2);
+            ctx.drawImage(img, -img.width / 2, -img.height / 2);
+            resolve(canvas.toDataURL("image/jpeg", 0.85));
+          } catch { resolve(null); }
+        };
+        img.onerror = () => resolve(null);
+        img.src = dataUrl;
       });
     }
 
@@ -5971,6 +6022,23 @@
 
       const delAddon = event.target.closest("[data-delete-addon]")?.dataset.deleteAddon;
       if (delAddon) { state.addons = (state.addons || []).filter(x => x.id !== delAddon); save(); }
+
+      const rotateMenuPhoto = event.target.closest("[data-rotate-menu-photo]")?.dataset.rotateMenuPhoto;
+      if (rotateMenuPhoto) {
+        const item = state.menu.find(x => x.id === rotateMenuPhoto);
+        const src = item && resolvePhoto(item);
+        if (src) {
+          rotateImage90(src).then(async rotated => {
+            if (!rotated) { showToast("Não consegui girar essa foto.", 2500); return; }
+            await setItemPhoto(item, rotated); // gira 90° por clique, salva local + nuvem
+            const prev = document.querySelector(`[data-menu-row="${item.id}"] [data-menu-photo-preview]`);
+            if (prev) prev.innerHTML = menuPhotoPreview(item);
+            save({ silent: true });
+            showToast("Foto girada. Clique de novo se precisar.", 2200);
+          });
+        }
+        return;
+      }
 
       const clearMenuPhoto = event.target.closest("[data-clear-menu-photo]")?.dataset.clearMenuPhoto;
       if (clearMenuPhoto) {
