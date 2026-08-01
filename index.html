@@ -1846,6 +1846,7 @@
     let storeKey = MASTER_KEY;
     let _kbModalId = null;
     let _dragId = null, _pdrag = null, _justDragged = false, _editInvId = null, _addStockId = null;
+    let _clientSearch = "";
     let currentSession = null; // { type:'gestor'} | { type:'company', company:{...} }
 
     const icons = {
@@ -4135,6 +4136,37 @@
       </tbody></table>`;
     }
 
+    // ── Pedidos de um cliente (por nome) ──
+    function clientOrders(c) {
+      const key = String(c.nome || "").trim().toLowerCase();
+      if (!key) return [];
+      const all = [...(state.sales || []), ...(state.commands || [])];
+      return all
+        .filter(o => String(o.cliente || "").trim().toLowerCase() === key)
+        .sort((a, b) => new Date(b.paidAt || b.createdAt || 0) - new Date(a.paidAt || a.createdAt || 0));
+    }
+    function clientLastPurchase(c) {
+      const os = clientOrders(c);
+      if (!os.length) return null;
+      const o = os[0];
+      return { when: o.paidAt || o.createdAt || "", total: num(o.total != null ? o.total : commandTotal(o)) };
+    }
+    // busca por nome/telefone/e-mail/observações e também por produto/data dos pedidos
+    function clientMatchesSearch(c, q) {
+      if (!q) return true;
+      q = q.toLowerCase();
+      const base = [c.nome, c.telefone, c.email, c.notas].map(x => String(x || "").toLowerCase());
+      if (base.some(x => x.includes(q))) return true;
+      return clientOrders(c).some(o => {
+        const iso = String(o.paidAt || o.createdAt || "").toLowerCase();
+        if (iso.includes(q)) return true;
+        const when = o.paidAt || o.createdAt;
+        const br = when ? new Date(when).toLocaleDateString("pt-BR").toLowerCase() : "";
+        if (br.includes(q)) return true;
+        return (o.itens || []).some(it => String(it.nome || "").toLowerCase().includes(q));
+      });
+    }
+
     function renderClients() {
       document.getElementById("clientes").innerHTML = `
         <div class="panel">
@@ -4151,23 +4183,50 @@
             <div class="actions"><button class="btn" type="submit">${icon("clientes")}Cadastrar cliente</button></div>
           </form>
         </div>
-        <div class="table-wrap">${clientsTable()}</div>
+        <div class="panel" style="padding:12px 14px">
+          <label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:var(--muted)">
+            Buscar cliente
+            <input id="clientSearchInput" type="search" placeholder="Nome, telefone, e-mail, produto ou data do pedido…"
+              value="${escapeHTML(_clientSearch)}" oninput="onClientSearch(this.value)" style="font-size:14px">
+          </label>
+        </div>
+        <div class="table-wrap" id="clientsTableWrap">${clientsTable()}</div>
       `;
+      // devolve o foco/caret ao campo de busca após re-render completo
+      if (_clientSearch) {
+        const inp = document.getElementById("clientSearchInput");
+        if (inp && document.activeElement !== inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+      }
+    }
+
+    function onClientSearch(v) {
+      _clientSearch = v;
+      const wrap = document.getElementById("clientsTableWrap");
+      if (wrap) wrap.innerHTML = clientsTable();
     }
 
     function clientsTable() {
       if (!state.clients.length) return empty("Nenhum cliente cadastrado ainda.");
-      return `<table><thead><tr><th>Cliente</th><th>Contato</th><th>Fidelidade</th><th>Notas</th><th></th></tr></thead><tbody>
-        ${state.clients.map(c => `<tr>
+      const list = state.clients.filter(c => clientMatchesSearch(c, _clientSearch));
+      if (!list.length) return empty("Nenhum cliente encontrado para essa busca.");
+      return `<table><thead><tr><th>Cliente</th><th>Contato</th><th>Última compra</th><th>Fidelidade</th><th>Notas</th><th></th></tr></thead><tbody>
+        ${list.map(c => {
+          const lp = clientLastPurchase(c);
+          const lpHtml = lp
+            ? `<strong>${money(lp.total)}</strong><br><span class="mini">${new Date(lp.when).toLocaleDateString("pt-BR")}</span>`
+            : `<span class="mini">Sem compras</span>`;
+          return `<tr>
           <td><strong>${escapeHTML(c.nome)}</strong><br><span class="mini">${escapeHTML(c.aniversario || "Sem aniversário")}</span></td>
           <td>${escapeHTML(c.telefone || "")}<br>${escapeHTML(c.email || "")}</td>
+          <td>${lpHtml}</td>
           <td>${num(c.pontos)} pontos</td>
           <td>${escapeHTML(c.notas || "")}</td>
           <td class="actions">
             <a class="btn ok" target="_blank" href="${whatsappLink(c.telefone, `Olá, ${c.nome}!`)}">WhatsApp</a>
             <button class="btn ghost" data-delete-client="${c.id}">Excluir</button>
           </td>
-        </tr>`).join("")}
+        </tr>`;
+        }).join("")}
       </tbody></table>`;
     }
 
