@@ -2917,9 +2917,13 @@
       const ingredientTotal = (row.ingredientes || []).reduce((sum, item) => sum + ingredientCost(item), 0);
       const totalRecipe = ingredientTotal + num(row.outrosCustos);
       const costPerUnit = totalRecipe / Math.max(1, num(row.rendimento));
-      const profitValue = costPerUnit * (num(row.margem) / 100);
-      const suggested = costPerUnit + profitValue;
-      return { ingredientCost: ingredientTotal, totalRecipe, costPerUnit, profitValue, suggested: isFinite(suggested) ? suggested : 0 };
+      // Preço de venda: se a pessoa fixar um valor (precoVenda), ele manda e o lucro é derivado.
+      // Se não, o lucro (margem) manda e o preço é sugerido — bidirecional.
+      const precoManual = num(row.precoVenda) > 0;
+      const suggested = precoManual ? num(row.precoVenda) : costPerUnit * (1 + num(row.margem) / 100);
+      const profitValue = suggested - costPerUnit;
+      const margemEfetiva = costPerUnit > 0 ? (suggested / costPerUnit - 1) * 100 : num(row.margem);
+      return { ingredientCost: ingredientTotal, totalRecipe, costPerUnit, profitValue, suggested: isFinite(suggested) ? suggested : 0, margemEfetiva, precoManual };
     }
 
     function commandTotal(command) {
@@ -3950,9 +3954,9 @@
                     <div style="font-size:10px;color:var(--muted)">receita ${money(calc.totalRecipe)} ÷ ${num(row.rendimento)||1} un</div>
                   </div>
                   ${!isInsumo ? `<div style="flex:1;min-width:130px;background:#176b5d;color:#fff;border-radius:10px;padding:10px 12px">
-                    <div style="font-size:10px;opacity:.85;font-weight:700;letter-spacing:.4px">PREÇO SUGERIDO</div>
+                    <div style="font-size:10px;opacity:.85;font-weight:700;letter-spacing:.4px">${calc.precoManual ? "PREÇO DE VENDA" : "PREÇO SUGERIDO"}</div>
                     <div style="font-size:23px;font-weight:900;line-height:1.1">${money(calc.suggested)}</div>
-                    <div style="font-size:10px;opacity:.85">+ ${num(row.margem)}% de lucro (${money(calc.profitValue)})</div>
+                    <div style="font-size:10px;opacity:.85">${Math.round(calc.margemEfetiva)}% de lucro (${money(calc.profitValue)})</div>
                   </div>` : ""}
                 </div>
                 <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Rende ${escapeHTML(String(row.rendimento))} un. · Ingredientes: ${(row.ingredientes||[]).length}</div>
@@ -4005,8 +4009,9 @@
                 </div>
                 <form class="costMarginForm" data-cost="${row.id}">
                   <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">Nome do produto<input name="produto" value="${escapeHTML(row.produto)}" style="font-size:13px"></label>
-                  <div style="display:grid;grid-template-columns:repeat(${isInsumo ? 2 : 3},1fr);gap:6px">
+                  <div style="display:grid;grid-template-columns:repeat(${isInsumo ? 2 : 4},1fr);gap:6px">
                     ${!isInsumo ? `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Lucro %<input name="margem" type="number" step="1" value="${num(row.margem)}" style="font-size:13px"></label>` : ``}
+                    ${!isInsumo ? `<label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)" title="Preencha para FIXAR o preço (o lucro se ajusta sozinho). Vazio = automático pela margem.">Preço venda<input name="precoVenda" type="number" step="0.01" value="${num(row.precoVenda) || ''}" placeholder="auto" style="font-size:13px"></label>` : ``}
                     <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Outros custos<input name="outrosCustos" type="number" step="0.01" value="${num(row.outrosCustos)}" style="font-size:13px"></label>
                     <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Rendimento<input name="rendimento" type="number" step="1" min="1" value="${num(row.rendimento)||1}" style="font-size:13px"></label>
                   </div>
@@ -6628,9 +6633,23 @@
         const recipe = state.costs.find(c => c.id === form.dataset.cost);
         if (recipe) {
           if ((data.produto || "").trim()) recipe.produto = data.produto.trim();
-          recipe.margem = data.margem;
           recipe.outrosCustos = data.outrosCustos;
           recipe.rendimento = data.rendimento;
+          // Preço ↔ Lucro bidirecional
+          const _prevMargem = num(recipe.margem);
+          const _newMargem = num(data.margem);
+          const _pv = num(data.precoVenda);
+          if (_newMargem !== _prevMargem) {
+            recipe.margem = _newMargem;   // mexeu no lucro → lucro manda, preço volta a ser automático
+            recipe.precoVenda = 0;
+          } else if (_pv > 0) {
+            recipe.precoVenda = _pv;       // fixou o preço → preço manda, lucro é derivado sozinho
+            const _cpu = costCalc({ ...recipe, precoVenda: 0 }).costPerUnit;
+            if (_cpu > 0) recipe.margem = Math.round((_pv / _cpu - 1) * 100);
+          } else {
+            recipe.precoVenda = 0;
+            recipe.margem = _newMargem;
+          }
         }
         save();
         showToast("Ficha atualizada.", 2000);
