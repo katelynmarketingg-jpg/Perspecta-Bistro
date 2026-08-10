@@ -1325,7 +1325,7 @@
     .pm-hero {
       background: #000;
       color: #fff;
-      padding: 48px 24px 40px;
+      padding: 56px 24px 40px;
       text-align: center;
       position: relative;
       overflow: hidden;
@@ -1339,10 +1339,10 @@
     }
     .pm-hero-logo-img {
       display: block;
-      margin: 0 auto 4px;
+      margin: 0 auto 8px;
       width: auto;
-      max-width: min(300px, 88%);
-      max-height: 150px;
+      max-width: min(340px, 90%);
+      max-height: 190px;
       object-fit: contain;
     }
     .pm-hero-wordmark {
@@ -2725,6 +2725,74 @@
         const data = await r.json();
         return data; // Firebase returns null if path is empty
       } catch(e) { return null; }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  LINK PÚBLICO AMIGÁVEL — o endereço do cardápio usa o nome do
+    //  restaurante (slug) em vez do código interno da empresa.
+    //  Guardamos um índice slug → id da empresa na nuvem para que o
+    //  link resolva em qualquer aparelho. Links antigos (com o id)
+    //  continuam funcionando (ver resolvePublicCompany).
+    // ─────────────────────────────────────────────────────────────
+    function slugify(s) {
+      return (s || "")
+        .toString()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40) || "cardapio";
+    }
+
+    // Slug efetivo p/ exibição: usa o publicSlug salvo (se a empresa personalizou)
+    // ou deriva do nome do restaurante. O valor padrão "perspecta-bistro" conta
+    // como "não personalizado" para não vazar a marca no link de outras empresas.
+    function effectivePublicSlug() {
+      const custom = state.settings.publicSlug;
+      const raw = (custom && custom.trim() && custom !== "perspecta-bistro") ? custom : state.settings.restaurant;
+      return slugify(raw);
+    }
+
+    // Traduz o token do link (#cardapio-publico-TOKEN) para o id da empresa.
+    // Se for um slug conhecido, devolve o id mapeado; senão, trata o próprio
+    // token como id (compatibilidade com links antigos baseados no id).
+    async function resolvePublicCompany(token) {
+      try {
+        const r = await authedFetch(`${FIREBASE_URL}/data/slug__${token}.json`);
+        if (r.ok) {
+          const mapped = await r.json();
+          if (mapped && typeof mapped === "string") return mapped;
+        }
+      } catch (e) {}
+      return token;
+    }
+
+    // Registra/atualiza o índice slug → id da empresa na nuvem.
+    // Resolve colisões acrescentando um sufixo e persiste o slug final.
+    let _lastPublishedSlug = null;
+    async function publishPublicSlug() {
+      const companyId = currentSession?.company?.id;
+      if (!companyId) return;
+      let slug = effectivePublicSlug();
+      if (slug === _lastPublishedSlug) return;
+      try {
+        for (let i = 0; i < 5; i++) {
+          const candidate = i === 0 ? slug : `${slug}-${i + 1}`;
+          const r = await authedFetch(`${FIREBASE_URL}/data/slug__${candidate}.json`);
+          const owner = r.ok ? await r.json() : null;
+          if (!owner || owner === companyId) { slug = candidate; break; }
+        }
+        await authedFetch(`${FIREBASE_URL}/data/slug__${slug}.json`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(companyId)
+        });
+        _lastPublishedSlug = slug;
+        if (state.settings.publicSlug !== slug) {
+          state.settings.publicSlug = slug;
+          try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch (e) {}
+          if (!isUserBusy()) softRerender();
+        }
+      } catch (e) {}
     }
 
     function save(opts = {}) {
@@ -4170,10 +4238,13 @@
 
     function renderMenuAdmin() {
       const baseUrl = location.href.split("#")[0].split("?")[0];
-      // Include company ID in URL so the public menu knows which data to load
+      // O link usa o slug (nome do restaurante) em vez do código interno.
+      // O carregamento dos dados continua funcionando via índice slug → empresa.
       const companyId = currentSession?.company?.id || null;
+      const pubSlug = effectivePublicSlug();
+      const customDomain = (state.settings.customDomain || "").trim();
       const publicUrl = companyId
-        ? `${baseUrl}#cardapio-publico-${companyId}`
+        ? `${baseUrl}#cardapio-publico-${pubSlug}`
         : `${baseUrl}#cardapio-publico`;
       document.getElementById("cardapio").innerHTML = `
         <div class="panel">
@@ -4182,9 +4253,17 @@
             <div class="form-grid">
               <label>Nome do restaurante<input name="restaurant" value="${escapeHTML(state.settings.restaurant)}"></label>
               <label>WhatsApp para pedidos<input name="whatsapp" value="${escapeHTML(state.settings.whatsapp)}"></label>
-              <label style="grid-column:span 2">Logo do cardápio público
+              <label style="grid-column:span 2">Logo da empresa <span class="mini" style="font-weight:400">— aparece centralizada bem no topo do cardápio público</span>
                 <input type="file" accept="image/*" id="logoUploadInput" style="font-size:13px">
-                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · máx 600 × 300 px</span>`}
+                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · máx 600 × 300 px · sem logo, aparece o nome do restaurante</span>`}
+              </label>
+              <label style="grid-column:span 2">Endereço do link <span class="mini" style="font-weight:400">— o nome que aparece no fim do link público</span>
+                <input name="publicSlug" value="${escapeHTML(pubSlug)}" placeholder="nome-do-seu-restaurante">
+                <span class="mini" style="display:block;margin-top:4px">Apenas letras, números e hífens. Ex.: <strong>cantinho-da-vovo</strong></span>
+              </label>
+              <label style="grid-column:span 2">Domínio próprio <span class="mini" style="font-weight:400">— opcional</span>
+                <input name="customDomain" value="${escapeHTML(customDomain)}" placeholder="cardapio.seurestaurante.com.br">
+                <span class="mini" style="display:block;margin-top:4px">Fica salvo para você usar o seu próprio endereço. A ativação do domínio é um passo à parte.</span>
               </label>
             </div>
             <div class="actions">
@@ -4194,11 +4273,12 @@
         </div>
         <div class="panel" style="margin-top:16px">
           <h3>Link do cardápio público</h3>
-          <label>Link para divulgar<input readonly value="${publicUrl}" style="font-size:13px"></label>
+          <label>Link para divulgar<input readonly id="publicLinkInput" value="${publicUrl}" style="font-size:13px"></label>
           <div class="actions" style="margin-top:12px">
             <a class="btn ok" href="${publicUrl}" target="_blank">${icon("cardapio")}Abrir cardápio público</a>
             <button class="btn ghost" type="button" id="copyPublicLink">Copiar link</button>
           </div>
+          ${customDomain ? `<span class="mini" style="display:block;margin-top:10px">Domínio salvo: <strong>${escapeHTML(customDomain)}</strong> — será usado no link quando estiver conectado.</span>` : ""}
         </div>
         <div class="panel" style="margin-top:16px">
           <h3>Novo item</h3>
@@ -4249,6 +4329,7 @@
           </div>
         </div>
       `;
+      if (companyId) publishPublicSlug();
     }
 
     function menuTable() {
@@ -5405,9 +5486,8 @@
         <div class="pm-wrap">
           <div class="pm-hero">
             ${state.settings.logoUrl
-              ? `<img src="${state.settings.logoUrl}" class="pm-hero-logo-img" alt="${escapeHTML(state.settings.restaurant)}">`
-              : `<h1 class="pm-hero-wordmark">${escapeHTML(state.settings.restaurant || "Perspecta Bistro")}</h1>
-                 <p class="pm-hero-sub">Bistro</p>`}
+              ? `<img src="${state.settings.logoUrl}" class="pm-hero-logo-img" alt="${escapeHTML(state.settings.restaurant || "Cardápio")}">`
+              : `<h1 class="pm-hero-wordmark">${escapeHTML(state.settings.restaurant || "Cardápio")}</h1>`}
             <p class="pm-hero-note">${escapeHTML(state.settings.menuNote || "Escolha os itens e finalize no WhatsApp.")}</p>
           </div>
           <div class="pm-cats-wrap">
@@ -6402,8 +6482,12 @@
 
       // ── Copiar link do cardápio público ──
       if (event.target.id === "copyPublicLink") {
+        const input = document.getElementById("publicLinkInput");
         const baseUrl = location.href.split("#")[0].split("?")[0];
-        const url = `${baseUrl.replace(/sistema-gestao\.html$/, "cardapio-publico.html")}`;
+        const companyId = currentSession?.company?.id || null;
+        const url = input?.value || (companyId
+          ? `${baseUrl}#cardapio-publico-${effectivePublicSlug()}`
+          : `${baseUrl}#cardapio-publico`);
         navigator.clipboard?.writeText(url).then(() => showToast("Link copiado!", 2000));
         return;
       }
@@ -6779,8 +6863,16 @@
       }
 
       if (form.id === "settingsForm") {
-        state.settings = { ...state.settings, ...data, defaultMargin: num(data.defaultMargin) };
+        state.settings = {
+          ...state.settings, ...data,
+          defaultMargin: data.defaultMargin != null ? num(data.defaultMargin) : state.settings.defaultMargin
+        };
+        if (state.settings.publicSlug) state.settings.publicSlug = slugify(state.settings.publicSlug);
+        if (typeof state.settings.customDomain === "string") {
+          state.settings.customDomain = state.settings.customDomain.trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+        }
         save();
+        publishPublicSlug();
       }
 
       if (form.id === "adminSettingsForm") {
@@ -7158,13 +7250,18 @@
     (function boot() {
       const pub = location.hash.startsWith("#cardapio-publico");
       if (pub) {
-        // Extract company ID from hash like #cardapio-publico-COMPANY_ID
+        // Token do link: #cardapio-publico-TOKEN. TOKEN pode ser um slug
+        // amigável (novo) ou o id da empresa (links antigos).
         const compMatch = location.hash.match(/^#cardapio-publico-([a-z0-9_-]+)/i);
         if (compMatch) {
-          storeKey = "gestaoCompany." + compMatch[1] + ".v1";
-          state = loadState();
+          resolvePublicCompany(compMatch[1]).then(companyId => {
+            storeKey = "gestaoCompany." + companyId + ".v1";
+            state = loadState();
+            startApp();
+          }).catch(() => { startApp(); });
+        } else {
+          startApp();
         }
-        startApp();
         return;
       }
 
