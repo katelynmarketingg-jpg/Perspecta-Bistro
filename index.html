@@ -1969,6 +1969,77 @@
       localStorage.setItem(MASTER_KEY, JSON.stringify(master));
     }
 
+    // ─────────────────────────────────────────────────────────────
+    //  SENHAS — nunca guardadas/exibidas em texto. Guardamos só o
+    //  hash SHA-256 com salt aleatório, no formato "salt$hash".
+    //  Verificação retrocompatível: registros antigos ainda têm o
+    //  campo `senha` em texto e são convertidos para hash no 1º login.
+    // ─────────────────────────────────────────────────────────────
+    async function _sha256Hex(str) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    function _randSalt() {
+      const a = new Uint8Array(16); crypto.getRandomValues(a);
+      return Array.from(a).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Gera o registro de senha (salt$hash). A senha em texto nunca é guardada.
+    async function hashSenha(senha) {
+      const salt = _randSalt();
+      const hash = await _sha256Hex(salt + ':' + String(senha == null ? '' : senha));
+      return salt + '$' + hash;
+    }
+    // Verifica a senha digitada contra o registro (passHash) ou, em registros
+    // antigos, contra a senha em texto (`legacyPlain`). Retorna boolean.
+    async function verifyPassHash(senha, passHash) {
+      if (typeof passHash !== 'string' || passHash.indexOf('$') < 0) return false;
+      const i = passHash.indexOf('$');
+      const salt = passHash.slice(0, i), hash = passHash.slice(i + 1);
+      const calc = await _sha256Hex(salt + ':' + String(senha == null ? '' : senha));
+      return calc === hash;
+    }
+    // Confere uma credencial (gestor ou empresa): usa hash se existir,
+    // senão cai no texto legado (que será convertido em seguida).
+    async function credMatches(senha, cred) {
+      if (!cred) return false;
+      if (cred.passHash) return await verifyPassHash(senha, cred.passHash);
+      if (cred.senha != null) return String(senha) === String(cred.senha);
+      return false;
+    }
+    // Converte, no objeto master, toda senha em texto (gestor + empresas)
+    // para hash. Persiste no nó master da nuvem (só companies + gestorCredentials,
+    // via PATCH, sem tocar no resto do nó). Idempotente.
+    async function migrateMasterPasswords(master) {
+      let changed = false;
+      const gc = master.gestorCredentials || (master.gestorCredentials = { login: "Perspecta" });
+      if (!gc.passHash && gc.senha != null) { gc.passHash = await hashSenha(gc.senha); delete gc.senha; changed = true; }
+      for (const c of (master.companies || [])) {
+        if (c && !c.passHash && c.senha != null) { c.passHash = await hashSenha(c.senha); delete c.senha; c.updatedAt = Date.now(); changed = true; }
+      }
+      if (changed) {
+        saveMasterState(master);
+        try {
+          const path = fbPath(MASTER_KEY);
+          await authedFetch(`${FIREBASE_URL}/data/${path}.json`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companies: master.companies || [], gestorCredentials: master.gestorCredentials })
+          });
+        } catch (e) {}
+      }
+      return master;
+    }
+    // Grava só companies + gestorCredentials no nó master da nuvem (PATCH),
+    // sem sobrescrever o restante do nó. Usado após mudar/redefinir senha.
+    async function patchMasterCreds(master) {
+      try {
+        const path = fbPath(MASTER_KEY);
+        await authedFetch(`${FIREBASE_URL}/data/${path}.json`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companies: master.companies || [], gestorCredentials: master.gestorCredentials })
+        });
+      } catch (e) {}
+    }
+
     // Guarda o último acesso deste aparelho: empresa + nome (nunca a senha).
     const BISTRO_REMEMBER = "perspectaBistroLastLogin";
     function loadRemembered() {
@@ -2042,10 +2113,13 @@
 
       const gc = master.gestorCredentials || { login: "Perspecta", senha: "001" };
       // Gestor: pode digitar o login do gestor no campo Empresa OU no campo Nome.
-      if (senha === gc.senha && (emp === norm(gc.login) || pes === norm(gc.login))) {
+      if ((emp === norm(gc.login) || pes === norm(gc.login)) && await credMatches(senha, gc)) {
         currentSession = { type: "gestor" };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
         storeKey = MASTER_KEY;
+        // Migração de segurança: converte senhas em texto (gestor + todas as
+        // empresas) para hash, de uma vez, já que o gestor tem acesso a todas.
+        master = await migrateMasterPasswords(master);
         state = normalizeState({ ...structuredClone(defaultState), ...master });
         lembrar();
         hideLogin();
@@ -2055,14 +2129,26 @@
       const companies = master.companies || [];
       // Casa por Empresa (nome) + Nome (responsável) + Senha. Retrocompatível:
       // quem tinha só "login" ainda entra digitando o login no campo Empresa ou Nome.
-      const company = companies.find(c => {
-        if (c.senha !== senha || c.status === "inativo") return false;
+      // A senha é conferida por hash (credMatches); registros antigos em texto
+      // são convertidos para hash assim que o login casa.
+      let company = null;
+      for (const c of companies) {
+        if (!c || c.status === "inativo") continue;
         const nomeOk = norm(c.nome) === emp;
         const pessoaOk = !c.responsavel || norm(c.responsavel) === pes;
         const loginAntigo = c.login && (norm(c.login) === emp || norm(c.login) === pes);
-        return (nomeOk && pessoaOk) || loginAntigo;
-      });
+        if (!((nomeOk && pessoaOk) || loginAntigo)) continue;
+        if (await credMatches(senha, c)) { company = c; break; }
+      }
       if (company) {
+        // Converte senha legada em texto → hash (uma vez), sem quebrar o acesso.
+        if (!company.passHash && company.senha != null) {
+          company.passHash = await hashSenha(company.senha);
+          delete company.senha;
+          company.updatedAt = Date.now();
+          saveMasterState(master);
+          patchMasterCreds(master);
+        }
         lembrar();
         currentSession = { type: "company", company };
         sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
@@ -2093,19 +2179,13 @@
         document.getElementById("publicMenu").classList.remove("hidden");
         renderPublicMenu();
         initPhotos();
-        pollSync();
-        // Atualiza instantaneamente quando admin salva no mesmo navegador (cross-tab via localStorage)
+        pollPublicMenu();   // lê o nó público enxuto (sem expor dados internos da loja)
+        // Atualiza quando o admin salva no mesmo navegador (mesma máquina)
         window.addEventListener('storage', (ev) => {
-          if (ev.key === storeKey && ev.newValue) {
-            try {
-              state = normalizeState(mergeStates(JSON.parse(ev.newValue), state));
-              renderPublicMenu();
-              hydratePhotos();
-            } catch(e) {}
-          }
+          if (ev.key === storeKey && ev.newValue) { pollPublicMenu(); }
         });
-        // Polling Firebase a cada 8s para sincronização entre dispositivos diferentes
-        setInterval(pollSync, 8000);
+        // Polling a cada 8s para sincronização entre dispositivos diferentes
+        setInterval(pollPublicMenu, 8000);
         return;
       }
       document.getElementById("internalApp").classList.remove("hidden");
@@ -2728,6 +2808,80 @@
     }
 
     // ─────────────────────────────────────────────────────────────
+    //  NÓ PÚBLICO ENXUTO — o cardápio público lê SÓ o necessário
+    //  (nome, logo, observação, whatsapp, itens ativos, adicionais),
+    //  em /public/{empresa}. Assim o link público não expõe mais o nó
+    //  completo da loja (vendas, clientes, caixa, funcionários).
+    //  O admin republica esse nó a cada save (publishPublicMenu).
+    // ─────────────────────────────────────────────────────────────
+    function buildPublicPayload() {
+      const s = state.settings || {};
+      const isBundled = (f) => (typeof f === 'string' && /^[\w./-]+\.(jpe?g|png|webp|gif|avif)$/i.test(f));
+      return {
+        settings: {
+          restaurant: s.restaurant || "",
+          logoUrl: s.logoUrl || null,
+          menuNote: s.menuNote || "",
+          whatsapp: s.whatsapp || "",
+          theme: s.theme || "",
+          favicon: s.favicon || null,
+          perspectaLogo: s.perspectaLogo || null,
+          publicSlug: s.publicSlug || ""
+        },
+        menu: (state.menu || []).filter(m => m && m.ativo).map(m => ({
+          id: m.id, nome: m.nome || "", descricao: m.descricao || "", preco: m.preco || 0,
+          categoria: m.categoria || "", emoji: m.emoji || "", ativo: true,
+          photoUpload: !!m.photoUpload, photoTag: m.photoTag || null,
+          foto: isBundled(m.foto) ? m.foto : null
+        })),
+        addons: (state.addons || []).filter(a => a && a.ativo).map(a => ({
+          id: a.id, nome: a.nome || "", preco: a.preco || 0, ativo: true
+        })),
+        savedAt: Date.now()
+      };
+    }
+    // Republica o cardápio público. Só admins (com storeKey de empresa) publicam.
+    async function publishPublicMenu() {
+      if (!currentSession || !storeKey || storeKey.indexOf("gestaoCompany.") !== 0) return;
+      try {
+        await authedFetch(`${FIREBASE_URL}/public/${fbPath(storeKey)}.json`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildPublicPayload())
+        });
+      } catch (e) {}
+    }
+    // Carrega o estado do cardápio público a partir do nó enxuto. Se ele ainda
+    // não existir (empresa que nunca salvou após a atualização), cai no nó
+    // completo (retrocompatível) para não quebrar links já divulgados.
+    async function loadPublicMenuState() {
+      try {
+        const r = await authedFetch(`${FIREBASE_URL}/public/${fbPath(storeKey)}.json`);
+        if (r.ok) {
+          const pub = await r.json();
+          if (pub && (pub.menu || pub.settings)) {
+            state = normalizeState({
+              ...structuredClone(defaultState),
+              settings: { ...defaultState.settings, ...(pub.settings || {}) },
+              menu: pub.menu || [],
+              addons: pub.addons || []
+            });
+            return;
+          }
+        }
+      } catch (e) {}
+      // Fallback retrocompatível: nó público ainda não publicado.
+      state = loadState();
+      try {
+        const r2 = await authedFetch(`${FIREBASE_URL}/data/${fbPath(storeKey)}.json`);
+        if (r2.ok) { const full = await r2.json(); if (full) state = normalizeState({ ...structuredClone(defaultState), ...full }); }
+      } catch (e) {}
+    }
+    // Poll do cardápio público (só leitura do nó enxuto).
+    async function pollPublicMenu() {
+      try { await loadPublicMenuState(); renderPublicMenu(); hydratePhotos(); } catch (e) {}
+    }
+
+    // ─────────────────────────────────────────────────────────────
     //  LINK PÚBLICO AMIGÁVEL — o endereço do cardápio usa o nome do
     //  restaurante (slug) em vez do código interno da empresa.
     //  Guardamos um índice slug → id da empresa na nuvem para que o
@@ -2805,6 +2959,7 @@
         localStorage.setItem(storeKey, JSON.stringify(state));
         if (!opts.silent) renderAll();
         syncToServer();
+        publishPublicMenu();   // republica o cardápio público enxuto (só admin/empresa)
       } catch (error) {
         alert("Não foi possível salvar. Tente novamente; se persistir, recarregue a página.");
       }
@@ -3544,7 +3699,7 @@
             <h2>Acesso da gestão</h2>
             <div class="summary-strip">
               <div><span>Login</span><strong>${escapeHTML((state.gestorCredentials||{}).login || 'gestor')}</strong></div>
-              <div><span>Senha</span><strong>${escapeHTML((state.gestorCredentials||{}).senha || '—')}</strong></div>
+              <div><span>Senha</span><strong>••••••</strong> <button type="button" class="btn ghost" data-reset-gestor style="font-size:11px;padding:2px 8px">Redefinir</button></div>
               <div><span>Empresas ativas</span><strong>${(state.companies || []).length}</strong></div>
               <div><span>Acesso</span><strong>Gestor</strong></div>
             </div>
@@ -3576,11 +3731,12 @@
       return `<table><thead><tr><th>Empresa</th><th>Acesso</th><th>Responsável</th><th>Status</th><th></th></tr></thead><tbody>
         ${state.companies.map(company => `<tr>
           <td><strong>${escapeHTML(company.nome)}</strong><br><span class="mini">${escapeHTML(company.codigo)}</span></td>
-          <td><span class="role-pill">${escapeHTML(company.login)} / ${escapeHTML(company.senha)}</span></td>
+          <td><span class="role-pill">${escapeHTML(company.login || "—")}</span></td>
           <td>${escapeHTML(company.responsavel || "")}<br><span class="mini">${escapeHTML(company.whatsapp || "")}</span></td>
           <td><span class="status ${company.status === "pausado" ? "paused" : ""}">${escapeHTML(company.status)}</span></td>
           <td class="actions">
             <button class="btn ghost" data-open-company="${company.id}">Abrir empresa</button>
+            <button class="btn ghost" data-reset-company="${company.id}">Redefinir senha</button>
             <button class="btn ghost" data-delete-company="${company.id}">Excluir</button>
           </td>
         </tr>`).join("")}
@@ -5341,7 +5497,7 @@
             <form id="nfceSettingsForm">
               <div class="form-grid form-grid-2col">
                 <label>CNPJ da empresa<input name="nfceCnpj" value="${escapeHTML(state.settings.nfceCnpj||"")}" placeholder="00.000.000/0001-00"></label>
-                <label>Token Plugnotas (API Key)<input name="nfceToken" type="password" value="${escapeHTML(state.settings.nfceToken||"")}" placeholder="Cole seu token aqui" autocomplete="new-password"></label>
+                <label>Token Plugnotas (API Key)<input name="nfceToken" type="password" value="" placeholder="${state.settings.nfceToken ? "•••••• salvo — deixe em branco para manter" : "Cole seu token aqui"}" autocomplete="new-password"></label>
                 <label>Ambiente
                   <select name="nfceAmbiente">
                     <option value="2" ${(state.settings.nfceAmbiente||"2")==="2"?"selected":""}>Homologação (testes)</option>
@@ -6160,6 +6316,44 @@
       const delCompany = event.target.closest("[data-delete-company]")?.dataset.deleteCompany;
       if (delCompany) { const master = loadMasterState(); master.companies = (master.companies || []).filter(x => x.id !== delCompany); saveMasterState(master); state.companies = master.companies; localStorage.removeItem("gestaoCompany." + delCompany + ".v1"); save(); }
 
+      const resetCompany = event.target.closest("[data-reset-company]")?.dataset.resetCompany;
+      if (resetCompany) {
+        const nova = prompt("Nova senha para esta empresa (o cliente vai usar esta senha para entrar):");
+        if (nova && nova.trim()) {
+          (async () => {
+            const master = loadMasterState();
+            const co = (master.companies || []).find(x => x.id === resetCompany);
+            if (co) {
+              co.passHash = await hashSenha(nova.trim());
+              delete co.senha;
+              co.updatedAt = Date.now();
+              saveMasterState(master);
+              state.companies = master.companies;
+              await patchMasterCreds(master);
+              showToast("✅ Senha redefinida. Repasse ao cliente: \"" + nova.trim() + "\"", 6000);
+              renderCompanies();
+            }
+          })();
+        }
+      }
+
+      const resetGestor = event.target.closest("[data-reset-gestor]");
+      if (resetGestor) {
+        const nova = prompt("Nova senha do gestor:");
+        if (nova && nova.trim()) {
+          (async () => {
+            const master = loadMasterState();
+            master.gestorCredentials = master.gestorCredentials || { login: "Perspecta" };
+            master.gestorCredentials.passHash = await hashSenha(nova.trim());
+            delete master.gestorCredentials.senha;
+            saveMasterState(master);
+            if (state.gestorCredentials) { state.gestorCredentials.passHash = master.gestorCredentials.passHash; delete state.gestorCredentials.senha; }
+            await patchMasterCreds(master);
+            showToast("✅ Senha do gestor redefinida.", 3000);
+          })();
+        }
+      }
+
       const delStaff = event.target.closest("[data-delete-staff]")?.dataset.deleteStaff;
       if (delStaff) { state.staff = (state.staff || []).filter(x => x.id !== delStaff); save(); }
 
@@ -6678,7 +6872,7 @@
       tableDrag = null;
     });
 
-    document.addEventListener("submit", event => {
+    document.addEventListener("submit", async event => {
       event.preventDefault();
       const form = event.target;
       const formData = new FormData(form);
@@ -6836,7 +7030,10 @@
       if (form.id === "companyForm") {
         const master = loadMasterState();
         master.companies = master.companies || [];
+        const plainSenha = data.senha;            // usada só no aviso de criação
         const newCompany = { id: uid(), ...data };
+        if (newCompany.senha != null) { newCompany.passHash = await hashSenha(newCompany.senha); delete newCompany.senha; }
+        newCompany.updatedAt = Date.now();
         master.companies.push(newCompany);
         saveMasterState(master);
         // initialize isolated state for this company
@@ -6846,7 +7043,7 @@
         state.companies = master.companies;
         form.reset();
         save();
-        showToast("Empresa \"" + newCompany.nome + "\" criada. Entrar com: Empresa \"" + newCompany.nome + "\"" + (newCompany.responsavel ? " / Nome \"" + newCompany.responsavel + "\"" : "") + " / Senha \"" + newCompany.senha + "\"", 6000);
+        showToast("Empresa \"" + newCompany.nome + "\" criada. Entrar com: Empresa \"" + newCompany.nome + "\"" + (newCompany.responsavel ? " / Nome \"" + newCompany.responsavel + "\"" : "") + " / Senha \"" + plainSenha + "\"", 6000);
       }
 
       if (form.id === "staffForm") {
@@ -6892,17 +7089,19 @@
           const co = (master.companies || []).find(x => x.id === companyId);
           if (co) {
             co.login = newLogin;
-            if (newPass) co.senha = newPass;
+            if (newPass) { co.passHash = await hashSenha(newPass); delete co.senha; }
+            co.updatedAt = Date.now();
             saveMasterState(master);
             // Reflect in current session so badge updates
             currentSession.company.login = co.login;
-            if (newPass) currentSession.company.senha = co.senha;
+            if (newPass) { currentSession.company.passHash = co.passHash; delete currentSession.company.senha; }
             sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
+            await patchMasterCreds(master);   // grava a nova senha (hash) na nuvem
           }
         }
-        // Mirror to company state for reference
+        // Espelha só o login no estado da empresa — nunca a senha em texto.
         state.settings.mainLogin = newLogin;
-        if (newPass) state.settings.mainPassword = newPass;
+        if (state.settings.mainPassword) delete state.settings.mainPassword;
         save();
         showToast("✅ Acesso principal atualizado.", 2000);
       }
@@ -6926,7 +7125,7 @@
       if (form.id === "nfceSettingsForm") {
         state.settings = { ...state.settings,
           nfceCnpj: data.nfceCnpj || "",
-          nfceToken: data.nfceToken || "",
+          nfceToken: (data.nfceToken && data.nfceToken.trim()) ? data.nfceToken.trim() : (state.settings.nfceToken || ""),
           nfceAmbiente: data.nfceAmbiente || "2",
           nfceSerie: data.nfceSerie || "1",
           nfceNcm: data.nfceNcm || "21069090",
@@ -7254,9 +7453,9 @@
         // amigável (novo) ou o id da empresa (links antigos).
         const compMatch = location.hash.match(/^#cardapio-publico-([a-z0-9_-]+)/i);
         if (compMatch) {
-          resolvePublicCompany(compMatch[1]).then(companyId => {
+          resolvePublicCompany(compMatch[1]).then(async companyId => {
             storeKey = "gestaoCompany." + companyId + ".v1";
-            state = loadState();
+            await loadPublicMenuState();   // lê /public/{empresa} (com fallback retrocompatível)
             startApp();
           }).catch(() => { startApp(); });
         } else {

@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "public": {
+      ".read": true,
+      "$company": {
+        ".write": "auth != null"
+      }
+    },
+    "photos": {
+      ".read": true,
+      "$company": {
+        ".write": "auth != null"
+      }
+    },
+    "orders": {
+      "$company": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "data": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
