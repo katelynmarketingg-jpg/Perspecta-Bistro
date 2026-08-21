@@ -3040,13 +3040,17 @@
     // Se for um slug conhecido, devolve o id mapeado; senão, trata o próprio
     // token como id (compatibilidade com links antigos baseados no id).
     async function resolvePublicCompany(token) {
-      try {
-        const r = await authedFetch(`${FIREBASE_URL}/data/slug__${token}.json`);
-        if (r.ok) {
-          const mapped = await r.json();
-          if (mapped && typeof mapped === "string") return mapped;
-        }
-      } catch (e) {}
+      // Novo: índice fica em /public/slug__ (leitura livre, sobrevive ao trancamento
+      // de /data na Fase 2). Retrocompatível: cai no /data/slug__ dos links antigos.
+      for (const base of [`${FIREBASE_URL}/public/slug__${token}.json`, `${FIREBASE_URL}/data/slug__${token}.json`]) {
+        try {
+          const r = await authedFetch(base);
+          if (r.ok) {
+            const mapped = await r.json();
+            if (mapped && typeof mapped === "string") return mapped;
+          }
+        } catch (e) {}
+      }
       return token;
     }
 
@@ -3061,11 +3065,17 @@
       try {
         for (let i = 0; i < 5; i++) {
           const candidate = i === 0 ? slug : `${slug}-${i + 1}`;
-          const r = await authedFetch(`${FIREBASE_URL}/data/slug__${candidate}.json`);
-          const owner = r.ok ? await r.json() : null;
+          // checa colisão no índice novo (/public) e no antigo (/data)
+          let owner = null;
+          for (const base of [`${FIREBASE_URL}/public/slug__${candidate}.json`, `${FIREBASE_URL}/data/slug__${candidate}.json`]) {
+            const r = await authedFetch(base);
+            const v = r.ok ? await r.json() : null;
+            if (v) { owner = v; break; }
+          }
           if (!owner || owner === companyId) { slug = candidate; break; }
         }
-        await authedFetch(`${FIREBASE_URL}/data/slug__${slug}.json`, {
+        // Grava o índice no nó público (leitura livre; sobrevive à Fase 2).
+        await authedFetch(`${FIREBASE_URL}/public/slug__${slug}.json`, {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(companyId)
         });
