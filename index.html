@@ -2201,6 +2201,37 @@
       document.getElementById("loginScreen").classList.add("hidden");
     }
 
+    // Fase 1 — login validado NO SERVIDOR. Chama /api/login (firebase-admin
+    // confere a senha no servidor) e troca o custom token por um idToken do
+    // Firebase com claims {role, storeId}. Retorna:
+    //   { ok:true, role, company } | { bad:true } | { unavailable:true }
+    // Se o endpoint não existir/estiver fora (deploy sem conta de serviço, etc.),
+    // devolve unavailable e o doLogin cai no fluxo local (retrocompatível).
+    async function serverLogin(empresa, pessoa, senha) {
+      let r;
+      try {
+        r = await fetch("/api/login", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ empresa, nome: pessoa, senha })
+        });
+      } catch (e) { return { unavailable: true }; }
+      if (r.status === 401) return { bad: true };
+      if (!r.ok) return { unavailable: true };                 // 404/405/5xx → usa fluxo local
+      let data; try { data = await r.json(); } catch { return { unavailable: true }; }
+      if (!data || !data.token) return { unavailable: true };
+      try {
+        const s = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${FIREBASE_API_KEY}`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: data.token, returnSecureToken: true })
+        });
+        if (!s.ok) return { unavailable: true };
+        const d = await s.json();
+        _fbAuth = { idToken: d.idToken, refreshToken: d.refreshToken, exp: Date.now() + (+d.expiresIn) * 1000 };
+        try { localStorage.setItem('perspectaFbAuth', JSON.stringify(_fbAuth)); } catch (e) {}
+      } catch (e) { return { unavailable: true }; }
+      return { ok: true, role: data.role, company: data.company || null };
+    }
+
     async function doLogin(empresa, pessoa, senha) {
       const norm = (s) => String(s || "").trim().toLowerCase();
       const emp = norm(empresa), pes = norm(pessoa);
@@ -2210,6 +2241,42 @@
       if (btn) { btn.textContent = "Verificando…"; btn.disabled = true; }
       if (errEl) errEl.classList.add("hidden");
       document.getElementById("loginNetworkError")?.classList.add("hidden");
+
+      // ── Fase 1: login validado no servidor (com fallback ao fluxo local) ──
+      const srv = await serverLogin(empresa, pessoa, senha);
+      if (srv.bad) {
+        if (btn) { btn.textContent = "Entrar"; btn.disabled = false; }
+        if (errEl) errEl.classList.remove("hidden");
+        return;
+      }
+      if (srv.ok) {
+        if (btn) { btn.textContent = "Entrar"; btn.disabled = false; }
+        try { localStorage.setItem(BISTRO_REMEMBER, JSON.stringify({ empresa, pessoa })); } catch {}
+        if (srv.role === "gestor") {
+          currentSession = { type: "gestor" };
+          sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
+          storeKey = MASTER_KEY;
+          let m = loadMasterState();
+          try {
+            const rr = await authedFetch(`${FIREBASE_URL}/data/${fbPath(MASTER_KEY)}.json`);
+            if (rr.ok) { const fb = await rr.json(); if (fb && fb.companies) { m = { ...m, ...fb }; saveMasterState(m); } }
+          } catch (e) {}
+          state = normalizeState({ ...structuredClone(defaultState), ...m });
+          hideLogin(); startApp(); return;
+        }
+        if (srv.company) {
+          currentSession = { type: "company", company: srv.company };
+          sessionStorage.setItem("perspectaSession", JSON.stringify(currentSession));
+          storeKey = "gestaoCompany." + srv.company.id + ".v1";
+          state = loadState();
+          try {
+            const r2 = await authedFetch(`${FIREBASE_URL}/data/${fbPath(storeKey)}.json`);
+            if (r2.ok) { const fb2 = await r2.json(); if (fb2 && (fb2.savedAt || 0) > (state.savedAt || 0)) { state = normalizeState({ ...structuredClone(defaultState), ...fb2 }); localStorage.setItem(storeKey, JSON.stringify(state)); } }
+          } catch (e) {}
+          hideLogin(); startApp(); return;
+        }
+      }
+      // srv.unavailable → segue no fluxo local (retrocompatível) abaixo.
 
       // Load master state from localStorage first
       let master = loadMasterState();
