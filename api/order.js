@@ -6,13 +6,31 @@
 // limita o tamanho e normaliza os campos (nada de escrever fora de /orders).
 const admin = require("firebase-admin");
 
+// Aceita a conta de serviço como JSON puro OU base64 (qualquer das duas vars), tolerante.
+function loadServiceAccount() {
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+  let raw = process.env.FIREBASE_SERVICE_ACCOUNT || "";
+  if (!raw && b64) { const t = String(b64).trim(); raw = t.startsWith("{") ? t : Buffer.from(t, "base64").toString("utf8"); }
+  if (!raw) throw new Error("FIREBASE_SERVICE_ACCOUNT ausente");
+  try { return JSON.parse(raw); } catch (e) {}
+  const s = raw.indexOf("{");
+  if (s < 0) throw new Error("conta de serviço sem JSON válido");
+  let depth = 0, inStr = false, esc = false;
+  for (let i = s; i < raw.length; i++) {
+    const ch = raw[i];
+    if (esc) { esc = false; continue; }
+    if (ch === "\\") { esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") { if (--depth === 0) return JSON.parse(raw.slice(s, i + 1)); }
+  }
+  throw new Error("JSON da conta de serviço incompleto");
+}
+
 function initAdmin() {
   if (admin.apps.length) return admin.app();
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_B64
-    ? Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, "base64").toString("utf8")
-    : process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error("FIREBASE_SERVICE_ACCOUNT ausente");
-  const sa = JSON.parse(raw);
+  const sa = loadServiceAccount();
   return admin.initializeApp({
     credential: admin.credential.cert(sa),
     databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${sa.project_id}-default-rtdb.firebaseio.com`,
