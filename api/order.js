@@ -39,10 +39,21 @@ function initAdmin() {
 
 const str = (v, max) => String(v == null ? "" : v).slice(0, max || 200);
 
+async function readJson(req) {
+  if (req.body && typeof req.body === "object") return req.body;
+  if (typeof req.body === "string" && req.body) { try { return JSON.parse(req.body); } catch { return {}; } }
+  try {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const raw = Buffer.concat(chunks).toString("utf8");
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "método não permitido" });
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    const body = await readJson(req);
     const companyId = str(body.companyId, 60).replace(/[^\w-]/g, "");
     const order = body.order || {};
     if (!companyId) return res.status(400).json({ error: "companyId ausente" });

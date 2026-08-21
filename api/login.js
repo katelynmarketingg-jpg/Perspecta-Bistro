@@ -45,6 +45,19 @@ function initAdmin() {
   });
 }
 
+// Lê o corpo JSON de forma robusta: usa req.body se a Vercel já parseou;
+// senão lê o stream (evita login falhar por corpo não-parseado).
+async function readJson(req) {
+  if (req.body && typeof req.body === "object") return req.body;
+  if (typeof req.body === "string" && req.body) { try { return JSON.parse(req.body); } catch { return {}; } }
+  try {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    const raw = Buffer.concat(chunks).toString("utf8");
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
 const norm = (s) => String(s || "").trim().toLowerCase();
 
 // Mesmo esquema do cliente (index.html): passHash = "salt$hexSHA256(salt + ':' + senha)".
@@ -67,7 +80,7 @@ function credOk(senha, cred) {
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "método não permitido" });
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    const body = await readJson(req);
     const { empresa, nome, senha } = body;
     const app = initAdmin();
     const db = admin.database(app);
