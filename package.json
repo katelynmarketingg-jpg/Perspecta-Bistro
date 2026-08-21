@@ -1,0 +1,9 @@
+{
+  "name": "perspecta-bistro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bistro estático (index.html) + funções Vercel em /api (login no servidor).",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
