@@ -5120,11 +5120,25 @@
         pagamentos: [{ forma: _formaMap[_formaKey] || 1, valor: total }]
       }];
       try {
-        const res = await fetch("https://api.plugnotas.com.br/nfce", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": token },
-          body: JSON.stringify(payload)
-        });
+        const companyId = (storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
+        let res = null;
+        // Caminho principal: emite pelo servidor (o token não sai do navegador).
+        try {
+          const sr = await fetch("/api/nfce", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId, payload })
+          });
+          if (sr.status !== 404 && sr.status < 500) res = sr;   // servidor respondeu (Plugnotas incluído)
+        } catch (e) {}
+        // Fallback: endpoint indisponível → Plugnotas direto. Sem nota dupla:
+        // o Plugnotas deduplica por idIntegracao (= command.id).
+        if (!res) {
+          res = await fetch("https://api.plugnotas.com.br/nfce", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": token },
+            body: JSON.stringify(payload)
+          });
+        }
         const json = await res.json();
         const r = Array.isArray(json) ? json[0] : json;
         if (res.ok && r) {
