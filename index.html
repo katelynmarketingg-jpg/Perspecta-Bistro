@@ -2903,6 +2903,11 @@
           if (r.ok) server = await r.json();
         } catch (e) {}
         const merged = server ? mergeStates(server, state) : state;
+        // O nó de uma empresa nunca deve carregar credenciais do gestor nem a lista
+        // de empresas (isso vinha do defaultState e deixava um "gestorCredentials.senha"
+        // morto em texto em cada loja). Removidos antes de gravar; o master é o único
+        // dono dessas chaves.
+        if (storeKey !== MASTER_KEY) { delete merged.gestorCredentials; delete merged.companies; }
         merged.savedAt = Date.now();
         const ctrl2 = new AbortController();
         const tmo2 = setTimeout(() => ctrl2.abort(), 20000);
