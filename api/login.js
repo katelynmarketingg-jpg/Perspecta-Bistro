@@ -77,6 +77,21 @@ function credOk(senha, cred) {
   return false;
 }
 
+// Rate-limit simples por empresa+nome (janela 60s, máx 10 tentativas). Fail-open:
+// em qualquer erro, LIBERA (nunca tranca alguém por bug). Usa o RTDB via admin.
+async function tooManyAttempts(db, empresa, nome) {
+  try {
+    const key = (String(empresa) + "_" + String(nome)).toLowerCase().replace(/[.#$\[\]/]+/g, "_").slice(0, 80) || "_";
+    const ref = db.ref("/ratelimit/" + key);
+    const now = Date.now();
+    const arr = (await ref.get()).val();
+    const recent = (Array.isArray(arr) ? arr : []).filter((t) => now - t < 60000);
+    recent.push(now);
+    await ref.set(recent.slice(-20));
+    return recent.length > 10;
+  } catch (e) { return false; }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ error: "método não permitido" });
   try {
@@ -84,6 +99,8 @@ module.exports = async (req, res) => {
     const { empresa, nome, senha } = body;
     const app = initAdmin();
     const db = admin.database(app);
+    if (await tooManyAttempts(db, empresa, nome))
+      return res.status(429).json({ error: "muitas tentativas — espere 1 minuto" });
     const master = (await db.ref("/data/gestaoMaster_v1").get()).val() || {};
     const emp = norm(empresa), pes = norm(nome);
 

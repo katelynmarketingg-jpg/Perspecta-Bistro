@@ -7273,7 +7273,10 @@
 
       if (form.id === "staffForm") {
         state.staff = state.staff || [];
-        state.staff.push({ id: uid(), ...data, permissions: ["dashboard", ...formData.getAll("permissions")].filter((value, index, arr) => arr.indexOf(value) === index) });
+        const _staff = { id: uid(), ...data, permissions: ["dashboard", ...formData.getAll("permissions")].filter((value, index, arr) => arr.indexOf(value) === index) };
+        if (_staff.senha != null && String(_staff.senha).trim()) { _staff.passHash = await hashSenha(String(_staff.senha).trim()); }
+        delete _staff.senha;   // funcionário: nunca em texto no banco
+        state.staff.push(_staff);
         form.reset();
         save();
       }
@@ -7338,7 +7341,7 @@
         if (person) {
           if ((data.nome || "").trim()) person.nome = data.nome.trim();
           if ((data.login || "").trim()) person.login = data.login.trim();
-          if ((data.senha || "").trim()) person.senha = data.senha.trim();
+          if ((data.senha || "").trim()) { person.passHash = await hashSenha(data.senha.trim()); delete person.senha; }
           if (data.perfil) person.perfil = data.perfil;
           person.permissions = ["dashboard", ...formData.getAll("permissions")]
             .filter((v, i, a) => a.indexOf(v) === i);
