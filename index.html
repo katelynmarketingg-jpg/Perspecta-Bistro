@@ -417,10 +417,9 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       background:
-        linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px),
-        linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
-        #1c1c20;
-      background-size: 48px 48px;
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0),
+        var(--panel);
+      background-size: 26px 26px, 100% 100%;
       overflow: hidden;
       touch-action: none;
     }
@@ -455,8 +454,8 @@
     }
 
     .table-tile.busy {
-      border-color: var(--brand);
-      background: #1c1c20;
+      border-color: rgba(255,106,0,.55);
+      background: linear-gradient(160deg, rgba(255,106,0,.13), var(--panel-2));
     }
 
     .table-tile.kitchen {
@@ -470,13 +469,20 @@
     }
 
     .table-tile.paid {
-      border-color: #cdd8cf;
-      background: #1c1c20;
+      border-color: rgba(16,185,129,.5);
+      background: var(--panel-2);
     }
 
     .table-tile.free {
-      border-color: #cdd8cf;
-      background: #1c1c20;
+      border-color: rgba(16,185,129,.5);
+      border-style: dashed;
+      background: var(--panel-2);
+    }
+    .table-tile.free .table-client { color: var(--ok); }
+    .table-total {
+      display: block; margin-top: 3px; font-weight: 700; color: var(--brand);
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(11px, calc(var(--table-size, 132px) * .09), 15px);
     }
 
     .table-tile strong {
@@ -1991,13 +1997,13 @@
     };
 
     const navItems = [
-      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
+      ["dashboard", "Visão do dia"], ["mesas", "Salão"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
       ["cardapio", "Cardápio"], ["comandas", "Comandas"], ["relatorios", "Relatórios"], ["dados", "Configurações"]
     ];
 
     // Agrupamento do menu lateral (só organização visual — ids inalterados).
     const NAV_GROUPS = [
-      ["Operação", ["dashboard", "comandas", "caixa"]],
+      ["Operação", ["dashboard", "mesas", "comandas", "caixa"]],
       ["Cadastros", ["cardapio", "custos", "insumos", "estoque", "clientes"]],
       ["Gestão", ["metas", "previsao", "relatorios"]],
       ["Config", ["dados", "empresas"]],
@@ -2007,7 +2013,7 @@
       dashboard: ["Visão do dia", ""],
       empresas: ["Empresas", ""],
       caixa: ["Caixa", ""],
-      mesas: ["Mesas e áreas", ""],
+      mesas: ["Salão", ""],
       estoque: ["Estoque", ""],
       insumos: ["Insumos", ""],
       custos: ["Fichas de custo", ""],
@@ -3711,7 +3717,7 @@
         const subText = command ? `<span class="table-name">${escapeHTML(table.nome)}</span>` : "";
         return `<button class="table-tile ${status.className}" ${style} data-table-id="${table.id}" ${openAttr}>
           ${paidBadge}
-          <div><strong class="table-client">${mainText}</strong>${subText}<span class="table-status">${statusText}</span></div>
+          <div><strong class="table-client">${mainText}</strong>${subText}<span class="table-status">${statusText}</span>${command ? `<span class="table-total">${money(commandTotal(command))}</span>` : ""}</div>
           <span class="table-resize-handle" data-resize-tables title="Ajustar tamanho das mesas"></span>
         </button>`;
       }).join("");
