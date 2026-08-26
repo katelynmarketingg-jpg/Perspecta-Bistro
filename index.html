@@ -20,6 +20,7 @@
       --muted: #a3a1ab;
       --line: #2a2a31;
       --brand: #ff6a00;
+      --brand-soft: rgba(255,106,0,.14);
       --brand-2: #1f9e86;
       --gold: #f0a92e;
       --blue: #5b8def;
@@ -99,8 +100,15 @@
     }
 
     .nav {
-      display: grid;
-      gap: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-group { display: flex; flex-direction: column; gap: 2px; }
+    .nav-group + .nav-group { margin-top: 15px; }
+    .nav-eyebrow {
+      font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--muted); opacity: .65; font-weight: 700; padding: 2px 12px 6px;
     }
 
     .nav button {
@@ -109,17 +117,22 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 11px 12px;
-      color: #f8efe4;
+      padding: 10px 12px;
+      color: var(--ink);
       background: transparent;
-      border-radius: 7px;
-      transition: .18s ease;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: .16s ease;
     }
 
-    .nav button:hover,
+    .nav button:hover { background: var(--panel-2); }
     .nav button.active {
-      background: rgba(255,255,255,.10);
+      background: var(--brand-soft);
+      border-color: rgba(255,106,0,.22);
     }
+    .nav button.active svg { color: var(--brand); }
 
     .nav svg {
       width: 18px;
@@ -1982,6 +1995,14 @@
       ["cardapio", "Cardápio"], ["comandas", "Comandas"], ["relatorios", "Relatórios"], ["dados", "Configurações"]
     ];
 
+    // Agrupamento do menu lateral (só organização visual — ids inalterados).
+    const NAV_GROUPS = [
+      ["Operação", ["dashboard", "comandas", "caixa"]],
+      ["Cadastros", ["cardapio", "custos", "insumos", "estoque", "clientes"]],
+      ["Gestão", ["metas", "previsao", "relatorios"]],
+      ["Config", ["dados", "empresas"]],
+    ];
+
     const pageCopy = {
       dashboard: ["Visão do dia", ""],
       empresas: ["Empresas", ""],
@@ -3470,9 +3491,19 @@
     }
 
     function renderNav() {
-      document.getElementById("nav").innerHTML = orderedMenuItems().map(({ id, label }) =>
-        `<button class="${id === activeSection() ? "active" : ""}" data-section="${id}">${icon(id)}<span>${escapeHTML(label)}</span></button>`
-      ).join("");
+      const items = orderedMenuItems();                       // já filtrado por permissão/ordem
+      const byId = new Map(items.map(it => [it.id, it]));
+      const used = new Set();
+      const btn = ({ id, label }) => { used.add(id); return `<button class="${id === activeSection() ? "active" : ""}" data-section="${id}">${icon(id)}<span>${escapeHTML(label)}</span></button>`; };
+      let html = "";
+      for (const [group, ids] of NAV_GROUPS) {
+        const groupItems = ids.map(id => byId.get(id)).filter(Boolean);
+        if (!groupItems.length) continue;
+        html += `<div class="nav-group"><div class="nav-eyebrow">${group}</div>${groupItems.map(btn).join("")}</div>`;
+      }
+      const rest = items.filter(it => !used.has(it.id));       // defensivo: nada some
+      if (rest.length) html += `<div class="nav-group"><div class="nav-eyebrow">Mais</div>${rest.map(btn).join("")}</div>`;
+      document.getElementById("nav").innerHTML = html;
     }
 
     function activeSection() {
