@@ -768,7 +768,8 @@
     }
 
     .btn.secondary {
-      background: #332923;
+      background: #2a2a31;
+      color: var(--ink);
     }
 
     .btn.ghost {
@@ -906,7 +907,7 @@
 
     .command-location.open {
       border-color: #f28c28;
-      background: #20180f;
+      background: #1e1d24;
     }
 
     .command-location.paid {
@@ -1076,7 +1077,7 @@
     }
 
     .addon-toggle[open] summary {
-      background: #20180f;
+      background: #1e1d24;
       border-color: #f28c28;
     }
 
@@ -5720,8 +5721,8 @@
             <p class="mini" style="color:var(--muted);margin-bottom:10px;font-weight:600">LOGO DA SIDEBAR</p>
             <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
               ${currentLogo
-                ? `<img src="${currentLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:10px;background:#f0ede8;padding:6px;" alt="Logo">`
-                : `<div style="width:56px;height:56px;border-radius:10px;background:#f0ede8;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
+                ? `<img src="${currentLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:10px;background:#22222a;padding:6px;" alt="Logo">`
+                : `<div style="width:56px;height:56px;border-radius:10px;background:#22222a;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
               <div style="display:flex;flex-direction:column;gap:8px">
                 <label class="btn secondary" style="cursor:pointer;margin:0">
                   📁 ${currentLogo ? "Trocar logo" : "Enviar logo"}
@@ -5734,8 +5735,8 @@
             <p class="mini" style="color:var(--muted);margin-bottom:10px;font-weight:600">FAVICON (ícone da aba do navegador)</p>
             <div style="display:flex;align-items:center;gap:16px">
               ${state.settings.favicon
-                ? `<img src="${state.settings.favicon}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#f0ede8;padding:4px;" alt="Favicon">`
-                : `<div style="width:32px;height:32px;border-radius:6px;background:#f0ede8;display:grid;place-items:center;font-size:9px;color:#999;text-align:center">Aba</div>`}
+                ? `<img src="${state.settings.favicon}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#22222a;padding:4px;" alt="Favicon">`
+                : `<div style="width:32px;height:32px;border-radius:6px;background:#22222a;display:grid;place-items:center;font-size:9px;color:#999;text-align:center">Aba</div>`}
               <div style="display:flex;flex-direction:column;gap:8px">
                 <label class="btn secondary" style="cursor:pointer;margin:0;font-size:12px">
                   📁 ${state.settings.favicon ? "Trocar favicon" : "Enviar favicon"}
