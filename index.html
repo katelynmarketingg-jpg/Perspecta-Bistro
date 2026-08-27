@@ -479,6 +479,26 @@
       background: var(--panel-2);
     }
     .table-tile.free .table-client { color: var(--ok); }
+    .table-tile.sel { outline: 2.5px solid var(--brand); outline-offset: 2px; }
+
+    /* Salão: mapa + comanda lado a lado */
+    .salao-grid { display: grid; grid-template-columns: minmax(0,1fr) 384px; gap: 16px; align-items: start; }
+    .salao-map { min-width: 0; }
+    .salao-comanda { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding: 0; background: transparent; border: none; }
+    .salao-comanda > .command-card, .salao-comanda > .card { margin: 0; }
+    .salao-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; text-align: center; padding: 56px 20px; min-height: 320px;
+      background: var(--panel); border: 1px dashed var(--line); border-radius: 16px; color: var(--muted);
+    }
+    .salao-empty-ico { opacity: .5; transform: scale(1.6); margin-bottom: 6px; }
+    .salao-empty strong { color: var(--ink); font-size: 16px; }
+    .salao-empty p { margin: 0; font-size: 13px; max-width: 220px; }
+    .salao-empty .btn { margin-top: 8px; }
+    .salao-manage > summary { cursor: pointer; font-weight: 750; font-size: 14px; color: var(--ink); list-style: none; }
+    .salao-manage > summary::-webkit-details-marker { display: none; }
+    .salao-manage > summary::before { content: "⚙ "; color: var(--muted); }
+    @media (max-width: 1000px) { .salao-grid { grid-template-columns: 1fr; } .salao-comanda { position: static; max-height: none; } }
     .table-total {
       display: block; margin-top: 3px; font-weight: 700; color: var(--brand);
       font-variant-numeric: tabular-nums;
@@ -3700,9 +3720,12 @@
       `;
     }
 
+    let salaoSel = null;
+
     function tableMap(draggable = false, allowOpen = true) {
       const open = state.commands.filter(c => c.status === "aberta");
       const onlyActive = Boolean(state.settings.tableOnlyActive);
+      const selName = String(salaoSel || "").toLowerCase();
       const content = (state.tables || []).sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => {
         const command = open.find(c => c.local.toLowerCase() === table.nome.toLowerCase());
         if (onlyActive && !command) return "";
@@ -3716,7 +3739,8 @@
         const paidBadge = command?.paidAt ? `<span class="table-paid-badge" title="Pago">✓</span>` : "";
         const mainText = command ? escapeHTML(command.cliente || "Avulso") : escapeHTML(table.nome);
         const subText = command ? `<span class="table-name">${escapeHTML(table.nome)}</span>` : "";
-        return `<button class="table-tile ${status.className}" ${style} data-table-id="${table.id}" ${openAttr}>
+        const selClass = selName && table.nome.toLowerCase() === selName ? " sel" : "";
+        return `<button class="table-tile ${status.className}${selClass}" ${style} data-table-id="${table.id}" ${openAttr}>
           ${paidBadge}
           <div><strong class="table-client">${mainText}</strong>${subText}<span class="table-status">${statusText}</span>${command ? `<span class="table-total">${money(commandTotal(command))}</span>` : ""}</div>
           <span class="table-resize-handle" data-resize-tables title="Ajustar tamanho das mesas"></span>
@@ -4140,38 +4164,64 @@
       </tbody></table>`;
     }
 
+    function salaoComandaPanel() {
+      // Comanda ao lado do mapa. Se a mesa selecionada tem comanda aberta, mostra o card;
+      // se está livre, oferece abrir; sem seleção, mostra a dica.
+      if (!salaoSel) {
+        return `<div class="salao-empty">
+          <div class="salao-empty-ico">${icon("mesas")}</div>
+          <strong>Toque numa mesa</strong>
+          <p>A comanda aparece aqui, ao lado do mapa.</p>
+        </div>`;
+      }
+      const table = (state.tables || []).find(t => t.nome.toLowerCase() === String(salaoSel).toLowerCase());
+      const command = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === String(salaoSel).toLowerCase());
+      if (command) return commandCard(command);
+      return `<div class="salao-empty">
+        <div class="salao-empty-ico">${icon("mesas")}</div>
+        <strong>${escapeHTML(table ? table.nome : salaoSel)}</strong>
+        <p>Mesa livre. Abra uma comanda para começar o pedido.</p>
+        <button class="btn" type="button" data-open-table="${escapeHTML(salaoSel)}" data-open-btn>${icon("comandas")}Abrir comanda</button>
+      </div>`;
+    }
+
     function renderTables() {
       document.getElementById("mesas").innerHTML = `
-        <div class="panel">
-          <h2>Mesas e áreas</h2>
-          <form id="tableForm">
-            <div class="form-grid">
-              <label>Nome<input name="nome" required placeholder="Mesa 5"></label>
-              <label>Área<input name="area" placeholder="Salão, janela, balcão"></label>
-              <label>Ordem<input name="ordem" type="number" value="${(state.tables || []).length + 1}"></label>
-              <label>Tamanho<input name="tamanho" type="number" min="108" max="180" value="${Math.max(108, num(state.settings.tableTileSize || 118))}"></label>
+        <div class="salao-grid">
+          <div class="salao-map">
+            <div class="panel">
+              ${tableMapControls()}
+              ${tableLegend()}
+              ${tableMap(true)}
             </div>
-            <div class="actions"><button class="btn" type="submit">${icon("mesas")}Adicionar mesa</button></div>
-          </form>
-        </div>
 
-        <div class="panel" style="margin-top:16px">
-          <h2>Mapa das mesas</h2>
-          ${tableMapControls()}
-          ${tableLegend()}
-          ${tableMap(true)}
-        </div>
-
-        ${(state.tables || []).length ? `<div class="panel" style="margin-top:16px">
-          <h3>Mesas cadastradas</h3>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-            ${state.tables.sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => `
-              <span style="display:inline-flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 12px;font-size:13px;font-weight:750">
-                <input data-rename-table="${table.id}" value="${escapeHTML(table.nome)}" style="border:none;background:transparent;font:inherit;font-weight:750;width:${Math.max(4, table.nome.length)}ch;padding:0;outline:none;cursor:text" title="Renomear">
-                <button data-delete-table="${table.id}" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0 2px" title="Excluir">×</button>
-              </span>`).join("")}
+            <div class="panel" style="margin-top:16px">
+              <details class="salao-manage"${(state.tables || []).length ? "" : " open"}>
+                <summary>Gerenciar mesas</summary>
+                <form id="tableForm" style="margin-top:12px">
+                  <div class="form-grid">
+                    <label>Nome<input name="nome" required placeholder="Mesa 5"></label>
+                    <label>Área<input name="area" placeholder="Salão, janela, balcão"></label>
+                    <label>Ordem<input name="ordem" type="number" value="${(state.tables || []).length + 1}"></label>
+                    <label>Tamanho<input name="tamanho" type="number" min="108" max="180" value="${Math.max(108, num(state.settings.tableTileSize || 118))}"></label>
+                  </div>
+                  <div class="actions"><button class="btn" type="submit">${icon("mesas")}Adicionar mesa</button></div>
+                </form>
+                ${(state.tables || []).length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+                  ${state.tables.sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => `
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 12px;font-size:13px;font-weight:750">
+                      <input data-rename-table="${table.id}" value="${escapeHTML(table.nome)}" style="border:none;background:transparent;font:inherit;font-weight:750;width:${Math.max(4, table.nome.length)}ch;padding:0;outline:none;cursor:text" title="Renomear">
+                      <button data-delete-table="${table.id}" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0 2px" title="Excluir">×</button>
+                    </span>`).join("")}
+                </div>` : ""}
+              </details>
+            </div>
           </div>
-        </div>` : ""}
+
+          <aside class="panel salao-comanda">
+            ${salaoComandaPanel()}
+          </aside>
+        </div>
       `;
     }
 
@@ -4949,8 +4999,8 @@
       const _cur = _cs==="paga"?"pago":_cs==="entregue"?"entregue":_cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
       const _ord=["montando","feito","cozinha","entregue","pago"];
       const _ci=_ord.indexOf(_cur);
-      const _stps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
-      const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#d8d8d8;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
+      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#f0a92e"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#10b981"}];
+      const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#26262c;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
@@ -6417,9 +6467,17 @@
       const openTable = event.target.closest("[data-open-table]")?.dataset.openTable;
       if (openTable) {
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
-        if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
-        setSection("comandas");
-        save();
+        const explicitOpen = Boolean(event.target.closest("[data-open-table]")?.hasAttribute("data-open-btn"));
+        // No Salão: seleciona a mesa e mostra a comanda ao lado (só cria comanda ao clicar "Abrir comanda").
+        if (activeSection() === "mesas") {
+          salaoSel = openTable;
+          if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
+          save();
+        } else {
+          if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
+          setSection("comandas");
+          save();
+        }
       }
 
       const quickCommand = event.target.closest("[data-quick-command]")?.dataset.quickCommand;
