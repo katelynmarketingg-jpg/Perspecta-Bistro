@@ -1676,6 +1676,18 @@
     .pm-checkout-status .st-title { font-size: 16px; font-weight: 900; display: block; margin-bottom: 2px; }
     .pm-checkout-status .st-sub { font-size: 12.5px; font-weight: 600; opacity: .9; }
 
+    /* Forma de pagamento no checkout público */
+    .pm-pay-block { margin: 14px 0 6px; }
+    .pm-pay-title { display: block; font-size: 14px; font-weight: 800; color: #ccc; margin-bottom: 8px; }
+    .pm-pay-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .pm-pay-opt { position: relative; cursor: pointer; }
+    .pm-pay-opt input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+    .pm-pay-opt span { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 12px 6px; border: 1.5px solid #3a3a3a; border-radius: 12px; font-size: 13px; font-weight: 700; color: #ddd; text-align: center; transition: border-color .15s, background .15s; }
+    .pm-pay-opt input:checked + span { border-color: #f97316; background: rgba(249,115,22,.12); color: #fff; }
+    .pm-pay-hint { font-size: 12px; color: rgba(255,255,255,.5); margin: 8px 0 0; min-height: 15px; }
+    .pm-wa-mini { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 9px; background: transparent; border: none; color: rgba(255,255,255,.55); font-size: 13px; font-weight: 600; cursor: pointer; }
+    .pm-wa-mini:hover { color: #25D366; }
+
     .pm-cart-panel, .pm-addon-panel, .pm-checkout-panel {
       background: #161616; border-radius: 20px 20px 0 0;
       width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
@@ -1741,9 +1753,9 @@
       padding: 10px 12px; font: inherit; font-size: 15px;
     }
     .pm-checkout-panel input:focus, .pm-checkout-panel select:focus { outline: none; border-color: var(--brand); }
-    .pm-order-recap { background: #f9f6f2; border-radius: 10px; padding: 14px; margin: 16px 0; }
-    .pm-recap-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
-    .pm-recap-total { border-top: 1px solid #e8ddd3; margin-top: 8px; padding-top: 10px; font-weight: 900; font-size: 16px; }
+    .pm-order-recap { background: #141416; border: 1px solid #2a2a2e; border-radius: 10px; padding: 14px; margin: 16px 0; color: #eee; }
+    .pm-recap-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; color: #ccc; }
+    .pm-recap-total { border-top: 1px solid #33333a; margin-top: 8px; padding-top: 10px; font-weight: 900; font-size: 16px; color: #fff; }
     .pm-wa-btn {
       width: 100%; padding: 16px; border-radius: 12px; background: #25D366; color: white;
       font-size: 17px; font-weight: 850; border: 0; cursor: pointer;
@@ -3256,7 +3268,10 @@
           theme: s.theme || "",
           favicon: s.favicon || null,
           perspectaLogo: s.perspectaLogo || null,
-          publicSlug: s.publicSlug || ""
+          publicSlug: s.publicSlug || "",
+          // Pagamento online (InfinitePay): o @handle é público por natureza
+          // (é a InfiniteTag da loja). O servidor /api/payment-link lê daqui.
+          pay: s.pay ? { infinitepay: { handle: (s.pay.infinitepay && s.pay.infinitepay.handle) || "", ativo: !!(s.pay.infinitepay && s.pay.infinitepay.ativo) } } : null
         },
         menu: (state.menu || []).filter(m => m && m.ativo).map(m => ({
           id: m.id, nome: m.nome || "", descricao: m.descricao || "", preco: m.preco || 0,
@@ -6244,6 +6259,27 @@
             <div class="table-wrap">${menuOrderTable()}</div>
           </div>
 
+          <!-- ── 💳 Pagamento online ── -->
+          <div class="panel">
+            <h2>💳 Pagamento online no cardápio</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:14px">Com a <strong>InfinitePay</strong>, o cliente finaliza o pedido e paga <strong>Pix ou cartão</strong> direto no site — o dinheiro cai na sua conta InfinitePay. Precisa só da sua <strong>InfiniteTag</strong> (o @ da sua conta), sem token. <a href="https://www.infinitepay.io" target="_blank" rel="noopener" style="color:var(--brand)">Criar conta grátis →</a></p>
+            <form id="payInfinitePayForm">
+              <div class="form-grid form-grid-2col">
+                <label>Sua InfiniteTag (@handle)<input name="ipHandle" value="${escapeHTML((state.settings.pay&&state.settings.pay.infinitepay&&state.settings.pay.infinitepay.handle)||"")}" placeholder="@sualoja"></label>
+                <label style="display:flex;align-items:center;gap:8px;align-self:end;padding-bottom:10px">
+                  <input type="checkbox" name="ipAtivo" ${(state.settings.pay&&state.settings.pay.infinitepay&&state.settings.pay.infinitepay.ativo)?"checked":""} style="width:auto">
+                  Ativar pagamento online no cardápio
+                </label>
+              </div>
+              <div class="actions" style="margin-top:12px"><button class="btn" type="submit">Salvar pagamento</button></div>
+            </form>
+            <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--panel-2);font-size:12px">
+              ${(state.settings.pay&&state.settings.pay.infinitepay&&state.settings.pay.infinitepay.ativo&&state.settings.pay.infinitepay.handle)
+                ? `<span style="color:#1a7a45;font-weight:700">✅ Pagamento online ativo · InfinitePay @${escapeHTML(state.settings.pay.infinitepay.handle.replace(/^@/,""))}</span>`
+                : `<span style="color:var(--muted)">⚠️ Sem InfiniteTag ativa — no cardápio o cliente escolhe pagar na entrega/retirada (dinheiro) ou pelo WhatsApp.</span>`}
+            </div>
+          </div>
+
           <!-- ── 🗒️ NFC-e ── -->
           <div class="panel">
             <h2>🗒️ NFC-e — Nota Fiscal do Consumidor</h2>
@@ -6394,6 +6430,8 @@
       const cats = [...new Set(active.map(m => m.categoria))];
       const activeAddons = (state.addons || []).filter(a => a.ativo);
       pmActiveCat = "all";
+      const _ip = state.settings.pay && state.settings.pay.infinitepay;
+      const payOnline = !!(_ip && _ip.ativo && _ip.handle);
 
       root.innerHTML = `
         <div class="pm-wrap">
@@ -6401,7 +6439,7 @@
             ${state.settings.logoUrl
               ? `<img src="${state.settings.logoUrl}" class="pm-hero-logo-img" alt="${escapeHTML(state.settings.restaurant || "Cardápio")}">`
               : `<h1 class="pm-hero-wordmark">${escapeHTML(state.settings.restaurant || "Cardápio")}</h1>`}
-            <p class="pm-hero-note">${escapeHTML(state.settings.menuNote || "Escolha os itens e finalize no WhatsApp.")}</p>
+            <p class="pm-hero-note">${escapeHTML(state.settings.menuNote || "Escolha os itens e finalize seu pedido aqui.")}</p>
             <button type="button" class="pm-myorders-link" id="pmMyOrdersOpen">📦 Meus pedidos</button>
           </div>
           <div class="pm-cats-wrap">
@@ -6501,11 +6539,22 @@
                   <input name="referencia" id="pmReferenceInput" placeholder="Rua, número, bairro">
                 </label>
               </div>
+              <div class="pm-pay-block">
+                <span class="pm-pay-title">Forma de pagamento</span>
+                <div class="pm-pay-opts" id="pmPayOpts">
+                  <label class="pm-pay-opt"><input type="radio" name="pagamento" value="dinheiro" checked><span>💵 Dinheiro</span></label>
+                  <label class="pm-pay-opt"><input type="radio" name="pagamento" value="pix"><span>📱 Pix</span></label>
+                  <label class="pm-pay-opt"><input type="radio" name="pagamento" value="cartao"><span>💳 Cartão</span></label>
+                </div>
+                <p class="pm-pay-hint" id="pmPayHint"></p>
+              </div>
               <div class="pm-order-recap" id="pmOrderRecap"></div>
               <div id="pmCheckoutStatus" class="pm-checkout-status hidden"></div>
-              <button type="submit" class="pm-wa-btn">
-                <svg width="22" height="22" viewBox="0 0 32 32" fill="white"><path d="M16 .5C7.4.5.5 7.4.5 16c0 2.8.7 5.4 2 7.7L.5 31.5l8.1-2c2.2 1.1 4.7 1.8 7.4 1.8 8.6 0 15.5-6.9 15.5-15.5S24.6.5 16 .5zm8.5 21.6c-.4 1-2 1.9-2.7 2-.7.1-1.4.2-4.3-.9-3.6-1.4-5.9-5.1-6.1-5.3-.2-.2-1.5-2-1.5-3.9s.9-2.7 1.3-3.1c.4-.4.8-.5 1.1-.5s.5 0 .8 0c.3 0 .6-.1.9.7.3.8 1.1 2.7 1.2 2.9.1.2.2.4 0 .7-.2.3-.3.4-.5.7-.2.2-.4.5-.2.9.2.4 1 1.7 2.1 2.7 1.4 1.3 2.7 1.7 3 1.9.4.2.6.2.8-.1.2-.3.9-1.1 1.2-1.5.3-.4.6-.3 1 0 .4.2 2.4 1.1 2.8 1.4.4.2.7.3.8.5.1.2.1 1.1-.3 2.1z"/></svg>
-                Pedir pelo WhatsApp
+              <input type="hidden" name="payOnline" value="${payOnline ? "1" : ""}">
+              <button type="submit" class="pm-btn-full pm-btn-green" id="pmFinalizeBtn" style="margin-top:6px">Finalizar pedido</button>
+              <button type="button" class="pm-wa-mini" id="pmWaFallback">
+                <svg width="15" height="15" viewBox="0 0 32 32" fill="currentColor"><path d="M16 .5C7.4.5.5 7.4.5 16c0 2.8.7 5.4 2 7.7L.5 31.5l8.1-2c2.2 1.1 4.7 1.8 7.4 1.8 8.6 0 15.5-6.9 15.5-15.5S24.6.5 16 .5zm8.5 21.6c-.4 1-2 1.9-2.7 2-.7.1-1.4.2-4.3-.9-3.6-1.4-5.9-5.1-6.1-5.3-.2-.2-1.5-2-1.5-3.9s.9-2.7 1.3-3.1c.4-.4.8-.5 1.1-.5s.5 0 .8 0c.3 0 .6-.1.9.7.3.8 1.1 2.7 1.2 2.9.1.2.2.4 0 .7-.2.3-.3.4-.5.7-.2.2-.4.5-.2.9.2.4 1 1.7 2.1 2.7 1.4 1.3 2.7 1.7 3 1.9.4.2.6.2.8-.1.2-.3.9-1.1 1.2-1.5.3-.4.6-.3 1 0 .4.2 2.4 1.1 2.8 1.4.4.2.7.3.8.5.1.2.1 1.1-.3 2.1z"/></svg>
+                Prefiro pedir pelo WhatsApp
               </button>
             </form>
           </div>
@@ -6540,6 +6589,90 @@
       } else {
         fab.classList.add("hidden");
       }
+    }
+
+    // Atualiza a dica embaixo das formas de pagamento no checkout público.
+    function pmUpdatePayHint() {
+      const hint = document.getElementById("pmPayHint");
+      if (!hint) return;
+      const sel = document.querySelector('#pmPayOpts input[name="pagamento"]:checked');
+      const method = sel ? sel.value : "dinheiro";
+      const payOnline = document.querySelector('#pmCheckoutForm [name="payOnline"]')?.value === "1";
+      const tipo = document.getElementById("pmTipoSelect")?.value || "retirada";
+      const onde = tipo === "tele" ? "na entrega" : tipo === "mesa" ? "no local" : "na retirada";
+      if (method === "dinheiro") hint.textContent = `Você paga em dinheiro ${onde}.`;
+      else if (payOnline) hint.textContent = `Você paga agora, pelo site, com segurança (InfinitePay).`;
+      else hint.textContent = `Você paga ${onde} (${method === "pix" ? "Pix" : "cartão na maquininha"}).`;
+    }
+
+    // Monta e grava o pedido do cardápio no sistema (servidor + fallback direto).
+    // Usado tanto pelo "Finalizar pedido" quanto pelo "Pedir pelo WhatsApp".
+    async function pmPersistOrder(data) {
+      const nome = escapeHTML(data.nome || "").trim();
+      const tipo = data.tipo || "retirada";
+      const referencia = escapeHTML(data.referencia || "").trim();
+      const telefone = (data.telefone || "").replace(/\D/g, "");
+      const pagamento = data.pagamento || "dinheiro";
+      const payOnline = data.payOnline === "1" && (pagamento === "pix" || pagamento === "cartao");
+      const payMap = { dinheiro: "Dinheiro", pix: "Pix", cartao: "Cartão" };
+      const itemsForComanda = publicCart.map(item => ({
+        id: item.id, nome: item.nome, preco: item.preco,
+        quantidade: item.quantidade, adicionais: item.adicionais || [], observacao: item.observacao || ""
+      }));
+      const orderId = uid();
+      const tipoLabel = tipo === "tele" ? `Delivery${referencia ? ` — ${referencia}` : ""}` : tipo === "mesa" ? `${referencia ? referencia : "Comer no local"}` : "Retirada no local";
+      const payload = { id: orderId, nome, tipo, referencia, telefone, itens: itemsForComanda, total: pmCartTotal(), ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
+      const lines = publicCart.map(item => {
+        const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
+        const addNames = (item.adicionais || []).filter(a => a.nome).map(a => `  + ${a.nome}`).join("\n");
+        const obs = item.observacao ? `  📝 ${item.observacao}` : "";
+        return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${obs ? "\n" + obs : ""}`;
+      }).join("\n");
+      const companyId = String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
+      let saved = false, failReason = "";
+      try {
+        const r = await fetch("https://perspecta-bistro.vercel.app/api/order", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ companyId, order: payload })
+        });
+        saved = r.ok;
+        if (!saved) {
+          let detail = ""; try { const j = await r.json(); detail = j.error || j.detail || ""; } catch (e) {}
+          failReason = `servidor ${r.status}${detail ? ` — ${detail}` : ""}`;
+          console.error("[pedido] /api/order falhou:", r.status, detail, { companyId });
+        }
+      } catch (e) { failReason = "sem rede/CORS: " + (e && e.message || e); console.error("[pedido] /api/order erro:", e); }
+      if (!saved) {
+        try {
+          const w = await authedFetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
+            method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+          });
+          saved = w && w.ok;
+        } catch (e) {}
+      }
+      if (saved) {
+        try {
+          const mine = JSON.parse(localStorage.getItem("bistroMyOrders") || "[]");
+          mine.unshift({ id: orderId, companyId, restaurante: state.settings.restaurant || "", nome, telefone, total: payload.total, ts: Date.now(),
+            itensCount: itemsForComanda.reduce((s, i) => s + (Number(i.quantidade) || 1), 0), tipoLabel, tipoEntrega: tipo, paymentMethod: payload.paymentMethod });
+          localStorage.setItem("bistroMyOrders", JSON.stringify(mine.slice(0, 20)));
+        } catch (e) {}
+      }
+      return { saved, failReason, orderId, payload, itemsForComanda, lines, tipoLabel, companyId, nome, tipo, telefone, referencia, pagamento, payOnline, payMap };
+    }
+
+    // Monta a mensagem do WhatsApp a partir do pedido (template configurável).
+    function pmOrderWhatsMsg(res, saved) {
+      const tpl = (state.settings.orderMessage && state.settings.orderMessage.trim())
+        || "*🍽️ Novo Pedido — {restaurante}*\nCliente: {cliente}\nTipo: {tipo}\n\n📦 *Itens:*\n{itens}\n\n💰 *Total: {total}*";
+      const vars = {
+        restaurante: state.settings.restaurant || "", cliente: res.nome, tipo: res.tipoLabel,
+        telefone: res.telefone || "", itens: res.lines, total: money(res.payload.total),
+        pagamento: res.payMap[res.pagamento] || "",
+      };
+      const preenchida = tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+      const pag = `\n💳 Pagamento: ${res.payMap[res.pagamento]}`;
+      const confirmacao = saved ? "✅ Pedido registrado no sistema!" : "⚠️ Confirme o recebimento com o restaurante.";
+      return `${preenchida}${pag}\n\n${confirmacao}`;
     }
 
     function renderPmCartItems() {
@@ -6859,7 +6992,7 @@
       showLogin();
     });
 
-    document.addEventListener("click", event => {
+    document.addEventListener("click", async event => {
       if (suppressTableClick && event.target.closest("[data-open-table]")) {
         event.preventDefault();
         return;
@@ -7443,8 +7576,29 @@
         const st = document.getElementById("pmCheckoutStatus");
         if (st) { st.className = "pm-checkout-status hidden"; st.innerHTML = ""; }
         const sb = document.querySelector('#pmCheckoutForm button[type="submit"]');
-        if (sb) sb.style.display = "";
+        if (sb) { sb.style.display = ""; sb.textContent = "Finalizar pedido"; sb.disabled = false; }
+        pmUpdatePayHint();
         document.getElementById("pmCheckoutOverlay")?.classList.remove("hidden");
+        return;
+      }
+
+      // ── Cardápio: "Prefiro pedir pelo WhatsApp" (fallback pequeno) ──
+      if (event.target.id === "pmWaFallback" || event.target.closest("#pmWaFallback")) {
+        const form = document.getElementById("pmCheckoutForm");
+        if (!form) return;
+        if (!(form.nome.value || "").trim()) { showToast("Preencha seu nome primeiro."); form.nome.focus(); return; }
+        const data = Object.fromEntries(new FormData(form).entries());
+        const status = document.getElementById("pmCheckoutStatus");
+        const res = await pmPersistOrder(data);
+        publicCart = []; updatePmFab();
+        const waUrl = whatsappLink(state.settings.whatsapp, pmOrderWhatsMsg(res, res.saved));
+        const finalizeBtn = document.getElementById("pmFinalizeBtn");
+        if (finalizeBtn) finalizeBtn.style.display = "none";
+        if (status) {
+          status.className = "pm-checkout-status ok";
+          status.innerHTML = `<span class="st-title">${res.saved ? "✅ Pedido registrado!" : "Quase lá!"}</span><span class="st-sub">${res.saved ? "O restaurante já recebeu. Toque para confirmar pelo WhatsApp." : "Toque para enviar seu pedido pelo WhatsApp."}</span><a href="${waUrl}" target="_blank" rel="noopener" class="pm-btn-full pm-btn-green" style="margin-top:10px;text-decoration:none;display:flex;justify-content:center">Abrir WhatsApp →</a><button type="button" class="pm-btn-full pm-btn-ghost" id="pmGoMyOrders" style="margin-top:10px">📦 Meus pedidos</button>`;
+          status.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
         return;
       }
 
@@ -7994,6 +8148,15 @@
         showToast("✅ Configurações NFC-e salvas.", 2000);
       }
 
+      if (form.id === "payInfinitePayForm") {
+        const handle = (data.ipHandle || "").trim().replace(/^@/, "");
+        state.settings.pay = state.settings.pay || {};
+        state.settings.pay.infinitepay = { handle, ativo: data.ipAtivo === "true" && !!handle };
+        save();                 // publishPublicMenu roda no save → nó público atualiza
+        renderDataTools();
+        showToast(handle ? "✅ Pagamento online salvo." : "Pagamento online desativado.", 2200);
+      }
+
       if (form.id === "reportFilterForm" || form.id === "comparisonForm") {
         state.settings = { ...state.settings, ...data };
         save();
@@ -8033,105 +8196,65 @@
         }
       }
 
+      // FINALIZAR PEDIDO no site (botão grande). Grava o pedido e, se o pagamento
+      // for Pix/Cartão com InfinitePay ativa, gera o link de pagamento na hora.
       if (form.id === "pmCheckoutForm") {
-        const nome = escapeHTML(data.nome || "").trim();
-        const tipo = data.tipo || "retirada";
-        const referencia = escapeHTML(data.referencia || "").trim();
-        const telefone = (data.telefone || "").replace(/\D/g, "");
-        if (!nome) return;
-        const itemsForComanda = publicCart.map(item => ({
-          id: item.id, nome: item.nome, preco: item.preco,
-          quantidade: item.quantidade,
-          adicionais: item.adicionais || [],
-          observacao: item.observacao || ""
-        }));
-        const orderId = uid();
-        const tipoLabel = tipo === "tele" ? `Delivery${referencia ? ` — ${referencia}` : ""}` : tipo === "mesa" ? `${referencia ? referencia : "Comer no local"}` : "Retirada no local";
-        const payload = { id: orderId, nome, tipo, referencia, telefone, itens: itemsForComanda, total: pmCartTotal(), ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel };
-        const lines = publicCart.map(item => {
-          const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
-          const addNames = (item.adicionais || []).filter(a => a.nome).map(a => `  + ${a.nome}`).join("\n");
-          const obs = item.observacao ? `  📝 ${item.observacao}` : "";
-          return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${obs ? "\n" + obs : ""}`;
-        }).join("\n");
-        // Grava o pedido no sistema. Caminho principal: SERVIDOR (/api/order na Vercel),
-        // que grava via conta de serviço — NÃO depende de login anônimo. Fallback: gravação
-        // direta no Firebase (quando houver token). Só confirma sucesso se realmente gravou.
-        const companyId = String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
-        let saved = false, failReason = "";
-        try {
-          const r = await fetch("https://perspecta-bistro.vercel.app/api/order", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ companyId, order: payload })
-          });
-          saved = r.ok;
-          if (!saved) {
-            let detail = "";
-            try { const j = await r.json(); detail = j.error || j.detail || ""; } catch (e) {}
-            failReason = `servidor ${r.status}${detail ? ` — ${detail}` : ""}`;
-            console.error("[pedido] /api/order falhou:", r.status, detail, { companyId });
-          }
-        } catch (e) { failReason = "sem rede/CORS: " + (e && e.message || e); console.error("[pedido] /api/order erro:", e); }
-        if (!saved) {
-          try {
-            const w = await authedFetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
-              method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
-            });
-            saved = w && w.ok;
-            if (!saved) console.error("[pedido] gravação direta falhou:", w && w.status);
-          } catch (e) { console.error("[pedido] gravação direta erro:", e); }
-        }
-        // WhatsApp como reforço (o pedido completo também chega por lá). IMPORTANTE:
-        // NÃO abrir/navegar por código aqui — depois de um await, window.open é
-        // bloqueado no celular (não é gesto do usuário) e window.location.href levava
-        // a página inteira embora ("o pedido só fechava"). Em vez disso, mostramos um
-        // link tocável (gesto real → abre certo) e um resultado que FICA na tela.
-        // Mensagem configurável pela dona (Configurações → Mensagem do pedido).
-        // Troca os marcadores {…}; se estiver vazia, usa um padrão.
-        const tpl = (state.settings.orderMessage && state.settings.orderMessage.trim())
-          || "*🍽️ Novo Pedido — {restaurante}*\nCliente: {cliente}\nTipo: {tipo}\n\n📦 *Itens:*\n{itens}\n\n💰 *Total: {total}*";
-        const vars = {
-          restaurante: state.settings.restaurant || "", cliente: nome, tipo: tipoLabel,
-          telefone: telefone || "", itens: lines, total: money(pmCartTotal()),
-        };
-        const preenchida = tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
-        const confirmacao = saved ? "✅ Pedido registrado no sistema!" : "⚠️ Confirme o recebimento com o restaurante.";
-        const msg = `${preenchida}\n\n${confirmacao}`;
-        const waUrl = whatsappLink(state.settings.whatsapp, msg);
+        if (!(data.nome || "").trim()) return;
         const status = document.getElementById("pmCheckoutStatus");
-        const submitBtn = form.querySelector('button[type="submit"]');
+        const finalizeBtn = document.getElementById("pmFinalizeBtn");
+        if (finalizeBtn) { finalizeBtn.disabled = true; finalizeBtn.textContent = "Enviando…"; }
+        const res = await pmPersistOrder(data);
+        if (finalizeBtn) { finalizeBtn.disabled = false; finalizeBtn.textContent = "Finalizar pedido"; }
+        const waUrl = whatsappLink(state.settings.whatsapp, pmOrderWhatsMsg(res, res.saved));
         const waLink = state.settings.whatsapp
-          ? `<a href="${waUrl}" target="_blank" rel="noopener" class="pm-wa-btn" style="margin-top:10px;text-decoration:none;display:flex">Fazer pedido pelo WhatsApp →</a>`
-          : "";
-        if (saved) {
-          // Guarda o pedido no aparelho do cliente pra ele acompanhar em "Meus pedidos".
-          try {
-            const mine = JSON.parse(localStorage.getItem("bistroMyOrders") || "[]");
-            mine.unshift({
-              id: orderId, companyId, restaurante: state.settings.restaurant || "",
-              nome, total: payload.total, ts: Date.now(),
-              itensCount: itemsForComanda.reduce((s, i) => s + (Number(i.quantidade) || 1), 0),
-              tipoLabel, tipoEntrega: tipo,
-            });
-            localStorage.setItem("bistroMyOrders", JSON.stringify(mine.slice(0, 20)));
-          } catch (e) {}
-          publicCart = [];
-          updatePmFab();
-          if (submitBtn) submitBtn.style.display = "none";
-          if (status) {
-            status.className = "pm-checkout-status ok";
-            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu. Acompanhe o preparo aqui em "Meus pedidos".</span><button type="button" class="pm-btn-full pm-btn-green" id="pmGoMyOrders" style="margin-top:10px">Acompanhar meu pedido →</button>${waLink}`;
-            status.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-          showToast("Pedido enviado! ✅ Acompanhe em Meus pedidos.", 3500);
-        } else {
-          // Não perde o pedido: mantém o carrinho e mostra o motivo + link tocável do WhatsApp.
+          ? `<a href="${waUrl}" target="_blank" rel="noopener" class="pm-wa-mini" style="margin-top:10px;text-decoration:none">Avisar pelo WhatsApp</a>` : "";
+        const myOrdersBtn = `<button type="button" class="pm-btn-full pm-btn-ghost" id="pmGoMyOrders" style="margin-top:10px">📦 Meus pedidos</button>`;
+        const ondePaga = res.tipo === "tele" ? "na entrega" : res.tipo === "mesa" ? "no local" : "na retirada";
+
+        if (!res.saved) {
           if (status) {
             status.className = "pm-checkout-status err";
-            status.innerHTML = `<span class="st-title">Não consegui registrar automaticamente</span><span class="st-sub">${escapeHTML(failReason || "tente de novo")}. Toque abaixo para enviar seu pedido pelo WhatsApp — o restaurante confirma por lá.</span>${waLink}`;
+            status.innerHTML = `<span class="st-title">Não consegui registrar</span><span class="st-sub">${escapeHTML(res.failReason || "tente de novo")}. Toque para enviar seu pedido pelo WhatsApp — o restaurante confirma por lá.</span>${waLink}`;
             status.scrollIntoView({ behavior: "smooth", block: "center" });
           }
-          showToast("Não consegui registrar automático. Use o botão do WhatsApp abaixo.", 5000);
+          showToast("Não consegui registrar. Use o WhatsApp abaixo.", 5000);
+          return;
+        }
+
+        publicCart = []; updatePmFab();
+
+        if (res.payOnline) {
+          if (status) {
+            status.className = "pm-checkout-status ok";
+            status.innerHTML = `<span class="st-title">Pedido registrado ✅</span><span class="st-sub">Gerando seu pagamento seguro…</span>`;
+            status.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          let payUrl = "", payErr = "";
+          try {
+            const pr = await fetch("https://perspecta-bistro.vercel.app/api/payment-link", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ companyId: res.companyId, order: res.payload, redirectUrl: location.href })
+            });
+            const pj = await pr.json().catch(() => ({}));
+            if (pr.ok && pj.url) payUrl = pj.url; else { payErr = pj.error || `erro ${pr.status}`; console.error("[pagamento] payment-link:", pr.status, pj); }
+          } catch (e) { payErr = "sem rede"; console.error("[pagamento] erro:", e); }
+          if (finalizeBtn) finalizeBtn.style.display = "none";
+          if (payUrl && status) {
+            status.className = "pm-checkout-status ok";
+            status.innerHTML = `<span class="st-title">Falta pagar 💳</span><span class="st-sub">Seu pedido está registrado. Toque para pagar ${res.payMap[res.pagamento]} com segurança pela InfinitePay.</span><a href="${payUrl}" target="_blank" rel="noopener" class="pm-btn-full pm-btn-green" style="margin-top:10px;text-decoration:none;display:flex;justify-content:center">Pagar agora →</a>${myOrdersBtn}`;
+          } else if (status) {
+            status.className = "pm-checkout-status ok";
+            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">Não consegui gerar o pagamento online agora (${escapeHTML(payErr)}). Sem problema — combine o pagamento ${ondePaga} com o restaurante.</span>${myOrdersBtn}${waLink}`;
+          }
+          showToast("Pedido registrado ✅", 3000);
+        } else {
+          if (finalizeBtn) finalizeBtn.style.display = "none";
+          if (status) {
+            status.className = "pm-checkout-status ok";
+            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu. Você paga ${ondePaga} (${res.payMap[res.pagamento]}). Acompanhe em "Meus pedidos".</span>${myOrdersBtn}`;
+            status.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+          showToast("Pedido enviado! ✅", 3000);
         }
       }
 
@@ -8288,7 +8411,11 @@
           input.placeholder = "Rua, número, bairro";
           input.required = true;
         }
+        pmUpdatePayHint();
       }
+
+      // ── Forma de pagamento no checkout público ──
+      if (event.target.name === "pagamento") { pmUpdatePayHint(); }
 
       // ── Upload logo do cardápio ──
       // ── Upload logo Perspecta (sidebar) ──
