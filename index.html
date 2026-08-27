@@ -1527,9 +1527,10 @@
       display: block;
       margin: 0 auto 8px;
       width: auto;
-      max-width: min(340px, 90%);
-      max-height: 190px;
+      max-width: min(420px, 92%);
+      max-height: 240px;
       object-fit: contain;
+      image-rendering: -webkit-optimize-contrast;
     }
     .pm-hero-wordmark {
       font-family: 'Anton', sans-serif;
@@ -8318,7 +8319,7 @@
       }
 
       if (event.target.id === "logoUploadInput" && event.target.files?.[0]) {
-        fileToCompressed(event.target.files[0], 600, 300, 0.9).then(b64 => {
+        fileToCompressed(event.target.files[0], 1400, 800, 0.95).then(b64 => {
           if (!b64) return;
           const tmpImg = new Image();
           tmpImg.onload = () => {
@@ -8382,6 +8383,11 @@
     (function boot() {
       const pub = location.hash.startsWith("#cardapio-publico");
       if (pub) {
+        // Link público: esconde o login NA HORA (antes de qualquer await), senão
+        // a tela de acesso pisca enquanto resolve a loja. É público, não tem login.
+        hideLogin();
+        document.getElementById("internalApp").classList.add("hidden");
+        document.getElementById("publicMenu").classList.remove("hidden");
         // Token do link: #cardapio-publico-TOKEN. TOKEN pode ser um slug
         // amigável (novo) ou o id da empresa (links antigos).
         const compMatch = location.hash.match(/^#cardapio-publico-([a-z0-9_-]+)/i);
