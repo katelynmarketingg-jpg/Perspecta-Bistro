@@ -2120,13 +2120,14 @@
     };
 
     const navItems = [
-      ["dashboard", "Visão do dia"], ["mesas", "Salão"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
+      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
       ["cardapio", "Cardápio"], ["comandas", "Comandas"], ["relatorios", "Relatórios"], ["dados", "Configurações"]
     ];
 
     // Agrupamento do menu lateral (só organização visual — ids inalterados).
+    // "Salão" saiu do menu: agora vive dentro da aba Comandas (mapa + comanda ao lado).
     const NAV_GROUPS = [
-      ["Operação", ["dashboard", "mesas", "comandas", "caixa"]],
+      ["Operação", ["dashboard", "comandas", "caixa"]],
       ["Cadastros", ["cardapio", "custos", "insumos", "estoque", "clientes"]],
       ["Gestão", ["metas", "previsao", "relatorios"]],
       ["Config", ["dados", "empresas"]],
