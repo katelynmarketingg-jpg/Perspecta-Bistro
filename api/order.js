@@ -68,9 +68,20 @@ module.exports = async (req, res) => {
 
     const app = initAdmin();
     const db = admin.database(app);
-    // valida que a loja existe (evita gravar lixo p/ id inexistente)
-    const master = (await db.ref("/data/gestaoMaster_v1/companies").get()).val() || [];
-    const exists = Array.isArray(master) && master.some((c) => c && String(c.id) === companyId);
+    // valida que a loja existe (evita gravar lixo p/ id inexistente).
+    // Sinal principal: o nó público do cardápio (/public/gestaoCompany_<id>_v1),
+    // republicado a cada save do admin — se o cliente está VENDO o cardápio, ele
+    // existe. Sinal secundário: a lista mestre (só populada se o gestor sincronizou).
+    // Basta um dos dois — assim um pedido legítimo nunca é barrado por master
+    // ainda não sincronizado na nuvem.
+    let exists = false;
+    try {
+      exists = (await db.ref(`/public/gestaoCompany_${companyId}_v1`).get()).exists();
+    } catch (e) {}
+    if (!exists) {
+      const master = (await db.ref("/data/gestaoMaster_v1/companies").get()).val() || [];
+      exists = Array.isArray(master) && master.some((c) => c && String(c.id) === companyId);
+    }
     if (!exists) return res.status(404).json({ error: "loja não encontrada" });
 
     // normaliza os campos que o admin do restaurante usa (checkPendingOrders)
