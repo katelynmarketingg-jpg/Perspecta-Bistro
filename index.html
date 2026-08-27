@@ -240,24 +240,33 @@
     }
 
     .metric {
-      padding: 15px 16px;
-      min-height: 104px;
+      padding: 18px 20px;
+      min-height: 124px;
+      border-radius: 16px;
+    }
+
+    .metric-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 13px;
     }
 
     .metric .label {
       color: var(--muted);
-      font-size: 12.5px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 9px;
+      font-size: 13px;
+      font-weight: 500;
     }
 
+    .metric-ic { color: var(--faint); display: inline-flex; }
+    .metric-ic svg { width: 18px; height: 18px; }
+
     .metric .value {
-      font-size: 26px;
-      font-weight: 900;
+      font-size: 29px;
+      font-weight: 800;
       line-height: 1;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
     }
 
     .metric .delta {
@@ -714,6 +723,38 @@
       display: grid;
       gap: 16px;
     }
+
+    /* Ordem do menu — lista compacta com toggle */
+    .order-list { display: flex; flex-direction: column; gap: 6px; }
+    .order-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 11px; padding: 8px 12px;
+    }
+    .order-row .order-num {
+      width: 52px; min-height: 34px; text-align: center; font-weight: 700;
+      font-family: var(--display); padding: 6px; flex: none;
+    }
+    .order-row .order-name { flex: 1; min-width: 0; line-height: 1.2; }
+    .order-row .order-name strong { font-size: 14px; }
+    .order-row .order-name span { display: block; font-size: 11px; color: var(--faint); }
+    .order-toggle { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; flex: none; }
+    .order-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .order-toggle .track {
+      width: 38px; height: 22px; border-radius: 999px; background: var(--raise);
+      border: 1px solid var(--line-2); position: relative; transition: .18s; flex: none;
+    }
+    .order-toggle .track::after {
+      content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--muted); transition: .18s;
+    }
+    .order-toggle input:checked + .track { background: var(--brand); border-color: var(--brand); }
+    .order-toggle input:checked + .track::after { left: 18px; background: #fff; }
+    .order-toggle .lbl { font-size: 12px; font-weight: 600; color: var(--muted); width: 46px; }
+    .order-toggle input:checked ~ .lbl { color: var(--ink); }
+    .order-toggle.locked { opacity: .6; cursor: default; }
+    .order-row .btn { min-height: 32px; padding: 6px 14px; flex: none; }
+    @media (max-width: 620px) { .order-toggle .lbl { display: none; } .order-row { gap: 8px; } }
 
     .progress {
       height: 12px;
@@ -3635,11 +3676,11 @@
 
       document.getElementById("dashboard").innerHTML = `
         <div class="grid metrics">
-          ${metric("Faturamento hoje", money(totalHoje), dOntem.ok !== null ? dOntem.txt+" vs ontem" : "hoje", false)}
-          ${metric("Ticket médio", money(ticket), clients ? ""+clients+" cliente(s)" : "—", false)}
-          ${metric("Clientes atendidos", clients, "mesas + balcão", false)}
+          ${metric("Faturamento hoje", money(totalHoje), dOntem.ok !== null ? dOntem.txt+" vs ontem" : "hoje", false, "caixa")}
+          ${metric("Ticket médio", money(ticket), clients ? ""+clients+" cliente(s)" : "—", false, "relatorios")}
+          ${metric("Clientes atendidos", clients, "mesas + balcão", false, "clientes")}
           <div class="metric metric-vendidos">
-            <div class="label">Mais vendidos</div>
+            <div class="metric-top"><span class="label">Mais vendidos</span><span class="metric-ic">${icon("cardapio")}</span></div>
             <div class="metric-vendidos-list">
               ${ranking.length
                 ? ranking.slice(0,3).map(p => `<div class="metric-vendidos-row"><span>${escapeHTML(p.nome)}</span><span>${p.quantidade}x</span></div>`).join("")
@@ -3827,8 +3868,9 @@
       ].join("");
     }
 
-    function metric(label, value, delta, bad) {
-      return `<div class="metric"><div class="label">${label}</div><div class="value">${value}</div><div class="delta ${bad ? "bad" : ""}">${delta}</div></div>`;
+    function metric(label, value, delta, bad, iconName) {
+      const ic = iconName ? `<span class="metric-ic">${icon(iconName)}</span>` : "";
+      return `<div class="metric"><div class="metric-top"><span class="label">${label}</span>${ic}</div><div class="value">${value}</div><div class="delta ${bad ? "bad" : ""}">${delta}</div></div>`;
     }
 
     function moduleCard(title, text, tags) {
@@ -5981,17 +6023,20 @@
 
     function menuOrderTable() {
       const rows = normalizeMenuOrder(state.settings.menuOrder).sort((a, b) => num(a.order) - num(b.order));
-      return `<table><thead><tr><th>Ordem</th><th>Aba</th><th>Mostrar</th><th></th></tr></thead><tbody>
+      return `<div class="order-list">
         ${rows.map(item => {
           const locked = item.id === "dashboard" || item.id === "dados";
-          return `<tr>
-            <td><input data-menu-order="${item.id}" type="number" min="1" value="${escapeHTML(item.order)}"></td>
-            <td><strong>${escapeHTML(item.label)}</strong><br><span class="mini">${escapeHTML(item.id)}</span></td>
-            <td><label style="display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:800"><input data-menu-visible="${item.id}" type="checkbox" ${item.visible ? "checked" : ""} ${locked ? "disabled" : ""}> ${locked ? "fixo" : "visível"}</label></td>
-            <td><button class="btn ghost" type="button" data-save-menu-order="${item.id}">Salvar</button></td>
-          </tr>`;
+          return `<div class="order-row">
+            <input class="order-num" data-menu-order="${item.id}" type="number" min="1" value="${escapeHTML(item.order)}" title="Posição no menu">
+            <div class="order-name"><strong>${escapeHTML(item.label)}</strong><span>${escapeHTML(item.id)}</span></div>
+            <label class="order-toggle ${locked ? "locked" : ""}">
+              <input data-menu-visible="${item.id}" type="checkbox" ${item.visible ? "checked" : ""} ${locked ? "disabled" : ""}>
+              <span class="track"></span><span class="lbl">${locked ? "fixo" : "visível"}</span>
+            </label>
+            <button class="btn ghost" type="button" data-save-menu-order="${item.id}">Salvar</button>
+          </div>`;
         }).join("")}
-      </tbody></table>`;
+      </div>`;
     }
 
     function renderPublicMenu() {
