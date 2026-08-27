@@ -240,24 +240,33 @@
     }
 
     .metric {
-      padding: 15px 16px;
-      min-height: 104px;
+      padding: 18px 20px;
+      min-height: 124px;
+      border-radius: 16px;
+    }
+
+    .metric-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 13px;
     }
 
     .metric .label {
       color: var(--muted);
-      font-size: 12.5px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 9px;
+      font-size: 13px;
+      font-weight: 500;
     }
 
+    .metric-ic { color: var(--faint); display: inline-flex; }
+    .metric-ic svg { width: 18px; height: 18px; }
+
     .metric .value {
-      font-size: 26px;
-      font-weight: 900;
+      font-size: 29px;
+      font-weight: 800;
       line-height: 1;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
     }
 
     .metric .delta {
@@ -714,6 +723,64 @@
       display: grid;
       gap: 16px;
     }
+
+    /* Caixa — estado fechado (empty-state) */
+    .cash-closed { text-align: center; padding: 40px 20px 8px; max-width: 460px; margin: 0 auto; }
+    .cash-closed-ico {
+      width: 60px; height: 60px; border-radius: 18px; margin: 0 auto 16px;
+      display: grid; place-items: center; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+    }
+    .cash-closed-ico svg { width: 28px; height: 28px; }
+    .cash-closed h2 { margin-bottom: 8px; }
+    .cash-closed p { color: var(--muted); font-size: 13.5px; margin: 0 auto 4px; max-width: 360px; }
+    .cash-closed form { max-width: 420px; margin: 20px auto 0; text-align: left; }
+    .cash-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .cash-status.open { background: rgba(74,222,128,.14); color: var(--ok); }
+    .cash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+
+    /* Comanda — dobras compactas (editar / adicionar item) */
+    .cc-fold { margin: 8px 0; }
+    .cc-fold > summary {
+      list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      padding: 7px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+    }
+    .cc-fold > summary::-webkit-details-marker { display: none; }
+    .cc-fold > summary:hover { color: var(--ink); border-color: var(--line-2); }
+    .cc-fold > summary.add { color: var(--brand); border-color: rgba(249,115,22,.35); }
+    .cc-fold[open] > summary { margin-bottom: 10px; }
+
+    /* Ordem do menu — lista compacta com toggle */
+    .order-list { display: flex; flex-direction: column; gap: 6px; }
+    .order-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--panel-2); border: 1px solid var(--line);
+      border-radius: 11px; padding: 8px 12px;
+    }
+    .order-row .order-num {
+      width: 52px; min-height: 34px; text-align: center; font-weight: 700;
+      font-family: var(--display); padding: 6px; flex: none;
+    }
+    .order-row .order-name { flex: 1; min-width: 0; line-height: 1.2; }
+    .order-row .order-name strong { font-size: 14px; }
+    .order-row .order-name span { display: block; font-size: 11px; color: var(--faint); }
+    .order-toggle { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; flex: none; }
+    .order-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .order-toggle .track {
+      width: 38px; height: 22px; border-radius: 999px; background: var(--raise);
+      border: 1px solid var(--line-2); position: relative; transition: .18s; flex: none;
+    }
+    .order-toggle .track::after {
+      content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--muted); transition: .18s;
+    }
+    .order-toggle input:checked + .track { background: var(--brand); border-color: var(--brand); }
+    .order-toggle input:checked + .track::after { left: 18px; background: #fff; }
+    .order-toggle .lbl { font-size: 12px; font-weight: 600; color: var(--muted); width: 46px; }
+    .order-toggle input:checked ~ .lbl { color: var(--ink); }
+    .order-toggle.locked { opacity: .6; cursor: default; }
+    .order-row .btn { min-height: 32px; padding: 6px 14px; flex: none; }
+    @media (max-width: 620px) { .order-toggle .lbl { display: none; } .order-row { gap: 8px; } }
 
     .progress {
       height: 12px;
@@ -3635,11 +3702,11 @@
 
       document.getElementById("dashboard").innerHTML = `
         <div class="grid metrics">
-          ${metric("Faturamento hoje", money(totalHoje), dOntem.ok !== null ? dOntem.txt+" vs ontem" : "hoje", false)}
-          ${metric("Ticket médio", money(ticket), clients ? ""+clients+" cliente(s)" : "—", false)}
-          ${metric("Clientes atendidos", clients, "mesas + balcão", false)}
+          ${metric("Faturamento hoje", money(totalHoje), dOntem.ok !== null ? dOntem.txt+" vs ontem" : "hoje", false, "caixa")}
+          ${metric("Ticket médio", money(ticket), clients ? ""+clients+" cliente(s)" : "—", false, "relatorios")}
+          ${metric("Clientes atendidos", clients, "mesas + balcão", false, "clientes")}
           <div class="metric metric-vendidos">
-            <div class="label">Mais vendidos</div>
+            <div class="metric-top"><span class="label">Mais vendidos</span><span class="metric-ic">${icon("cardapio")}</span></div>
             <div class="metric-vendidos-list">
               ${ranking.length
                 ? ranking.slice(0,3).map(p => `<div class="metric-vendidos-row"><span>${escapeHTML(p.nome)}</span><span>${p.quantidade}x</span></div>`).join("")
@@ -3827,8 +3894,9 @@
       ].join("");
     }
 
-    function metric(label, value, delta, bad) {
-      return `<div class="metric"><div class="label">${label}</div><div class="value">${value}</div><div class="delta ${bad ? "bad" : ""}">${delta}</div></div>`;
+    function metric(label, value, delta, bad, iconName) {
+      const ic = iconName ? `<span class="metric-ic">${icon(iconName)}</span>` : "";
+      return `<div class="metric"><div class="metric-top"><span class="label">${label}</span>${ic}</div><div class="value">${value}</div><div class="delta ${bad ? "bad" : ""}">${delta}</div></div>`;
     }
 
     function moduleCard(title, text, tags) {
@@ -3886,26 +3954,40 @@
       const status = session ? "Aberto" : "Fechado";
 
       const valorAtual = cashBalance(rows);
+      const lastCloseInfo = lastSession && lastSession.status === "fechado"
+        ? `<p class="mini" style="text-align:center;margin-top:12px">Último fechamento: ${money(lastSession.countedCash)}${num(lastSession.difference) ? ` · diferença ${money(lastSession.difference)}` : " · conferido"}.</p>` : "";
+
+      // ── CAIXA FECHADO — tela limpa ──
+      if (!session) {
+        document.getElementById("caixa").innerHTML = `
+          <div class="panel">
+            <div class="cash-closed">
+              <div class="cash-closed-ico">${icon("caixa")}</div>
+              <h2>Caixa fechado</h2>
+              <p>Para registrar vendas e movimentações no balcão, abra o caixa informando o dinheiro (troco) que está na gaveta.</p>
+              ${openCashForm(lastSession)}
+            </div>
+            ${lastCloseInfo}
+          </div>`;
+        return;
+      }
+
+      // ── CAIXA ABERTO ──
+      const methodCard = (label, val) => `<div class="metric" style="min-height:auto;padding:13px 15px"><div class="metric-top" style="margin-bottom:7px"><span class="label">${label}</span></div><div class="value" style="font-size:20px">${money(val)}</div></div>`;
       document.getElementById("caixa").innerHTML = `
-        <div class="panel">
-          <h2>Status do caixa</h2>
-          <div class="summary-strip" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-            <div><span>Abertura</span><strong>${session ? money(session.openingAmount) : lastSession?.openingAmount ? money(lastSession.openingAmount) : money(0)}</strong></div>
-            <div><span>Entradas</span><strong>${money(entradas)}</strong></div>
-            <div><span>Saídas</span><strong>${money(saidas)}</strong></div>
-            <div><span>Valor atual</span><strong>${money(valorAtual)}</strong></div>
-          </div>
-          <div style="margin:10px 0 14px">
-            <span style="display:inline-block;padding:5px 16px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:.5px;color:#fff;background:${session ? '#176b5d' : '#c0392b'}">
-              ● ${status}
-            </span>
-          </div>
-          ${session ? closeCashForm(dinheiro) : openCashForm(lastSession)}
-          ${lastSession && lastSession.status === "fechado" ? `<p class="mini">Último fechamento: ${money(lastSession.countedCash)}${num(lastSession.difference) ? ` · diferença ${money(lastSession.difference)}` : " · conferido"}.</p>` : ""}
+        <div class="cash-head">
+          <span class="cash-status open">● Caixa aberto</span>
+          <span class="mini">troco inicial ${money(session.openingAmount)} · ${escapeHTML(session.openedBy || "")}</span>
+        </div>
+
+        <div class="grid metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+          <div class="metric"><div class="metric-top"><span class="label">Saldo atual</span><span class="metric-ic">${icon("caixa")}</span></div><div class="value" style="color:var(--brand)">${money(valorAtual)}</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Entradas hoje</span></div><div class="value" style="color:var(--ok)">${money(entradas)}</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Saídas hoje</span></div><div class="value" style="color:var(--danger)">${money(saidas)}</div></div>
         </div>
 
         <div class="panel">
-          <h2>Caixa do Dia</h2>
+          <h2>Lançar movimento</h2>
           <form id="cashForm">
             <div class="form-grid form-grid-2col">
               <label>Movimento
@@ -3930,15 +4012,21 @@
               <button class="btn" type="submit">${icon("caixa")}Lançar no caixa</button>
             </div>
           </form>
-          ${session ? `
-          <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
-          <h2>Fechar caixa</h2>
-          ${closeCashForm(dinheiro)}` : ""}
-          <div class="summary-strip" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px">
-            ${methodTotals.map(([method, label]) => `<div><span>${label}</span><strong>${money(cashByMethod(rows, method))}</strong></div>`).join("")}
+          <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px">
+            ${methodTotals.map(([method, label]) => methodCard(label, cashByMethod(rows, method))).join("")}
           </div>
         </div>
-        <div class="table-wrap">${cashTable(rows)}</div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>Movimentações de hoje</h2>
+          <div class="table-wrap">${cashTable(rows)}</div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>Fechar caixa</h2>
+          ${closeCashForm(dinheiro)}
+          ${lastCloseInfo}
+        </div>
       `;
     }
 
@@ -5009,6 +5097,20 @@
 
       document.getElementById("comandas").innerHTML = `
         ${salaoSummary()}
+
+        <div class="salao-grid" style="margin-bottom:16px">
+          <div class="salao-map">
+            <div class="panel">
+              ${tableMapControls()}
+              ${tableLegend()}
+              ${tableMap(true)}
+            </div>
+          </div>
+          <aside class="panel salao-comanda">
+            ${salaoComandaPanel()}
+          </aside>
+        </div>
+
         <div class="panel">
           <form id="commandForm">
             <div class="form-grid" style="grid-template-columns:1fr 1fr 72px;gap:8px">
@@ -5060,33 +5162,39 @@
           </div>
           <strong>${money(commandTotal(command))}</strong>
         </div>
-        <form class="editCommandForm" data-command="${command.id}" style="margin-top:10px">
-          <div style="display:grid;grid-template-columns:1fr 2fr 52px 72px;gap:6px;align-items:end">
-            <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), command.local)}</label>
-            <label style="font-size:11px">Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
-            <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
-            <button class="btn ghost" type="submit">Salvar</button>
-          </div>
-        </form>
+        <details class="cc-fold">
+          <summary>✎ Editar mesa · cliente · qtd</summary>
+          <form class="editCommandForm" data-command="${command.id}">
+            <div style="display:grid;grid-template-columns:1fr 2fr 52px 72px;gap:6px;align-items:end">
+              <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), command.local)}</label>
+              <label style="font-size:11px">Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
+              <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
+              <button class="btn ghost" type="submit">Salvar</button>
+            </div>
+          </form>
+        </details>
         <div class="line-items" style="margin:10px 0">
           ${command.itens.length ? command.itens.map((item, index) => commandItemRow(command, item, index)).join("") : `<div class="empty">Sem itens</div>`}
         </div>
-        <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">
-          <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:end;margin-bottom:8px">
-            <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
-            <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
-            <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
-          </div>
-          <div class="obs-addon-row">
-            <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
-            <details class="addon-mini">
-              <summary title="Adicionais">+</summary>
-              <div class="addon-list">
-                ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio.</span>`}
-              </div>
-            </details>
-          </div>
-        </form>
+        <details class="cc-fold" ${command.itens.length ? "" : "open"}>
+          <summary class="add">＋ Adicionar item</summary>
+          <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px">
+            <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:end;margin-bottom:8px">
+              <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
+              <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
+              <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
+            </div>
+            <div class="obs-addon-row">
+              <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
+              <details class="addon-mini">
+                <summary title="Adicionais">+</summary>
+                <div class="addon-list">
+                  ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio.</span>`}
+                </div>
+              </details>
+            </div>
+          </form>
+        </details>
         <div class="command-flow">
           ${_bar}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
@@ -5981,17 +6089,20 @@
 
     function menuOrderTable() {
       const rows = normalizeMenuOrder(state.settings.menuOrder).sort((a, b) => num(a.order) - num(b.order));
-      return `<table><thead><tr><th>Ordem</th><th>Aba</th><th>Mostrar</th><th></th></tr></thead><tbody>
+      return `<div class="order-list">
         ${rows.map(item => {
           const locked = item.id === "dashboard" || item.id === "dados";
-          return `<tr>
-            <td><input data-menu-order="${item.id}" type="number" min="1" value="${escapeHTML(item.order)}"></td>
-            <td><strong>${escapeHTML(item.label)}</strong><br><span class="mini">${escapeHTML(item.id)}</span></td>
-            <td><label style="display:flex;align-items:center;gap:8px;color:var(--ink);font-weight:800"><input data-menu-visible="${item.id}" type="checkbox" ${item.visible ? "checked" : ""} ${locked ? "disabled" : ""}> ${locked ? "fixo" : "visível"}</label></td>
-            <td><button class="btn ghost" type="button" data-save-menu-order="${item.id}">Salvar</button></td>
-          </tr>`;
+          return `<div class="order-row">
+            <input class="order-num" data-menu-order="${item.id}" type="number" min="1" value="${escapeHTML(item.order)}" title="Posição no menu">
+            <div class="order-name"><strong>${escapeHTML(item.label)}</strong><span>${escapeHTML(item.id)}</span></div>
+            <label class="order-toggle ${locked ? "locked" : ""}">
+              <input data-menu-visible="${item.id}" type="checkbox" ${item.visible ? "checked" : ""} ${locked ? "disabled" : ""}>
+              <span class="track"></span><span class="lbl">${locked ? "fixo" : "visível"}</span>
+            </label>
+            <button class="btn ghost" type="button" data-save-menu-order="${item.id}">Salvar</button>
+          </div>`;
         }).join("")}
-      </tbody></table>`;
+      </div>`;
     }
 
     function renderPublicMenu() {
@@ -6518,7 +6629,7 @@
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
         const explicitOpen = Boolean(event.target.closest("[data-open-table]")?.hasAttribute("data-open-btn"));
         // No Salão: seleciona a mesa e mostra a comanda ao lado (só cria comanda ao clicar "Abrir comanda").
-        if (activeSection() === "mesas") {
+        if (activeSection() === "mesas" || activeSection() === "comandas") {
           salaoSel = openTable;
           if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
