@@ -489,6 +489,10 @@
     .table-tile.sel { outline: 2.5px solid var(--brand); outline-offset: 2px; }
 
     /* Salão: mapa + comanda lado a lado */
+    .salao-sum { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .salao-sum .fs { display: inline-flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--muted); }
+    .salao-sum .fs b { font-family: var(--display); font-size: 15px; color: var(--ink); }
+    .salao-sum .fs i { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
     .salao-grid { display: grid; grid-template-columns: minmax(0,1fr) 384px; gap: 16px; align-items: start; }
     .salao-map { min-width: 0; }
     .salao-comanda { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding: 0; background: transparent; border: none; }
@@ -4196,11 +4200,32 @@
       </div>`;
     }
 
+    function salaoSummary() {
+      const open = state.commands.filter(c => c.status === "aberta");
+      const byLocal = {};
+      open.forEach(c => { byLocal[String(c.local).toLowerCase()] = c; });
+      let livres = 0, ocupadas = 0, cozinha = 0, prontas = 0;
+      (state.tables || []).forEach(t => {
+        const c = byLocal[t.nome.toLowerCase()];
+        if (!c) { livres++; return; }
+        ocupadas++;
+        if (c.kitchenSentAt && !c.deliveredAt) cozinha++;
+        if (c.deliveredAt && !c.paidAt) prontas++;
+      });
+      return `<div class="salao-sum">
+        <span class="fs"><i style="background:var(--ok)"></i><b>${livres}</b> livres</span>
+        <span class="fs"><i style="background:var(--brand)"></i><b>${ocupadas}</b> ocupadas</span>
+        <span class="fs"><i style="background:#ff8a3a"></i><b>${cozinha}</b> na cozinha</span>
+        <span class="fs"><i style="background:var(--gold)"></i><b>${prontas}</b> p/ pagar</span>
+      </div>`;
+    }
+
     function renderTables() {
       document.getElementById("mesas").innerHTML = `
         <div class="salao-grid">
           <div class="salao-map">
             <div class="panel">
+              ${salaoSummary()}
               ${tableMapControls()}
               ${tableLegend()}
               ${tableMap(true)}
