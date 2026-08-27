@@ -1282,6 +1282,41 @@
       margin-top: 6px;
     }
 
+    /* ── Pagamento no card da comanda (Pix / Cartão / Dinheiro) ── */
+    .pay-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .pay-eyebrow {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .pay-box .btn { min-height: 34px; font-size: 12px; }
+    .cash-pay-panel {
+      border-top: 1px dashed var(--line);
+      margin-top: 8px;
+      padding-top: 4px;
+    }
+    .cash-pay-panel input[type="number"] {
+      width: 100%;
+      margin-top: 3px;
+    }
+    .troco-view {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+      line-height: 1.25;
+      white-space: nowrap;
+    }
+    .troco-view strong { color: var(--ok); font-size: 15px; }
+
     .btn.paid {
       background: #f97316;
       border-color: #f97316;
@@ -5276,20 +5311,25 @@
         </details>
         <div class="command-flow">
           ${_bar}
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
             <button class="btn secondary" type="button" data-send-kitchen="${command.id}">Cozinha</button>
             <button class="btn ghost" type="button" data-deliver-command="${command.id}">Entregue</button>
-            <details class="payment-toggle" ${command.paidAt ? "open" : ""}>
-              <summary class="btn ${command.paidAt ? "paid" : "ok"}" style="width:100%;text-align:center">${command.paidAt ? "Pago" : "Pagar"}</summary>
-              <form class="paymentForm" data-command="${command.id}">
-                <div class="payment-form" style="margin-top:8px">
-                  <label style="font-size:11px">Forma${cselBuild("forma",[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro")}</label>
-                  <label style="font-size:11px">Valor<input name="valor" type="number" step="0.01" value="${commandTotal(command).toFixed(2)}"></label>
-                  <button class="btn ${command.paidAt ? "paid" : "ok"}" type="submit" ${command.paidAt ? "disabled" : ""}>${command.paidAt ? "Pago" : "Confirmar"}</button>
-                </div>
-              </form>
-            </details>
           </div>
+          ${command.paidAt ? "" : `<div class="pay-box">
+            <div class="pay-eyebrow">Pagamento</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+              <button class="btn ok" type="button" data-quick-pay="${command.id}:pix">Pix</button>
+              <button class="btn ok" type="button" data-quick-pay="${command.id}:cartao">Cartão</button>
+              <button class="btn secondary" type="button" data-cash-pay="${command.id}">Dinheiro</button>
+            </div>
+            <div class="cash-pay-panel hidden" data-cash-panel="${command.id}">
+              <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px">
+                <label style="font-size:11px;flex:1">Valor recebido<input type="number" step="0.01" inputmode="decimal" data-cash-received="${command.id}" placeholder="${commandTotal(command).toFixed(2)}"></label>
+                <div class="troco-view" data-troco="${command.id}">Troco<br><strong>R$ 0,00</strong></div>
+              </div>
+              <button class="btn ok" type="button" data-confirm-cash="${command.id}" style="width:100%;margin-top:8px">Confirmar dinheiro</button>
+            </div>
+          </div>`}
           <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">Liberar mesa</button>
           ${command.paidAt ? `
           <div style="display:flex;gap:6px;margin-top:8px">
@@ -6703,6 +6743,54 @@
         }
       }
 
+      // Pagamento rápido no card da comanda: Pix / Cartão → já vira "pago".
+      const quickPay = event.target.closest("[data-quick-pay]")?.dataset.quickPay;
+      if (quickPay) {
+        const [cid, method] = quickPay.split(":");
+        const command = state.commands.find(c => c.id === cid);
+        if (command && !command.paidAt) {
+          command.paidAt = new Date().toISOString();
+          command.paymentMethod = method === "cartao" ? "Cartão" : "Pix";
+          command.paymentAmount = commandTotal(command);
+          save();
+          renderCommands();
+          showToast(`Pagamento em ${command.paymentMethod} registrado ✅`, 2500);
+        }
+      }
+
+      // Dinheiro: abre o painel de valor recebido / troco (no mesmo card clicado).
+      const cashPayBtn = event.target.closest("[data-cash-pay]");
+      if (cashPayBtn) {
+        const card = cashPayBtn.closest(".command-card") || document;
+        const panel = card.querySelector(`[data-cash-panel="${cashPayBtn.dataset.cashPay}"]`);
+        if (panel) {
+          panel.classList.toggle("hidden");
+          if (!panel.classList.contains("hidden")) panel.querySelector("[data-cash-received]")?.focus();
+        }
+      }
+
+      // Confirma pagamento em dinheiro (com troco).
+      const confirmBtn = event.target.closest("[data-confirm-cash]");
+      const confirmCash = confirmBtn?.dataset.confirmCash;
+      if (confirmCash) {
+        const command = state.commands.find(c => c.id === confirmCash);
+        if (command && !command.paidAt) {
+          const total = commandTotal(command);
+          const card = confirmBtn.closest(".command-card") || document;
+          const inp = card.querySelector(`[data-cash-received="${confirmCash}"]`);
+          const recebido = num(inp && inp.value);
+          if (recebido && recebido < total) { showToast(`Valor recebido menor que o total (${money(total)}).`, 3500); return; }
+          command.paidAt = new Date().toISOString();
+          command.paymentMethod = "Dinheiro";
+          command.paymentAmount = total;
+          if (recebido > total) command.troco = recebido - total;
+          if (recebido) command.recebido = recebido;
+          save();
+          renderCommands();
+          showToast(command.troco ? `Pago em dinheiro ✅ Troco: ${money(command.troco)}` : "Pago em dinheiro ✅", 3500);
+        }
+      }
+
       const openTable = event.target.closest("[data-open-table]")?.dataset.openTable;
       if (openTable) {
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
@@ -7774,21 +7862,28 @@
         // que grava via conta de serviço — NÃO depende de login anônimo. Fallback: gravação
         // direta no Firebase (quando houver token). Só confirma sucesso se realmente gravou.
         const companyId = String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
-        let saved = false;
+        let saved = false, failReason = "";
         try {
           const r = await fetch("https://perspecta-bistro.vercel.app/api/order", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ companyId, order: payload })
           });
           saved = r.ok;
-        } catch (e) {}
+          if (!saved) {
+            let detail = "";
+            try { const j = await r.json(); detail = j.error || j.detail || ""; } catch (e) {}
+            failReason = `servidor ${r.status}${detail ? ` — ${detail}` : ""}`;
+            console.error("[pedido] /api/order falhou:", r.status, detail, { companyId });
+          }
+        } catch (e) { failReason = "sem rede/CORS: " + (e && e.message || e); console.error("[pedido] /api/order erro:", e); }
         if (!saved) {
           try {
             const w = await authedFetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
               method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
             });
             saved = w && w.ok;
-          } catch (e) {}
+            if (!saved) console.error("[pedido] gravação direta falhou:", w && w.status);
+          } catch (e) { console.error("[pedido] gravação direta erro:", e); }
         }
         // WhatsApp como reforço (o pedido completo também chega por lá).
         const msg = `*🍽️ Novo Pedido — ${escapeHTML(state.settings.restaurant)}*\nCliente: ${nome}\nTipo: ${tipoLabel}\n\n📦 *Itens:*\n${lines}\n\n💰 *Total: ${money(pmCartTotal())}*\n\n${saved ? "✅ Pedido registrado no sistema!" : "⚠️ Confirme o recebimento com o restaurante."}`;
@@ -7802,7 +7897,7 @@
         } else {
           // Não perde o pedido: mantém o carrinho e avisa; se o popup do WhatsApp foi bloqueado, navega.
           if (!win) { try { window.location.href = waUrl; } catch (e) {} }
-          showToast("Não consegui registrar automático. Mandei pelo WhatsApp — confirme com o restaurante.", 6000);
+          showToast(`Não consegui registrar automático${failReason ? ` (${failReason})` : ""}. Mandei pelo WhatsApp — confirme com o restaurante.`, 7000);
         }
       }
 
@@ -7883,6 +7978,19 @@
     });
 
     document.addEventListener("input", event => {
+      // Troco ao vivo no card da comanda (dinheiro). Escopo no MESMO card
+      // (a comanda pode existir 2x no DOM: no grid e no modal aberto).
+      if (event.target.matches("[data-cash-received]")) {
+        const cid = event.target.dataset.cashReceived;
+        const command = state.commands.find(c => c.id === cid);
+        const card = event.target.closest(".command-card");
+        const view = card && card.querySelector(`[data-troco="${cid}"] strong`);
+        if (command && view) {
+          const troco = num(event.target.value) - commandTotal(command);
+          view.textContent = money(troco > 0 ? troco : 0);
+        }
+        return;
+      }
       if (event.target.matches("[data-table-size]")) {
         state.settings.tableTileSize = Math.max(108, Math.min(180, num(event.target.value)));
         (state.tables || []).forEach(table => { table.tamanho = state.settings.tableTileSize; });
