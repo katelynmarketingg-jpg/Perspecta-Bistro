@@ -6,28 +6,35 @@
   <title>Perspecta Bistro</title>
   <link rel="icon" id="faviconLink" href="icone-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#f6921e">
+  <meta name="theme-color" content="#000000">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Geist:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Questrial&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Questrial&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* Perspecta — preto neutro (grafite) + laranja #ff6a00 */
-      --bg: #08080a;
-      --panel: #141417;
-      --panel-2: #1c1c20;
-      --ink: #f4f3f4;
-      --muted: #a3a1ab;
-      --line: #2a2a31;
-      --brand: #ff6a00;
-      --brand-soft: rgba(255,106,0,.14);
+      /* Perspecta — preto puro + cores do Perspecta Creator */
+      --bg: #000000;
+      --panel: #0b0b0d;
+      --panel-2: #141416;
+      --raise: #1d1d20;
+      --ink: #fafaf9;
+      --muted: #a8a29e;
+      --line: #242428;
+      --line-2: #33333a;
+      --brand: #f97316;
+      --brand-soft: rgba(249,115,22,.15);
       --brand-2: #1f9e86;
-      --gold: #f0a92e;
+      --gold: #fb923c;
       --blue: #5b8def;
-      --danger: #f26d6d;
-      --ok: #10b981;
-      --shadow: 0 14px 40px rgba(0, 0, 0, .5);
-      font-family: "Geist", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --danger: #f87171;
+      --ok: #4ade80;
+      --shadow: 0 14px 40px rgba(0, 0, 0, .6);
+      --display: "Outfit", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+      font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3, .metric .value, .command-head strong, .command-head h3 {
+      font-family: var(--display);
+      letter-spacing: -0.02em;
     }
 
     * { box-sizing: border-box; }
@@ -95,7 +102,7 @@
       font-size: 10px;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: #f6921e;
+      color: #f97316;
       font-weight: 500;
     }
 
@@ -130,7 +137,7 @@
     .nav button:hover { background: var(--panel-2); }
     .nav button.active {
       background: var(--brand-soft);
-      border-color: rgba(255,106,0,.22);
+      border-color: rgba(249,115,22,.22);
     }
     .nav button.active svg { color: var(--brand); }
 
@@ -155,7 +162,7 @@
       width: 100%;
       margin-top: 14px;
       background: var(--brand);
-      color: #f4f3f4;
+      color: #fafaf9;
     }
 
     main {
@@ -454,12 +461,12 @@
     }
 
     .table-tile.busy {
-      border-color: rgba(255,106,0,.55);
-      background: linear-gradient(160deg, rgba(255,106,0,.13), var(--panel-2));
+      border-color: rgba(249,115,22,.55);
+      background: linear-gradient(160deg, rgba(249,115,22,.13), var(--panel-2));
     }
 
     .table-tile.kitchen {
-      border-color: #f0a92e;
+      border-color: #fb923c;
       background: #2a2411;
     }
 
@@ -469,12 +476,12 @@
     }
 
     .table-tile.paid {
-      border-color: rgba(16,185,129,.5);
+      border-color: rgba(74,222,128,.5);
       background: var(--panel-2);
     }
 
     .table-tile.free {
-      border-color: rgba(16,185,129,.5);
+      border-color: rgba(74,222,128,.5);
       border-style: dashed;
       background: var(--panel-2);
     }
@@ -641,7 +648,7 @@
     }
 
     .legend-dot.busy { background: #1c1c20; border-color: var(--brand); }
-    .legend-dot.kitchen { background: #2a2411; border-color: #f0a92e; }
+    .legend-dot.kitchen { background: #2a2411; border-color: #fb923c; }
     .legend-dot.delivered { background: #141a26; border-color: #5b8def; }
     .legend-dot.paid { background: #1c1c20; border-color: var(--brand); }
 
@@ -930,7 +937,7 @@
     }
 
     .command-location.open {
-      border-color: #f28c28;
+      border-color: #f97316;
       background: #1e1d24;
     }
 
@@ -1102,7 +1109,7 @@
 
     .addon-toggle[open] summary {
       background: #1e1d24;
-      border-color: #f28c28;
+      border-color: #f97316;
     }
 
     .permission-grid {
@@ -1178,8 +1185,8 @@
     }
 
     .btn.paid {
-      background: #ff6a00;
-      border-color: #ff6a00;
+      background: #f97316;
+      border-color: #f97316;
       color: #1c1c20;
       cursor: default;
     }
@@ -1316,11 +1323,11 @@
     .cmd-list tr:last-child td { border-bottom: none; }
     .cmd-list tbody tr:hover td { background: #1c1c20; }
     .cmd-status-chip { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 800; white-space: nowrap; }
-    .cmd-status-chip.montando  { background: #26262c; color: #a3a1ab; }
-    .cmd-status-chip.feito     { background: #2a2411; color: #f0a92e; }
+    .cmd-status-chip.montando  { background: #26262c; color: #a8a29e; }
+    .cmd-status-chip.feito     { background: #2a2411; color: #fb923c; }
     .cmd-status-chip.cozinha   { background: #241a12; color: var(--brand); }
     .cmd-status-chip.entregue  { background: #141a26; color: #5b8def; }
-    .cmd-status-chip.pago      { background: #1c1c20; color: #ff6a00; }
+    .cmd-status-chip.pago      { background: #1c1c20; color: #f97316; }
     .list-pay-inline { display: inline-flex; gap: 4px; align-items: center; vertical-align: middle; }
     .list-pay-inline select { font-size: 11px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 5px; }
 
@@ -1352,7 +1359,7 @@
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      background: #f28c28;
+      background: #f97316;
       margin: 0 auto 6px;
     }
 
@@ -1476,10 +1483,10 @@
     .pm-card-name { font-weight: 900; font-size: 15px; margin: 0; color: #fff; }
     .pm-card-desc { font-size: 13px; color: #888; margin: 0; flex: 1; line-height: 1.4; }
     .pm-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
-    .pm-price { font-family: 'Anton', sans-serif; font-size: 22px; color: #f6921e; letter-spacing: .5px; }
+    .pm-price { font-family: 'Anton', sans-serif; font-size: 22px; color: #f97316; letter-spacing: .5px; }
 
     .pm-add-btn {
-      background: #f6921e; color: #000; border: 0; border-radius: 8px;
+      background: #f97316; color: #000; border: 0; border-radius: 8px;
       width: 38px; height: 38px; font-size: 22px; font-weight: 900; cursor: pointer;
       display: flex; align-items: center; justify-content: center; line-height: 1;
       transition: background .15s, transform .1s; flex-shrink: 0;
@@ -1489,7 +1496,7 @@
     /* FAB */
     .pm-fab {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: #f6921e; color: #000; border: 0; border-radius: 10px;
+      background: #f97316; color: #000; border: 0; border-radius: 10px;
       padding: 15px 32px; font-weight: 900; font-size: 15px; cursor: pointer;
       box-shadow: 0 8px 32px rgba(246,146,30,.55);
       display: flex; align-items: center; gap: 10px; z-index: 50;
@@ -1508,7 +1515,7 @@
     .pm-cart-panel, .pm-addon-panel, .pm-checkout-panel {
       background: #161616; border-radius: 20px 20px 0 0;
       width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
-      padding: 22px 20px 36px; border-top: 3px solid #f6921e;
+      padding: 22px 20px 36px; border-top: 3px solid #f97316;
       font-family: 'Questrial', sans-serif;
     }
     .pm-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
@@ -1518,7 +1525,7 @@
       background: #2a2a2a; border: 0; border-radius: 50%; width: 36px; height: 36px;
       font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff;
     }
-    .pm-close-btn:hover { background: #f6921e; color: #000; }
+    .pm-close-btn:hover { background: #f97316; color: #000; }
 
     .pm-cart-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #2a2a2a; }
     .pm-cart-item-info { flex: 1; min-width: 0; }
@@ -1529,9 +1536,9 @@
       background: #2a2a2a; border: 0; border-radius: 50%; width: 30px; height: 30px;
       font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff;
     }
-    .pm-qty-btn:hover { background: #f6921e; color: #000; }
+    .pm-qty-btn:hover { background: #f97316; color: #000; }
     .pm-qty-num { font-weight: 900; min-width: 22px; text-align: center; color: #fff; }
-    .pm-cart-item-price { font-weight: 900; min-width: 72px; text-align: right; font-size: 14px; color: #f6921e; }
+    .pm-cart-item-price { font-weight: 900; min-width: 72px; text-align: right; font-size: 14px; color: #f97316; }
     .pm-cart-total { display: flex; justify-content: space-between; font-weight: 900; font-size: 18px; padding: 16px 0 18px; color: #fff; }
 
     .pm-btn-full {
@@ -1539,7 +1546,7 @@
       border: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
       font-family: 'Questrial', sans-serif; transition: background .15s;
     }
-    .pm-btn-green { background: #f6921e; color: #000; }
+    .pm-btn-green { background: #f97316; color: #000; }
     .pm-btn-green:hover { background: #ffe597; }
     .pm-btn-ghost { background: #2a2a2a; color: #fff; margin-top: 10px; }
     .pm-btn-ghost:hover { background: #3a3a3a; }
@@ -1552,14 +1559,14 @@
       padding: 10px 12px; font-size: 15px; font-family: 'Questrial', sans-serif;
     }
     .pm-cart-panel input:focus, .pm-checkout-panel input:focus, .pm-checkout-panel select:focus {
-      border-color: #f6921e; outline: none;
+      border-color: #f97316; outline: none;
     }
 
     /* Addon modal */
     .pm-addon-item { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #2a2a2a; cursor: pointer; }
     .pm-addon-item label { cursor: pointer; flex: 1; font-size: 14px; font-weight: 700; color: #fff; }
-    .pm-addon-price { font-size: 13px; color: #f6921e; font-weight: 700; }
-    .pm-addon-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: #f6921e; }
+    .pm-addon-price { font-size: 13px; color: #f97316; font-weight: 700; }
+    .pm-addon-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: #f97316; }
     .pm-qty-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 10px; font-weight: 700; color: #fff; }
     .pm-qty-controls { display: flex; align-items: center; gap: 16px; background: #2a2a2a; border-radius: 30px; padding: 6px 18px; }
 
@@ -1743,7 +1750,7 @@
       .metric-vendidos-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
       .metric-vendidos-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; gap: 4px; }
       .metric-vendidos-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #222; }
-      .metric-vendidos-row span:last-child { flex-shrink: 0; font-weight: 700; color: #f6921e; font-size: 10px; }
+      .metric-vendidos-row span:last-child { flex-shrink: 0; font-weight: 700; color: #f97316; font-size: 10px; }
       .metric-vendidos-empty { font-size: 11px; color: #aaa; }
     }
 
@@ -1782,7 +1789,7 @@
     .login-logo-tile {
       display: inline-flex; align-items: center; justify-content: center;
       width: 60px; height: 60px; border-radius: 18px;
-      background: #f6921e;
+      background: #f97316;
       box-shadow: 0 12px 30px -8px rgba(246,146,30,.55);
       margin-bottom: 18px;
     }
@@ -1814,7 +1821,7 @@
     }
     .login-field input::placeholder { color: #555; }
     .login-field input:focus {
-      border-color: #f6921e; box-shadow: 0 0 0 3px rgba(246,146,30,.18);
+      border-color: #f97316; box-shadow: 0 0 0 3px rgba(246,146,30,.18);
     }
 
     /* Modo "bem-vindo de volta": avatar + nome, pede só a senha */
@@ -1825,7 +1832,7 @@
     .login-quick.hidden { display: none; }
     .login-avatar {
       flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
-      background: #f6921e; color: #fff;
+      background: #f97316; color: #fff;
       display: flex; align-items: center; justify-content: center;
       font-size: 18px; font-weight: 700;
     }
@@ -1851,7 +1858,7 @@
       margin-top: 2px; width: 100%; min-height: 50px;
       display: flex; align-items: center; justify-content: center;
       padding: 14px; font-size: 15px; font-weight: 700;
-      background: #f6921e; color: #fff; border: 0; border-radius: 12px;
+      background: #f97316; color: #fff; border: 0; border-radius: 12px;
       cursor: pointer; transition: background .15s, transform .05s;
       box-shadow: 0 8px 20px -8px rgba(246,146,30,.6);
     }
@@ -1932,7 +1939,7 @@
       <nav class="nav" id="nav"></nav>
       <div class="sidebar-footer">
         <div id="syncBadge" style="font-size:10px;color:var(--muted);margin-bottom:5px;text-align:center;letter-spacing:.3px"></div>
-        <div id="sessionBadge" style="font-size:11px;color:#f6921e;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
+        <div id="sessionBadge" style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
         <div id="proxyBanner"></div>
         <button class="btn sidebar-logout" type="button" data-logout>⏏ Sair</button>
       </div>
@@ -1951,7 +1958,7 @@
 
         <!-- Títulos — centro -->
         <div class="topbar-titles">
-          <p class="eyebrow" id="pageEyebrow" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect width="42" height="42" rx="9" fill="#f6921e"/><polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/><polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/><polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/></svg>Perspecta Bistro</p>
+          <p class="eyebrow" id="pageEyebrow" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect width="42" height="42" rx="9" fill="#f97316"/><polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/><polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/><polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/></svg>Perspecta Bistro</p>
           <h1 id="pageTitle">Visão do dia</h1>
           <p class="page-subtitle" id="pageSubtitle">Operação simples para caixa, mesas, pedidos, clientes e cardápio.</p>
         </div>
@@ -1962,7 +1969,7 @@
         <!-- Logo — direita, só mobile -->
         <div class="topbar-logo-right">
           <svg width="32" height="32" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
-            <rect width="42" height="42" rx="9" fill="#f6921e"/>
+            <rect width="42" height="42" rx="9" fill="#f97316"/>
             <polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/>
             <polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/>
             <polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/>
@@ -4460,7 +4467,7 @@
         const fifoNewSuggested = fifoNewCostPerUnit * (1 + num(row.margem)/100);
         const fifoBanner = fifoItems.length ? `
           <div style="background:#241f10;border:1px solid rgba(240,169,46,.5);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
-            <div style="font-weight:700;color:#f0a92e;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
+            <div style="font-weight:700;color:#fb923c;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
             ${fifoItems.map(({ing, change}) => {
               const pct = change.original ? ((change.delta/change.original)*100).toFixed(1) : "—";
               return `<div>• <strong>${escapeHTML(ing.nome)}</strong>: ${money(change.original)} → <strong>${money(change.current)}</strong> <span style="color:${change.delta>0?"#c0392b":"#27ae60"}">(${change.delta>0?"+":""}${pct}%)</span></div>`;
@@ -4870,7 +4877,7 @@
       const _kbCs=commandStatus(command);
       const _kbCur=_kbCs==="paga"?"pago":_kbCs==="entregue"?"entregue":_kbCs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
       const _kbCi=_kbOrd.indexOf(_kbCur);
-      const _kbStps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#f0a92e"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#10b981"}];
+      const _kbStps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
       const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#26262c;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
       return `<div class="kanban-card" data-drag-id="${command.id}" data-open-kb="${command.id}">
         <div class="kanban-card-top">
@@ -5003,7 +5010,7 @@
       const _cur = _cs==="paga"?"pago":_cs==="entregue"?"entregue":_cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
       const _ord=["montando","feito","cozinha","entregue","pago"];
       const _ci=_ord.indexOf(_cur);
-      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#f0a92e"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#10b981"}];
+      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
       const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#26262c;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
@@ -5076,10 +5083,10 @@
     function commandProgressBar(command) {
       const steps = [
         { key: "montando", label: "Sem pedido",   bg: "#2a2a31", fg: "#cfcfd6" },
-        { key: "feito",    label: "Pedido feito", bg: "#2a2411", fg: "#f0a92e" },
+        { key: "feito",    label: "Pedido feito", bg: "#2a2411", fg: "#fb923c" },
         { key: "cozinha",  label: "Na cozinha",   bg: "#2a1c10", fg: "#ff8a3a" },
         { key: "entregue", label: "Entregue",     bg: "#141a26", fg: "#5b8def" },
-        { key: "pago",     label: "Pago",         bg: "#12211b", fg: "#10b981" },
+        { key: "pago",     label: "Pago",         bg: "#12211b", fg: "#4ade80" },
       ];
       const s = commandStatus(command);
       const current =
@@ -5448,7 +5455,7 @@
 
       // ── Formas de pagamento ──
       const _payAliases = { dinheiro:"💵 Dinheiro", cartão:"💳 Cartão", cartao:"💳 Cartão", pix:"📱 Pix", fiado:"📋 Fiado", credito:"💳 Crédito", debito:"💳 Débito" };
-      const _payColors = ["#f6921e","#4caf50","#2196f3","#9c27b0","#e91e63","#607d8b"];
+      const _payColors = ["#f97316","#4caf50","#2196f3","#9c27b0","#e91e63","#607d8b"];
       const _payRaw = {};
       orders.forEach(order => {
         if (!order.paidAt) return;
@@ -6249,7 +6256,7 @@
         ? `<img src="${logo}" class="brand-mark" style="object-fit:contain;background:transparent;" alt="Logo">
            <div class="brand-wordmark"><strong>Perspecta</strong><span>Bistro</span></div>`
         : `<svg class="brand-mark" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
-             <rect width="42" height="42" rx="9" fill="#f6921e"/>
+             <rect width="42" height="42" rx="9" fill="#f97316"/>
              <polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/>
              <polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/>
              <polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/>
@@ -6264,7 +6271,7 @@
       const proxyBanner = document.getElementById("proxyBanner");
       if (proxyBanner) {
         if (currentSession?.type === "gestor-proxy") {
-          proxyBanner.innerHTML = `<button class="btn sidebar-logout" type="button" data-return-to-gestor style="background:rgba(246,146,30,.15);color:#f6921e;margin-bottom:6px;font-size:11px;width:100%">⬅ Voltar ao Gestor</button>`;
+          proxyBanner.innerHTML = `<button class="btn sidebar-logout" type="button" data-return-to-gestor style="background:rgba(246,146,30,.15);color:#f97316;margin-bottom:6px;font-size:11px;width:100%">⬅ Voltar ao Gestor</button>`;
         } else {
           proxyBanner.innerHTML = "";
         }
