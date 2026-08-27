@@ -173,10 +173,10 @@
 
     .page-subtitle {
       color: var(--muted);
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 400;
-      line-height: 1.5;
-      margin: 8px 0 0;
+      line-height: 1.45;
+      margin: 5px 0 0;
       max-width: 760px;
     }
 
@@ -195,13 +195,13 @@
     }
 
     h1 {
-      font-size: clamp(28px, 4vw, 44px);
-      line-height: 1.02;
+      font-size: clamp(21px, 2.3vw, 28px);
+      line-height: 1.05;
       max-width: 850px;
     }
 
-    h2 { font-size: 24px; margin-bottom: 14px; }
-    h3 { font-size: 17px; margin-bottom: 12px; }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    h3 { font-size: 15px; margin-bottom: 10px; }
 
     .date-pill {
       white-space: nowrap;
@@ -233,24 +233,24 @@
     }
 
     .metric {
-      padding: 17px;
-      min-height: 126px;
+      padding: 15px 16px;
+      min-height: 104px;
     }
 
     .metric .label {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12.5px;
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 11px;
+      margin-bottom: 9px;
     }
 
     .metric .value {
-      font-size: 30px;
+      font-size: 26px;
       font-weight: 900;
       line-height: 1;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .metric .delta {
@@ -270,7 +270,7 @@
     }
 
     .panel {
-      padding: 18px;
+      padding: 16px;
       min-width: 0;
     }
 
@@ -739,21 +739,23 @@
 
     label {
       display: grid;
-      gap: 6px;
+      gap: 5px;
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
+      font-size: 11.5px;
+      font-weight: 650;
+      letter-spacing: .01em;
     }
 
     input, textarea, select {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 7px;
+      border-radius: 8px;
       background: #1c1c20;
       color: var(--ink);
-      padding: 10px 11px;
+      padding: 8px 11px;
       outline: none;
-      min-height: 42px;
+      min-height: 38px;
+      font-size: 14px;
     }
 
     textarea {
@@ -778,12 +780,13 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      min-height: 40px;
-      padding: 10px 13px;
-      border-radius: 7px;
+      min-height: 36px;
+      padding: 9px 14px;
+      border-radius: 8px;
       color: white;
       background: var(--brand);
-      font-weight: 850;
+      font-weight: 700;
+      font-size: 13px;
       text-decoration: none;
     }
 
@@ -886,9 +889,10 @@
 
     .command-grid {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
       gap: 14px;
       margin-top: 16px;
+      align-items: start;
     }
 
     .command-card {
@@ -1601,7 +1605,7 @@
     .empty {
       padding: 18px;
       border: 1px dashed var(--line);
-      background: rgba(255,255,255,.55);
+      background: var(--panel-2);
       border-radius: 8px;
       color: var(--muted);
       text-align: center;
@@ -3644,7 +3648,7 @@
             </form>
           </div>
           ${metaDia > 0 ? `
-            <div style="height:14px;border-radius:7px;background:#e8e0d8;overflow:hidden;margin-bottom:8px">
+            <div style="height:14px;border-radius:7px;background:#26262c;overflow:hidden;margin-bottom:8px">
               <div style="height:100%;width:${metaPct.toFixed(1)}%;background:${metaCor};border-radius:7px"></div>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:12px">
@@ -4122,7 +4126,7 @@
               const inS = "width:100%;box-sizing:border-box;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)";
               const lab = "display:flex;flex-direction:column;gap:3px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px";
               const un = escapeHTML(item.unidade || "");
-              return `<tr data-addstock-row="${item.id}"><td colspan="7" style="background:#fff6ec;padding:14px 16px;border-left:3px solid var(--brand)">
+              return `<tr data-addstock-row="${item.id}"><td colspan="7" style="background:#241a0f;padding:14px 16px;border-left:3px solid var(--brand)">
                 <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:2px">➕ Adicionar ao estoque — ${escapeHTML(item.item)}</div>
                 <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Saldo atual: <strong>${num(item.quantidade).toLocaleString("pt-BR",{maximumFractionDigits:3})} ${un}</strong> · custo médio atual <strong>${money(item.custo)}</strong></div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
@@ -4455,8 +4459,8 @@
         const fifoNewCostPerUnit = fifoTotalCost / fifoRendimento;
         const fifoNewSuggested = fifoNewCostPerUnit * (1 + num(row.margem)/100);
         const fifoBanner = fifoItems.length ? `
-          <div style="background:#fff8e1;border:1px solid #f0ad4e;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
-            <div style="font-weight:700;color:#7a4f00;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
+          <div style="background:#241f10;border:1px solid rgba(240,169,46,.5);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
+            <div style="font-weight:700;color:#f0a92e;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
             ${fifoItems.map(({ing, change}) => {
               const pct = change.original ? ((change.delta/change.original)*100).toFixed(1) : "—";
               return `<div>• <strong>${escapeHTML(ing.nome)}</strong>: ${money(change.original)} → <strong>${money(change.current)}</strong> <span style="color:${change.delta>0?"#c0392b":"#27ae60"}">(${change.delta>0?"+":""}${pct}%)</span></div>`;
@@ -4866,8 +4870,8 @@
       const _kbCs=commandStatus(command);
       const _kbCur=_kbCs==="paga"?"pago":_kbCs==="entregue"?"entregue":_kbCs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
       const _kbCi=_kbOrd.indexOf(_kbCur);
-      const _kbStps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
-      const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#d8d8d8;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
+      const _kbStps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#f0a92e"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#10b981"}];
+      const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#26262c;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
       return `<div class="kanban-card" data-drag-id="${command.id}" data-open-kb="${command.id}">
         <div class="kanban-card-top">
           <span class="kanban-card-mesa">👤 ${cliente}</span>
@@ -5071,11 +5075,11 @@
 
     function commandProgressBar(command) {
       const steps = [
-        { key: "montando", label: "Sem pedido",   bg: "#f3f3f3", fg: "#555555" },
-        { key: "feito",    label: "Pedido feito", bg: "#fff7d6", fg: "#a07000" },
-        { key: "cozinha",  label: "Na cozinha",   bg: "#fff0e0", fg: "#e07a00" },
-        { key: "entregue", label: "Entregue",     bg: "#e8f1ff", fg: "#2f80ed" },
-        { key: "pago",     label: "Pago",         bg: "#e6f9ee", fg: "#1a8a45" },
+        { key: "montando", label: "Sem pedido",   bg: "#2a2a31", fg: "#cfcfd6" },
+        { key: "feito",    label: "Pedido feito", bg: "#2a2411", fg: "#f0a92e" },
+        { key: "cozinha",  label: "Na cozinha",   bg: "#2a1c10", fg: "#ff8a3a" },
+        { key: "entregue", label: "Entregue",     bg: "#141a26", fg: "#5b8def" },
+        { key: "pago",     label: "Pago",         bg: "#12211b", fg: "#10b981" },
       ];
       const s = commandStatus(command);
       const current =
@@ -5085,9 +5089,9 @@
         (s === "aberta" && command.itens.length) ? "feito" : "montando";
       const cells = steps.map(step => {
         const active = step.key === current;
-        return `<div style="display:flex;align-items:center;justify-content:center;padding:0 3px;${active ? `background:${step.bg};color:${step.fg};font-weight:900;font-size:10px;` : "background:#f0f0f0;color:#c0c0c0;font-weight:600;font-size:10px;"}">${step.label}</div>`;
+        return `<div style="display:flex;align-items:center;justify-content:center;padding:0 3px;${active ? `background:${step.bg};color:${step.fg};font-weight:900;font-size:10px;` : "background:#1c1c20;color:#6f6e78;font-weight:600;font-size:10px;"}">${step.label}</div>`;
       }).join("");
-      return `<div style="display:grid;grid-template-columns:repeat(5,1fr);border-radius:7px;overflow:hidden;gap:2px;background:#e4e4e4;height:26px;margin-bottom:10px">${cells}</div>`;
+      return `<div style="display:grid;grid-template-columns:repeat(5,1fr);border-radius:7px;overflow:hidden;gap:2px;background:#26262c;height:26px;margin-bottom:10px">${cells}</div>`;
     }
 
     function commandItemRow(command, item, index) {
@@ -5511,7 +5515,7 @@
                 ${simpleCard("Custo estimado", money(_custoVendas), _comFicha+" tipo(s) com ficha."+(_semFicha > 0 ? " "+_semFicha+" sem ficha (ignorados)." : ""))}
                 <article class="simple-card"><span class="mini">Margem bruta</span><strong style="font-size:22px;color:${margemColor}">${margemBruta.toFixed(1).replace(".",",")}%</strong><p class="mini">Lucro: ${money(summary.vendas - _custoVendas)}</p></article>
               </div>
-              <div style="height:10px;border-radius:5px;background:#e8e0d8;overflow:hidden">
+              <div style="height:10px;border-radius:5px;background:#26262c;overflow:hidden">
                 <div style="height:100%;width:${Math.min(100,Math.max(0,margemBruta)).toFixed(1)}%;background:${margemColor};border-radius:5px"></div>
               </div>`}
         </div>
@@ -5526,7 +5530,7 @@
                     <span style="font-size:13px;font-weight:700">${escapeHTML(p.label)}</span>
                     <span style="font-size:11px;color:var(--muted)">${p.pct}% · ${money(p.total)} · ${p.count}×</span>
                   </div>
-                  <div style="height:8px;border-radius:4px;background:#e8e0d8;overflow:hidden">
+                  <div style="height:8px;border-radius:4px;background:#26262c;overflow:hidden">
                     <div style="height:100%;width:${p.pct}%;background:${p.color};border-radius:4px"></div>
                   </div>
                 </div>`).join("")}
@@ -5611,7 +5615,7 @@
                 const pct = (row.total / maxDowTotal * 100).toFixed(1);
                 return `<div style="display:flex;align-items:center;gap:10px">
                   <span style="font-size:12px;font-weight:600;width:28px;color:var(--muted);flex-shrink:0">${dowLabels[d]}</span>
-                  <div style="flex:1;height:22px;border-radius:4px;background:#f0ece6;overflow:hidden">
+                  <div style="flex:1;height:22px;border-radius:4px;background:#26262c;overflow:hidden">
                     <div style="height:100%;width:${pct}%;background:var(--brand);border-radius:4px;opacity:${row.count > 0 ? 1 : 0.15}"></div>
                   </div>
                   <span style="font-size:12px;width:84px;text-align:right;font-weight:${row.count > 0 ? 700 : 400};color:${row.count > 0 ? "var(--text)" : "var(--muted)"}">${row.count > 0 ? money(row.total) : "—"}</span>
