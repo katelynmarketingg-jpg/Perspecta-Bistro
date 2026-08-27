@@ -1554,6 +1554,29 @@
       margin: 14px 0 0;
       letter-spacing: .3px;
     }
+    /* "Meus pedidos" — botão no topo do cardápio */
+    .pm-myorders-link {
+      margin-top: 14px; display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18);
+      border-radius: 999px; padding: 8px 16px; font: inherit; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: background .15s;
+    }
+    .pm-myorders-link:hover { background: rgba(255,255,255,.16); }
+    /* Cartão de cada pedido + linha do tempo do status */
+    .pm-myorder { border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; background: var(--panel-2); }
+    .pm-myorder.is-done { opacity: .75; }
+    .pm-myorder-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+    .pm-myorder-badge { background: var(--brand); color: #1c1c20; font-size: 11px; font-weight: 900; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+    .pm-myorder.is-done .pm-myorder-badge { background: var(--ok, #16a34a); color: #fff; }
+    .pm-track { display: flex; flex-direction: column; gap: 0; position: relative; }
+    .pm-track-step { display: flex; align-items: center; gap: 10px; padding: 5px 0; position: relative; }
+    .pm-track-step .pm-track-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line); background: transparent; flex-shrink: 0; z-index: 1; }
+    .pm-track-step:not(:last-child)::before { content: ""; position: absolute; left: 6px; top: 19px; bottom: -5px; width: 2px; background: var(--line); }
+    .pm-track-step.done .pm-track-dot { background: var(--brand); border-color: var(--brand); }
+    .pm-track-step.done:not(:last-child)::before { background: var(--brand); }
+    .pm-track-lbl { font-size: 13px; color: var(--muted); }
+    .pm-track-step.done .pm-track-lbl { color: var(--text); font-weight: 600; }
+    .pm-track-step.now .pm-track-lbl { color: var(--brand); font-weight: 800; }
 
     /* Custom select */
     .csel { position:relative; display:inline-block; }
@@ -3287,10 +3310,75 @@
     // NÃO podemos redesenhar o cardápio: o renderPublicMenu() refaz todo o HTML e
     // fecharia o modal no meio do pedido (era isso que "fechava a cada 8s").
     function isPublicBusy() {
-      return ["pmCartOverlay", "pmAddonOverlay", "pmCheckoutOverlay"].some((id) => {
+      return ["pmCartOverlay", "pmAddonOverlay", "pmCheckoutOverlay", "pmMyOrdersOverlay"].some((id) => {
         const el = document.getElementById(id);
         return el && !el.classList.contains("hidden");
       });
+    }
+
+    // ── "Meus pedidos" do cliente (acompanha o preparo em tempo real) ──
+    const MY_STATUS_STEPS = ["recebido", "cozinha", "entrega", "finalizado"];
+    function myStatusLabel(step, tipoEntrega) {
+      if (step === "recebido") return "Pedido recebido";
+      if (step === "cozinha") return "Na cozinha";
+      if (step === "entrega") return tipoEntrega === "tele" ? "Saiu para entrega" : tipoEntrega === "mesa" ? "Pronto — na mesa" : "Pronto para retirar";
+      if (step === "finalizado") return "Concluído";
+      return step;
+    }
+    function myOrdersForCompany() {
+      let all = [];
+      try { all = JSON.parse(localStorage.getItem("bistroMyOrders") || "[]"); } catch (e) {}
+      const cid = companyIdFromKey();
+      return all.filter(o => o && (!cid || String(o.companyId) === String(cid)));
+    }
+    let _myOrdersTimer = null;
+    async function renderMyOrders() {
+      const box = document.getElementById("pmMyOrdersList");
+      if (!box) return;
+      const orders = myOrdersForCompany();
+      if (!orders.length) {
+        box.innerHTML = `<div class="empty">Você ainda não fez pedidos por aqui. Quando fizer, o preparo aparece aqui pra acompanhar. 😉</div>`;
+        return;
+      }
+      // Busca os status atuais no servidor (só dos SEUS pedidos).
+      let statuses = {};
+      try {
+        const ids = orders.map(o => o.id).join(",");
+        const r = await fetch(`${ORDER_STATUS_API}?company=${encodeURIComponent(companyIdFromKey())}&ids=${encodeURIComponent(ids)}`);
+        if (r.ok) statuses = (await r.json()).statuses || {};
+      } catch (e) {}
+      box.innerHTML = orders.map(o => {
+        const s = statuses[o.id];
+        const cur = s ? s.status : "recebido";
+        const curI = MY_STATUS_STEPS.indexOf(cur);
+        const when = new Date(o.ts || Date.now()).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+        const steps = MY_STATUS_STEPS.map((st, i) => {
+          const done = i <= curI;
+          const isNow = i === curI;
+          return `<div class="pm-track-step ${done ? "done" : ""} ${isNow ? "now" : ""}">
+            <span class="pm-track-dot"></span>
+            <span class="pm-track-lbl">${escapeHTML(myStatusLabel(st, o.tipoEntrega))}</span>
+          </div>`;
+        }).join("");
+        const finalizado = cur === "finalizado";
+        return `<div class="pm-myorder ${finalizado ? "is-done" : ""}">
+          <div class="pm-myorder-head">
+            <div><strong>${escapeHTML(o.tipoLabel || "Pedido")}</strong><div class="mini">${when} · ${o.itensCount || 0} item(ns) · ${money(o.total || 0)}</div></div>
+            <span class="pm-myorder-badge">${escapeHTML(myStatusLabel(cur, o.tipoEntrega))}</span>
+          </div>
+          <div class="pm-track">${steps}</div>
+        </div>`;
+      }).join("");
+    }
+    function openMyOrders() {
+      document.getElementById("pmMyOrdersOverlay")?.classList.remove("hidden");
+      renderMyOrders();
+      clearInterval(_myOrdersTimer);
+      _myOrdersTimer = setInterval(renderMyOrders, 12000); // acompanha ao vivo
+    }
+    function closeMyOrders() {
+      document.getElementById("pmMyOrdersOverlay")?.classList.add("hidden");
+      clearInterval(_myOrdersTimer); _myOrdersTimer = null;
     }
 
     let _lastPublicMenuHash = null;
@@ -3387,6 +3475,40 @@
       } catch (e) {}
     }
 
+    // ── Status do pedido para o cliente ("Meus pedidos") ──
+    const ORDER_STATUS_API = "https://perspecta-bistro.vercel.app/api/order-status";
+    function companyIdFromKey() {
+      return String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
+    }
+    // Traduz a comanda no status que o cliente vê.
+    function orderCustomerStatus(c) {
+      if (c.paidAt || c.status === "fechada") return "finalizado";
+      if (c.deliveredAt) return "entrega";
+      if (c.kitchenSentAt) return "cozinha";
+      return "recebido";
+    }
+    const _pubStatusMap = {}; // sourceOrderId -> último status publicado (evita reenvio)
+    function publishOrderStatuses() {
+      // Só o admin da empresa publica (tem storeKey de empresa).
+      if (!currentSession || !storeKey || storeKey.indexOf("gestaoCompany.") !== 0) return;
+      const changed = {};
+      for (const c of (state.commands || [])) {
+        if (!c.sourceOrderId) continue;           // só pedidos vindos do cardápio online
+        const st = orderCustomerStatus(c);
+        if (_pubStatusMap[c.sourceOrderId] === st) continue;
+        _pubStatusMap[c.sourceOrderId] = st;
+        changed[c.sourceOrderId] = {
+          status: st, updatedAt: Date.now(), nome: c.cliente || "",
+          total: commandTotal(c), tipoLabel: c.tipoLabel || "", tipoEntrega: c.tipoEntrega || "",
+        };
+      }
+      if (!Object.keys(changed).length) return;
+      fetch(ORDER_STATUS_API, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: companyIdFromKey(), statuses: changed }),
+      }).catch(() => {});
+    }
+
     function save(opts = {}) {
       try {
         // baseline = último estado salvo no localStorage; carimba só o que mudou
@@ -3398,6 +3520,7 @@
         if (!opts.silent) renderAll();
         syncToServer();
         publishPublicMenu();   // republica o cardápio público enxuto (só admin/empresa)
+        publishOrderStatuses(); // avisa "Meus pedidos" do cliente quando muda a etapa
       } catch (error) {
         alert("Não foi possível salvar. Tente novamente; se persistir, recarregue a página.");
       }
@@ -6278,6 +6401,7 @@
               ? `<img src="${state.settings.logoUrl}" class="pm-hero-logo-img" alt="${escapeHTML(state.settings.restaurant || "Cardápio")}">`
               : `<h1 class="pm-hero-wordmark">${escapeHTML(state.settings.restaurant || "Cardápio")}</h1>`}
             <p class="pm-hero-note">${escapeHTML(state.settings.menuNote || "Escolha os itens e finalize no WhatsApp.")}</p>
+            <button type="button" class="pm-myorders-link" id="pmMyOrdersOpen">📦 Meus pedidos</button>
           </div>
           <div class="pm-cats-wrap">
             <div class="pm-cats">
@@ -6303,6 +6427,18 @@
             <div id="pmCartItems"><div class="empty">Adicione itens para começar.</div></div>
             <button class="pm-btn-full pm-btn-green" id="pmCheckoutOpen" style="margin-top:16px">Finalizar pedido →</button>
             <button class="pm-btn-full pm-btn-ghost" id="pmCartClose2">Continuar escolhendo</button>
+          </div>
+        </div>
+
+        <!-- Meus pedidos overlay -->
+        <div class="pm-overlay hidden" id="pmMyOrdersOverlay">
+          <div class="pm-cart-panel">
+            <div class="pm-panel-head">
+              <h2>Meus pedidos</h2>
+              <button class="pm-close-btn" id="pmMyOrdersClose">×</button>
+            </div>
+            <div id="pmMyOrdersList"><div class="empty">Carregando…</div></div>
+            <button class="pm-btn-full pm-btn-ghost" id="pmMyOrdersClose2" style="margin-top:12px">Fechar</button>
           </div>
         </div>
 
@@ -7264,6 +7400,21 @@
         return;
       }
 
+      // ── Public menu: "Meus pedidos" ──
+      if (event.target.id === "pmMyOrdersOpen" || event.target.closest("#pmMyOrdersOpen")) {
+        openMyOrders();
+        return;
+      }
+      if (event.target.id === "pmGoMyOrders") {
+        document.getElementById("pmCheckoutOverlay")?.classList.add("hidden");
+        openMyOrders();
+        return;
+      }
+      if (event.target.id === "pmMyOrdersClose" || event.target.id === "pmMyOrdersClose2" || event.target.id === "pmMyOrdersOverlay") {
+        closeMyOrders();
+        return;
+      }
+
       // ── Public menu: close cart ──
       if (event.target.id === "pmCartClose" || event.target.id === "pmCartClose2") {
         document.getElementById("pmCartOverlay")?.classList.add("hidden");
@@ -7946,15 +8097,26 @@
           ? `<a href="${waUrl}" target="_blank" rel="noopener" class="pm-wa-btn" style="margin-top:10px;text-decoration:none;display:flex">Fazer pedido pelo WhatsApp →</a>`
           : "";
         if (saved) {
+          // Guarda o pedido no aparelho do cliente pra ele acompanhar em "Meus pedidos".
+          try {
+            const mine = JSON.parse(localStorage.getItem("bistroMyOrders") || "[]");
+            mine.unshift({
+              id: orderId, companyId, restaurante: state.settings.restaurant || "",
+              nome, total: payload.total, ts: Date.now(),
+              itensCount: itemsForComanda.reduce((s, i) => s + (Number(i.quantidade) || 1), 0),
+              tipoLabel, tipoEntrega: tipo,
+            });
+            localStorage.setItem("bistroMyOrders", JSON.stringify(mine.slice(0, 20)));
+          } catch (e) {}
           publicCart = [];
           updatePmFab();
           if (submitBtn) submitBtn.style.display = "none";
           if (status) {
             status.className = "pm-checkout-status ok";
-            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu seu pedido. Pode fechar esta janela.</span>${waLink}`;
+            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu. Acompanhe o preparo aqui em "Meus pedidos".</span><button type="button" class="pm-btn-full pm-btn-green" id="pmGoMyOrders" style="margin-top:10px">Acompanhar meu pedido →</button>${waLink}`;
             status.scrollIntoView({ behavior: "smooth", block: "center" });
           }
-          showToast("Pedido enviado! ✅ O restaurante já recebeu.", 3500);
+          showToast("Pedido enviado! ✅ Acompanhe em Meus pedidos.", 3500);
         } else {
           // Não perde o pedido: mantém o carrinho e mostra o motivo + link tocável do WhatsApp.
           if (status) {
