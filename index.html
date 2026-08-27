@@ -724,6 +724,20 @@
       gap: 16px;
     }
 
+    /* Caixa — estado fechado (empty-state) */
+    .cash-closed { text-align: center; padding: 40px 20px 8px; max-width: 460px; margin: 0 auto; }
+    .cash-closed-ico {
+      width: 60px; height: 60px; border-radius: 18px; margin: 0 auto 16px;
+      display: grid; place-items: center; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+    }
+    .cash-closed-ico svg { width: 28px; height: 28px; }
+    .cash-closed h2 { margin-bottom: 8px; }
+    .cash-closed p { color: var(--muted); font-size: 13.5px; margin: 0 auto 4px; max-width: 360px; }
+    .cash-closed form { max-width: 420px; margin: 20px auto 0; text-align: left; }
+    .cash-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .cash-status.open { background: rgba(74,222,128,.14); color: var(--ok); }
+    .cash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+
     /* Ordem do menu — lista compacta com toggle */
     .order-list { display: flex; flex-direction: column; gap: 6px; }
     .order-row {
@@ -3928,26 +3942,40 @@
       const status = session ? "Aberto" : "Fechado";
 
       const valorAtual = cashBalance(rows);
+      const lastCloseInfo = lastSession && lastSession.status === "fechado"
+        ? `<p class="mini" style="text-align:center;margin-top:12px">Último fechamento: ${money(lastSession.countedCash)}${num(lastSession.difference) ? ` · diferença ${money(lastSession.difference)}` : " · conferido"}.</p>` : "";
+
+      // ── CAIXA FECHADO — tela limpa ──
+      if (!session) {
+        document.getElementById("caixa").innerHTML = `
+          <div class="panel">
+            <div class="cash-closed">
+              <div class="cash-closed-ico">${icon("caixa")}</div>
+              <h2>Caixa fechado</h2>
+              <p>Para registrar vendas e movimentações no balcão, abra o caixa informando o dinheiro (troco) que está na gaveta.</p>
+              ${openCashForm(lastSession)}
+            </div>
+            ${lastCloseInfo}
+          </div>`;
+        return;
+      }
+
+      // ── CAIXA ABERTO ──
+      const methodCard = (label, val) => `<div class="metric" style="min-height:auto;padding:13px 15px"><div class="metric-top" style="margin-bottom:7px"><span class="label">${label}</span></div><div class="value" style="font-size:20px">${money(val)}</div></div>`;
       document.getElementById("caixa").innerHTML = `
-        <div class="panel">
-          <h2>Status do caixa</h2>
-          <div class="summary-strip" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-            <div><span>Abertura</span><strong>${session ? money(session.openingAmount) : lastSession?.openingAmount ? money(lastSession.openingAmount) : money(0)}</strong></div>
-            <div><span>Entradas</span><strong>${money(entradas)}</strong></div>
-            <div><span>Saídas</span><strong>${money(saidas)}</strong></div>
-            <div><span>Valor atual</span><strong>${money(valorAtual)}</strong></div>
-          </div>
-          <div style="margin:10px 0 14px">
-            <span style="display:inline-block;padding:5px 16px;border-radius:20px;font-size:12px;font-weight:800;letter-spacing:.5px;color:#fff;background:${session ? '#176b5d' : '#c0392b'}">
-              ● ${status}
-            </span>
-          </div>
-          ${session ? closeCashForm(dinheiro) : openCashForm(lastSession)}
-          ${lastSession && lastSession.status === "fechado" ? `<p class="mini">Último fechamento: ${money(lastSession.countedCash)}${num(lastSession.difference) ? ` · diferença ${money(lastSession.difference)}` : " · conferido"}.</p>` : ""}
+        <div class="cash-head">
+          <span class="cash-status open">● Caixa aberto</span>
+          <span class="mini">troco inicial ${money(session.openingAmount)} · ${escapeHTML(session.openedBy || "")}</span>
+        </div>
+
+        <div class="grid metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+          <div class="metric"><div class="metric-top"><span class="label">Saldo atual</span><span class="metric-ic">${icon("caixa")}</span></div><div class="value" style="color:var(--brand)">${money(valorAtual)}</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Entradas hoje</span></div><div class="value" style="color:var(--ok)">${money(entradas)}</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Saídas hoje</span></div><div class="value" style="color:var(--danger)">${money(saidas)}</div></div>
         </div>
 
         <div class="panel">
-          <h2>Caixa do Dia</h2>
+          <h2>Lançar movimento</h2>
           <form id="cashForm">
             <div class="form-grid form-grid-2col">
               <label>Movimento
@@ -3972,15 +4000,21 @@
               <button class="btn" type="submit">${icon("caixa")}Lançar no caixa</button>
             </div>
           </form>
-          ${session ? `
-          <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
-          <h2>Fechar caixa</h2>
-          ${closeCashForm(dinheiro)}` : ""}
-          <div class="summary-strip" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px">
-            ${methodTotals.map(([method, label]) => `<div><span>${label}</span><strong>${money(cashByMethod(rows, method))}</strong></div>`).join("")}
+          <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px">
+            ${methodTotals.map(([method, label]) => methodCard(label, cashByMethod(rows, method))).join("")}
           </div>
         </div>
-        <div class="table-wrap">${cashTable(rows)}</div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>Movimentações de hoje</h2>
+          <div class="table-wrap">${cashTable(rows)}</div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>Fechar caixa</h2>
+          ${closeCashForm(dinheiro)}
+          ${lastCloseInfo}
+        </div>
       `;
     }
 
@@ -5051,6 +5085,20 @@
 
       document.getElementById("comandas").innerHTML = `
         ${salaoSummary()}
+
+        <div class="salao-grid" style="margin-bottom:16px">
+          <div class="salao-map">
+            <div class="panel">
+              ${tableMapControls()}
+              ${tableLegend()}
+              ${tableMap(true)}
+            </div>
+          </div>
+          <aside class="panel salao-comanda">
+            ${salaoComandaPanel()}
+          </aside>
+        </div>
+
         <div class="panel">
           <form id="commandForm">
             <div class="form-grid" style="grid-template-columns:1fr 1fr 72px;gap:8px">
@@ -6563,7 +6611,7 @@
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
         const explicitOpen = Boolean(event.target.closest("[data-open-table]")?.hasAttribute("data-open-btn"));
         // No Salão: seleciona a mesa e mostra a comanda ao lado (só cria comanda ao clicar "Abrir comanda").
-        if (activeSection() === "mesas") {
+        if (activeSection() === "mesas" || activeSection() === "comandas") {
           salaoSel = openTable;
           if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
