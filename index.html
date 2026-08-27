@@ -3554,6 +3554,27 @@
       return state.expenses.filter(e => (e.vencimento || "").slice(0, 7) === ym || e.recorrencia === "mensal");
     }
 
+    // Ciclo financeiro do mês: vendas reais + despesas/dívidas do mês + o que sobrou do
+    // mês anterior (fechamento). "sobra" = saldo anterior + vendas + outras receitas − despesas.
+    function monthCycle(base) {
+      const now = base || new Date();
+      const y = now.getFullYear(), m = now.getMonth();
+      const ym = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const _iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const first = new Date(y, m, 1);
+      const ordersMes = ordersForRange(_iso(first), _iso(now));
+      const vendas = ordersMes.reduce((s, o) => s + num(o.total != null ? o.total : commandTotal(o)), 0);
+      const entries = state.expenses.filter(e => (e.vencimento || "").slice(0, 7) === ym || e.recorrencia === "mensal");
+      const receitas = entries.filter(e => e.tipo === "receita").reduce((s, e) => s + num(e.valor), 0);
+      const despesas = entries.filter(e => e.tipo === "despesa").reduce((s, e) => s + num(e.valor), 0);
+      const closes = state.settings.monthlyClose || {};
+      const prev = new Date(y, m - 1, 1);
+      const prevYm = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+      const saldoAnterior = num((closes[prevYm] || {}).saldoFinal || 0);
+      const sobra = saldoAnterior + vendas + receitas - despesas;
+      return { ym, y, m, vendas, receitas, despesas, saldoAnterior, sobra, entries, closed: closes[ym] || null };
+    }
+
     function escapeHTML(text) {
       return String(text ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
     }
@@ -4747,13 +4768,29 @@
     }
 
     function renderForecast() {
-      const entries = monthEntries();
-      const receitas = entries.filter(e => e.tipo === "receita").reduce((s, e) => s + num(e.valor), 0);
-      const despesas = entries.filter(e => e.tipo === "despesa").reduce((s, e) => s + num(e.valor), 0);
-      const saldo = receitas - despesas;
+      const mc = monthCycle();
+      const monthNames = ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+      const monthLabel = `${monthNames[mc.m]} de ${mc.y}`;
+      const closes = state.settings.monthlyClose || {};
+      const closedList = Object.keys(closes).sort().reverse();
       document.getElementById("previsao").innerHTML = `
+        <div class="cash-head" style="justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <span class="cash-status open" style="text-transform:capitalize">${monthLabel}</span>
+            ${mc.closed ? `<span class="mini">Mês fechado em ${new Date(mc.closed.closedAt).toLocaleDateString("pt-BR")} · sobrou ${money(mc.closed.saldoFinal)}</span>` : `<span class="mini">Vai fechando conforme as vendas entram</span>`}
+          </div>
+          <button class="btn" type="button" data-close-month="${mc.ym}">${mc.closed ? "Refazer fechamento" : "Fechar o mês"}</button>
+        </div>
+
+        <div class="grid metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
+          <div class="metric"><div class="metric-top"><span class="label">Sobrou do mês passado</span></div><div class="value" style="color:var(--blue)">${money(mc.saldoAnterior)}</div><div class="delta" style="color:var(--muted)">saldo inicial</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Vendas no mês</span><span class="metric-ic">${icon("caixa")}</span></div><div class="value" style="color:var(--ok)">${money(mc.vendas)}</div><div class="delta">o que foi vendido</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Contas do mês</span></div><div class="value" style="color:var(--danger)">${money(mc.despesas)}</div><div class="delta bad">dívidas + gastos</div></div>
+          <div class="metric"><div class="metric-top"><span class="label">Sobra do mês</span><span class="metric-ic">${icon("metas")}</span></div><div class="value" style="color:var(--brand)">${money(mc.sobra)}</div><div class="delta ${mc.sobra>=0?"":"bad"}">depois de pagar tudo</div></div>
+        </div>
+
         <div class="panel">
-          <h2>Receitas e despesas previstas</h2>
+          <h2>Lançar conta ou receita</h2>
           <form id="expenseForm">
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
               <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)">Tipo<select name="tipo" style="font-size:13px"><option value="despesa">Despesa</option><option value="receita">Receita</option></select></label>
@@ -4775,14 +4812,25 @@
             </label>
             <button class="btn" type="submit" style="width:100%">${icon("previsao")}Lançar</button>
           </form>
-          <div class="summary-strip">
-            <div><span>Receitas previstas</span><strong>${money(receitas)}</strong></div>
-            <div><span>Despesas previstas</span><strong>${money(despesas)}</strong></div>
-            <div><span>Resultado mensal</span><strong style="color:${saldo >= 0 ? "var(--ok)" : "var(--danger)"}">${money(saldo)}</strong></div>
-            <div><span>Margem prevista</span><strong>${receitas ? ((saldo / receitas) * 100).toFixed(1) : "0,0"}%</strong></div>
-          </div>
         </div>
-        <div class="table-wrap">${expensesTable(entries)}</div>
+
+        <div class="panel" style="margin-top:16px">
+          <h2>Contas do mês <span class="mini" style="font-weight:400">— dívidas recorrentes + lançamentos deste mês</span></h2>
+          <div class="table-wrap">${expensesTable(mc.entries)}</div>
+        </div>
+
+        ${closedList.length ? `<div class="panel" style="margin-top:16px">
+          <h2>Fechamentos anteriores</h2>
+          <div class="tw"><table class="dtable"><thead><tr><th>Mês</th><th class="r">Vendas</th><th class="r">Contas</th><th class="r">Sobrou</th><th>Fechado em</th></tr></thead><tbody>
+            ${closedList.map(k => { const c = closes[k]; const [yy,mm] = k.split("-"); return `<tr>
+              <td class="nm" style="text-transform:capitalize">${monthNames[+mm-1]}/${yy}</td>
+              <td class="r" style="color:var(--ok)">${money(c.vendas)}</td>
+              <td class="r" style="color:var(--danger)">${money(c.despesas)}</td>
+              <td class="r"><strong style="color:var(--brand)">${money(c.saldoFinal)}</strong></td>
+              <td>${new Date(c.closedAt).toLocaleDateString("pt-BR")}</td>
+            </tr>`; }).join("")}
+          </tbody></table></div>
+        </div>` : ""}
       `;
     }
 
@@ -6676,6 +6724,17 @@
 
       const delExpense = event.target.closest("[data-delete-expense]")?.dataset.deleteExpense;
       if (delExpense) { state.expenses = state.expenses.filter(x => x.id !== delExpense); save(); }
+
+      const closeMonth = event.target.closest("[data-close-month]")?.dataset.closeMonth;
+      if (closeMonth) {
+        const mc = monthCycle();
+        if (confirm(`Fechar o mês?\n\nSobra: ${money(mc.sobra)} — isso vira o saldo inicial do próximo mês.`)) {
+          state.settings.monthlyClose = state.settings.monthlyClose || {};
+          state.settings.monthlyClose[mc.ym] = { saldoFinal: mc.sobra, vendas: mc.vendas, despesas: mc.despesas, receitas: mc.receitas, saldoAnterior: mc.saldoAnterior, closedAt: new Date().toISOString() };
+          save();
+          showToast(`✅ ${mc.ym} fechado · sobrou ${money(mc.sobra)}`);
+        }
+      }
 
       const delCash = event.target.closest("[data-delete-cash]")?.dataset.deleteCash;
       if (delCash) { state.cash = (state.cash || []).filter(x => x.id !== delCash); save(); }
