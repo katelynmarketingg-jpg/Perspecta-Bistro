@@ -750,6 +750,13 @@
     .cc-fold > summary.add { color: var(--brand); border-color: rgba(249,115,22,.35); }
     .cc-fold[open] > summary { margin-bottom: 10px; }
 
+    /* Kanban — prévia do pedido no card */
+    .kanban-card-items { margin: 8px 0; display: flex; flex-direction: column; gap: 3px; }
+    .kanban-card-items .kbi { font-size: 11.5px; color: var(--ink); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .kanban-card-items .kbi b { color: var(--brand); font-weight: 700; margin-right: 2px; }
+    .kanban-card-items .kbi.more { color: var(--faint); font-size: 11px; }
+    .kanban-card-items.empty { color: var(--faint); font-size: 11.5px; font-style: italic; }
+
     /* Cardápio — lista de produtos enxuta */
     .prod-list { display: flex; flex-direction: column; gap: 8px; }
     .prod-row { display: flex; align-items: center; gap: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; flex-wrap: wrap; }
@@ -5074,20 +5081,16 @@
       } else if (status === "paga") {
         action = `<button class="btn ok btn-sm" style="width:100%" data-close-command="${command.id}">✓ Liberar mesa</button>`;
       }
-      const _kbOrd=["montando","feito","cozinha","entregue","pago"];
-      const _kbCs=commandStatus(command);
-      const _kbCur=_kbCs==="paga"?"pago":_kbCs==="entregue"?"entregue":_kbCs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
-      const _kbCi=_kbOrd.indexOf(_kbCur);
-      const _kbStps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
-      const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#26262c;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
+      const _kbItems = command.itens.length
+        ? `<div class="kanban-card-items">${command.itens.slice(0, 4).map(it => `<div class="kbi"><b class="num">${Math.max(1, num(it.quantidade))}×</b> ${escapeHTML(it.nome)}</div>`).join("")}${command.itens.length > 4 ? `<div class="kbi more">+${command.itens.length - 4} item(ns)…</div>` : ""}</div>`
+        : `<div class="kanban-card-items empty">Sem itens ainda</div>`;
       return `<div class="kanban-card" data-drag-id="${command.id}" data-open-kb="${command.id}">
         <div class="kanban-card-top">
           <span class="kanban-card-mesa">👤 ${cliente}</span>
           <span class="kanban-card-total">${money(total)}</span>
         </div>
         <div class="kanban-card-cliente">${mesa}${command.source === "whatsapp" ? `<span class="badge-wa" style="font-size:10px;padding:1px 5px;margin-left:4px">📲</span>` : ""}</div>
-        <div class="kanban-card-meta">${itens} item(ns) · ${pessoas} pessoa(s)</div>
-        ${_kbBar}
+        ${_kbItems}
         <div class="kanban-card-action">${action}</div>
       </div>`;
     }
@@ -7767,21 +7770,40 @@
           const obs = item.observacao ? `  📝 ${item.observacao}` : "";
           return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${obs ? "\n" + obs : ""}`;
         }).join("\n");
-        // Grava no Firebase — sistema do restaurante detecta em até 8s e cria a comanda automaticamente
+        // Grava o pedido no sistema. Caminho principal: SERVIDOR (/api/order na Vercel),
+        // que grava via conta de serviço — NÃO depende de login anônimo. Fallback: gravação
+        // direta no Firebase (quando houver token). Só confirma sucesso se realmente gravou.
+        const companyId = String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
+        let saved = false;
         try {
-          authedFetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          }).catch(() => {});
-        } catch(e) {}
-        // Mensagem WhatsApp de notificação (comanda já criada automaticamente no sistema)
-        const msg = `*🍽️ Novo Pedido — ${escapeHTML(state.settings.restaurant)}*\nCliente: ${nome}\nTipo: ${tipoLabel}\n\n📦 *Itens:*\n${lines}\n\n💰 *Total: ${money(pmCartTotal())}*\n\n✅ Pedido registrado no sistema!`;
-        window.open(whatsappLink(state.settings.whatsapp, msg), "_blank");
-        document.getElementById("pmCheckoutOverlay")?.classList.add("hidden");
-        publicCart = [];
-        updatePmFab();
-        showToast("Pedido enviado! ✅ Em breve o restaurante confirma.", 3500);
+          const r = await fetch("https://perspecta-bistro.vercel.app/api/order", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId, order: payload })
+          });
+          saved = r.ok;
+        } catch (e) {}
+        if (!saved) {
+          try {
+            const w = await authedFetch(`${FIREBASE_URL}/orders/${fbPath(storeKey)}/${orderId}.json`, {
+              method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+            });
+            saved = w && w.ok;
+          } catch (e) {}
+        }
+        // WhatsApp como reforço (o pedido completo também chega por lá).
+        const msg = `*🍽️ Novo Pedido — ${escapeHTML(state.settings.restaurant)}*\nCliente: ${nome}\nTipo: ${tipoLabel}\n\n📦 *Itens:*\n${lines}\n\n💰 *Total: ${money(pmCartTotal())}*\n\n${saved ? "✅ Pedido registrado no sistema!" : "⚠️ Confirme o recebimento com o restaurante."}`;
+        const waUrl = whatsappLink(state.settings.whatsapp, msg);
+        const win = window.open(waUrl, "_blank");
+        if (saved) {
+          document.getElementById("pmCheckoutOverlay")?.classList.add("hidden");
+          publicCart = [];
+          updatePmFab();
+          showToast("Pedido enviado! ✅ O restaurante já recebeu.", 3500);
+        } else {
+          // Não perde o pedido: mantém o carrinho e avisa; se o popup do WhatsApp foi bloqueado, navega.
+          if (!win) { try { window.location.href = waUrl; } catch (e) {} }
+          showToast("Não consegui registrar automático. Mandei pelo WhatsApp — confirme com o restaurante.", 6000);
+        }
       }
 
       if (form.id === "addonForm") {
