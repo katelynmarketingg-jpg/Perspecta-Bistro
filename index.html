@@ -3279,8 +3279,30 @@
       } catch (e) {}
     }
     // Poll do cardápio público (só leitura do nó enxuto).
+    // Enquanto o cliente está com o carrinho / adicionais / finalização abertos,
+    // NÃO podemos redesenhar o cardápio: o renderPublicMenu() refaz todo o HTML e
+    // fecharia o modal no meio do pedido (era isso que "fechava a cada 8s").
+    function isPublicBusy() {
+      return ["pmCartOverlay", "pmAddonOverlay", "pmCheckoutOverlay"].some((id) => {
+        const el = document.getElementById(id);
+        return el && !el.classList.contains("hidden");
+      });
+    }
+
+    let _lastPublicMenuHash = null;
     async function pollPublicMenu() {
-      try { await loadPublicMenuState(); renderPublicMenu(); hydratePhotos(); } catch (e) {}
+      try {
+        await loadPublicMenuState();
+        // Não fecha nada que o cliente esteja usando.
+        if (isPublicBusy()) return;
+        // Só redesenha quando o cardápio realmente mudou — senão preserva a
+        // categoria escolhida e a rolagem (antes resetava tudo a cada 8s).
+        const hash = JSON.stringify({ menu: state.menu, addons: state.addons, settings: state.settings });
+        if (hash === _lastPublicMenuHash) return;
+        _lastPublicMenuHash = hash;
+        renderPublicMenu();
+        hydratePhotos();
+      } catch (e) {}
     }
 
     // ─────────────────────────────────────────────────────────────
