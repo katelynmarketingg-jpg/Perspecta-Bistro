@@ -7157,12 +7157,12 @@
                 if (!(command.itens||[]).length) { showToast("Adicione itens antes de mandar para a cozinha.", 2500); }
                 else {
                   command.kitchenSentAt = _now; save(); printKitchenCommand(command);
-                  if (command.telefone) { window.open(whatsappLink(command.telefone, `Olá *${command.cliente}*! 👨‍🍳\nSeu pedido foi enviado para a cozinha.\nEm breve estará pronto! 🍽️`), "_blank"); }
+                  // O cliente acompanha em "Meus pedidos" (sem mensagem de WhatsApp).
                 }
               } else if (step === "entregue") {
                 if (!command.kitchenSentAt) command.kitchenSentAt = _now;
                 command.deliveredAt = _now; save(); renderCommands();
-                if (command.telefone) { window.open(whatsappLink(command.telefone, `Olá *${command.cliente}*! ✅\nSeu pedido está pronto! 🎉\n_${command.tipoEntrega === "tele" ? "O entregador está a caminho!" : command.tipoEntrega === "mesa" ? "Seu pedido está na mesa!" : "Pode retirar no balcão!"}_`), "_blank"); }
+                // O cliente vê "saiu para entrega" em "Meus pedidos".
               } else if (step === "pago") {
                 if (!command.kitchenSentAt) command.kitchenSentAt = _now;
                 if (!command.deliveredAt) command.deliveredAt = _now;
@@ -7191,11 +7191,7 @@
             command.kitchenSentAt = new Date().toISOString();
             save();
             printKitchenCommand(command);
-            // Notifica cliente pelo WhatsApp se tiver telefone
-            if (command.telefone) {
-              const msgCoz = `Olá *${command.cliente}*! 👨‍🍳\nSeu pedido foi enviado para a cozinha.\nEm breve estará pronto! 🍽️`;
-              window.open(whatsappLink(command.telefone, msgCoz), "_blank");
-            }
+            // Sem mensagem de WhatsApp — o cliente acompanha em "Meus pedidos".
           }
         }
       }
@@ -7207,11 +7203,7 @@
           command.deliveredAt = new Date().toISOString();
           save();
           renderCommands();
-          // Notifica cliente pelo WhatsApp se tiver telefone
-          if (command.telefone) {
-            const msgPronto = `Olá *${command.cliente}*! ✅\nSeu pedido está pronto! 🎉\n_${command.tipoEntrega === "tele" ? "O entregador está a caminho!" : command.tipoEntrega === "mesa" ? "Seu pedido está na mesa!" : "Pode retirar no balcão!"}_`;
-            window.open(whatsappLink(command.telefone, msgPronto), "_blank");
-          }
+          // Sem mensagem de WhatsApp — o cliente vê "saiu para entrega" em "Meus pedidos".
         }
       }
 
@@ -7987,12 +7979,16 @@
         const localTaken = !allowMulti && state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === data.local.toLowerCase());
         if (!localTaken) {
           const clientName = data.cliente || "Avulso";
-          state.commands.push({ id: uid(), local: data.local, cliente: clientName, pessoas: Math.max(1, num(data.pessoas || 1)), status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
+          const newId = uid();
+          state.commands.push({ id: newId, local: data.local, cliente: clientName, pessoas: Math.max(1, num(data.pessoas || 1)), status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           ensureClientFromCommand(clientName);
+          form.reset();
+          save();
+          showKbModal(newId);   // já abre a comanda pra começar o pedido (sem passo extra)
+        } else {
+          form.reset();
+          alert("Já existe uma comanda aberta nesse local.");
         }
-        form.reset();
-        save();
-        if (localTaken) alert("Já existe uma comanda aberta nesse local.");
       }
 
       if (form.classList.contains("editCommandForm")) {
