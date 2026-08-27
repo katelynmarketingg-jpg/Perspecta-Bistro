@@ -6620,7 +6620,7 @@
       }
     }
 
-    function compressImage(file, maxW, maxH, quality) {
+    function compressImage(file, maxW, maxH, quality, format) {
       return new Promise(resolve => {
         const reader = new FileReader();
         const img = new Image();
@@ -6630,8 +6630,14 @@
             const canvas = document.createElement("canvas");
             canvas.width = Math.max(1, Math.round(img.width * scale));
             canvas.height = Math.max(1, Math.round(img.height * scale));
-            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL("image/jpeg", quality));
+            const ctx = canvas.getContext("2d");
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            // PNG (sem perda) preserva texto nítido e transparência — ideal p/ logotipo.
+            // JPEG (padrão) é melhor p/ fotos de produto (arquivo menor).
+            const fmt = format || "image/jpeg";
+            resolve(fmt === "image/png" ? canvas.toDataURL("image/png") : canvas.toDataURL(fmt, quality));
           } catch {
             resolve(null);
           }
@@ -6665,7 +6671,7 @@
       return _heicLibPromise;
     }
     // Lê qualquer foto (inclusive HEIC) e devolve um JPEG comprimido (ou null).
-    async function fileToCompressed(file, maxW, maxH, quality) {
+    async function fileToCompressed(file, maxW, maxH, quality, format) {
       let input = file;
       if (isHeicFile(file)) {
         try {
@@ -6680,7 +6686,7 @@
           return null; // não deu para converter (sem internet ou arquivo inválido)
         }
       }
-      return compressImage(input, maxW, maxH, quality);
+      return compressImage(input, maxW, maxH, quality, format);
     }
 
     function showToast(msg, duration = 4000) {
@@ -8287,7 +8293,7 @@
       // ── Upload logo do cardápio ──
       // ── Upload logo Perspecta (sidebar) ──
       if (event.target.id === "perspectaLogoInput" && event.target.files?.[0]) {
-        fileToCompressed(event.target.files[0], 400, 400, 0.92).then(b64 => {
+        fileToCompressed(event.target.files[0], 512, 512, 1, "image/png").then(b64 => {
           if (!b64) { showToast("Não consegui ler essa imagem. Use JPG ou PNG.", 4000); return; }
           state.settings.perspectaLogo = b64;
           save();
@@ -8298,7 +8304,7 @@
       }
 
       if (event.target.id === "faviconInput" && event.target.files?.[0]) {
-        fileToCompressed(event.target.files[0], 64, 64, 1.0).then(b64 => {
+        fileToCompressed(event.target.files[0], 128, 128, 1, "image/png").then(b64 => {
           if (!b64) { showToast("Não consegui ler essa imagem. Use JPG ou PNG.", 4000); return; }
           state.settings.favicon = b64;
           const faviconEl = document.getElementById("faviconLink");
@@ -8319,7 +8325,8 @@
       }
 
       if (event.target.id === "logoUploadInput" && event.target.files?.[0]) {
-        fileToCompressed(event.target.files[0], 1400, 800, 0.95).then(b64 => {
+        // Logo em PNG sem perda (texto nítido + transparência), em alta resolução.
+        fileToCompressed(event.target.files[0], 1400, 800, 1, "image/png").then(b64 => {
           if (!b64) return;
           const tmpImg = new Image();
           tmpImg.onload = () => {
