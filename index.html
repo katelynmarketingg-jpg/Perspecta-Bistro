@@ -6,26 +6,35 @@
   <title>Perspecta Bistro</title>
   <link rel="icon" id="faviconLink" href="icone-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#f6921e">
+  <meta name="theme-color" content="#000000">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Questrial&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Questrial&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f6f3ee;
-      --panel: #fffdf9;
-      --panel-2: #f1ebe2;
-      --ink: #171412;
-      --muted: #756a60;
-      --line: #ded4c7;
-      --brand: #f07a22;
-      --brand-2: #176b5d;
-      --gold: #c58b22;
-      --blue: #356ea8;
-      --danger: #a92f2f;
-      --ok: #24734c;
-      --shadow: 0 18px 45px rgba(42, 28, 16, .10);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      /* Perspecta — preto puro + cores do Perspecta Creator */
+      --bg: #000000;
+      --panel: #0b0b0d;
+      --panel-2: #141416;
+      --raise: #1d1d20;
+      --ink: #fafaf9;
+      --muted: #a8a29e;
+      --line: #242428;
+      --line-2: #33333a;
+      --brand: #f97316;
+      --brand-soft: rgba(249,115,22,.15);
+      --brand-2: #1f9e86;
+      --gold: #fb923c;
+      --blue: #5b8def;
+      --danger: #f87171;
+      --ok: #4ade80;
+      --shadow: 0 14px 40px rgba(0, 0, 0, .6);
+      --display: "Outfit", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+      font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1, h2, h3, .metric .value, .command-head strong, .command-head h3 {
+      font-family: var(--display);
+      letter-spacing: -0.02em;
     }
 
     * { box-sizing: border-box; }
@@ -93,13 +102,20 @@
       font-size: 10px;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: #f6921e;
+      color: #f97316;
       font-weight: 500;
     }
 
     .nav {
-      display: grid;
-      gap: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .nav-group { display: flex; flex-direction: column; gap: 2px; }
+    .nav-group + .nav-group { margin-top: 15px; }
+    .nav-eyebrow {
+      font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--muted); opacity: .65; font-weight: 700; padding: 2px 12px 6px;
     }
 
     .nav button {
@@ -108,17 +124,22 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 11px 12px;
-      color: #f8efe4;
+      padding: 10px 12px;
+      color: var(--ink);
       background: transparent;
-      border-radius: 7px;
-      transition: .18s ease;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: .16s ease;
     }
 
-    .nav button:hover,
+    .nav button:hover { background: var(--panel-2); }
     .nav button.active {
-      background: rgba(255,255,255,.10);
+      background: var(--brand-soft);
+      border-color: rgba(249,115,22,.22);
     }
+    .nav button.active svg { color: var(--brand); }
 
     .nav svg {
       width: 18px;
@@ -141,7 +162,7 @@
       width: 100%;
       margin-top: 14px;
       background: var(--brand);
-      color: #111111;
+      color: #fafaf9;
     }
 
     main {
@@ -159,10 +180,10 @@
 
     .page-subtitle {
       color: var(--muted);
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 400;
-      line-height: 1.5;
-      margin: 8px 0 0;
+      line-height: 1.45;
+      margin: 5px 0 0;
       max-width: 760px;
     }
 
@@ -181,13 +202,13 @@
     }
 
     h1 {
-      font-size: clamp(28px, 4vw, 44px);
-      line-height: 1.02;
+      font-size: clamp(21px, 2.3vw, 28px);
+      line-height: 1.05;
       max-width: 850px;
     }
 
-    h2 { font-size: 24px; margin-bottom: 14px; }
-    h3 { font-size: 17px; margin-bottom: 12px; }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    h3 { font-size: 15px; margin-bottom: 10px; }
 
     .date-pill {
       white-space: nowrap;
@@ -219,24 +240,24 @@
     }
 
     .metric {
-      padding: 17px;
-      min-height: 126px;
+      padding: 15px 16px;
+      min-height: 104px;
     }
 
     .metric .label {
       color: var(--muted);
-      font-size: 13px;
+      font-size: 12.5px;
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 11px;
+      margin-bottom: 9px;
     }
 
     .metric .value {
-      font-size: 30px;
+      font-size: 26px;
       font-weight: 900;
       line-height: 1;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .metric .delta {
@@ -256,7 +277,7 @@
     }
 
     .panel {
-      padding: 18px;
+      padding: 16px;
       min-width: 0;
     }
 
@@ -341,7 +362,7 @@
 
     .bar {
       height: 12px;
-      background: #eadfd1;
+      background: #26262c;
       border-radius: 999px;
       overflow: hidden;
     }
@@ -360,7 +381,7 @@
 
     .flow-step {
       background: #171412;
-      color: #fff7eb;
+      color: #1c1c207eb;
       padding: 16px;
       border-radius: 8px;
       min-height: 112px;
@@ -403,10 +424,9 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       background:
-        linear-gradient(90deg, rgba(0,0,0,.04) 1px, transparent 1px),
-        linear-gradient(rgba(0,0,0,.04) 1px, transparent 1px),
-        #fffaf3;
-      background-size: 48px 48px;
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,.05) 1px, transparent 0),
+        var(--panel);
+      background-size: 26px 26px, 100% 100%;
       overflow: hidden;
       touch-action: none;
     }
@@ -417,7 +437,7 @@
       min-height: 86px;
       border-radius: 8px;
       border: 2px solid var(--line);
-      background: #fffaf3;
+      background: #1c1c20;
       padding: clamp(10px, calc(var(--table-size, 132px) * .09), 16px);
       display: grid;
       align-content: center;
@@ -441,28 +461,59 @@
     }
 
     .table-tile.busy {
-      border-color: var(--brand);
-      background: #fffaf3;
+      border-color: rgba(249,115,22,.55);
+      background: linear-gradient(160deg, rgba(249,115,22,.13), var(--panel-2));
     }
 
     .table-tile.kitchen {
-      border-color: #d99a00;
-      background: #ffe36b;
+      border-color: #fb923c;
+      background: #2a2411;
     }
 
     .table-tile.delivered {
-      border-color: #2f80ed;
-      background: #e8f1ff;
+      border-color: #5b8def;
+      background: #141a26;
     }
 
     .table-tile.paid {
-      border-color: #cdd8cf;
-      background: #fff;
+      border-color: rgba(74,222,128,.5);
+      background: var(--panel-2);
     }
 
     .table-tile.free {
-      border-color: #cdd8cf;
-      background: #fff;
+      border-color: rgba(74,222,128,.5);
+      border-style: dashed;
+      background: var(--panel-2);
+    }
+    .table-tile.free .table-client { color: var(--ok); }
+    .table-tile.sel { outline: 2.5px solid var(--brand); outline-offset: 2px; }
+
+    /* Salão: mapa + comanda lado a lado */
+    .salao-sum { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .salao-sum .fs { display: inline-flex; align-items: center; gap: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 11px; padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--muted); }
+    .salao-sum .fs b { font-family: var(--display); font-size: 15px; color: var(--ink); }
+    .salao-sum .fs i { width: 8px; height: 8px; border-radius: 3px; display: inline-block; }
+    .salao-grid { display: grid; grid-template-columns: minmax(0,1fr) 384px; gap: 16px; align-items: start; }
+    .salao-map { min-width: 0; }
+    .salao-comanda { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; padding: 0; background: transparent; border: none; }
+    .salao-comanda > .command-card, .salao-comanda > .card { margin: 0; }
+    .salao-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; text-align: center; padding: 56px 20px; min-height: 320px;
+      background: var(--panel); border: 1px dashed var(--line); border-radius: 16px; color: var(--muted);
+    }
+    .salao-empty-ico { opacity: .5; transform: scale(1.6); margin-bottom: 6px; }
+    .salao-empty strong { color: var(--ink); font-size: 16px; }
+    .salao-empty p { margin: 0; font-size: 13px; max-width: 220px; }
+    .salao-empty .btn { margin-top: 8px; }
+    .salao-manage > summary { cursor: pointer; font-weight: 750; font-size: 14px; color: var(--ink); list-style: none; }
+    .salao-manage > summary::-webkit-details-marker { display: none; }
+    .salao-manage > summary::before { content: "⚙ "; color: var(--muted); }
+    @media (max-width: 1000px) { .salao-grid { grid-template-columns: 1fr; } .salao-comanda { position: static; max-height: none; } }
+    .table-total {
+      display: block; margin-top: 3px; font-weight: 700; color: var(--brand);
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(11px, calc(var(--table-size, 132px) * .09), 15px);
     }
 
     .table-tile strong {
@@ -491,7 +542,7 @@
       align-items: center;
       justify-content: center;
       background: #17623a;
-      color: #fff;
+      color: #1c1c20;
       font-size: 11px;
       font-weight: 900;
       box-shadow: 0 5px 12px rgba(23, 98, 58, .22);
@@ -572,7 +623,7 @@
       padding: 8px 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff8ef;
+      background: #1c1c20;
       color: var(--ink) !important;
     }
 
@@ -597,13 +648,13 @@
       height: 12px;
       border-radius: 50%;
       border: 2px solid var(--line);
-      background: #f1faf5;
+      background: #12211b;
     }
 
-    .legend-dot.busy { background: #fffaf3; border-color: var(--brand); }
-    .legend-dot.kitchen { background: #ffe36b; border-color: #d99a00; }
-    .legend-dot.delivered { background: #e8f1ff; border-color: #2f80ed; }
-    .legend-dot.paid { background: #fff8f0; border-color: var(--brand); }
+    .legend-dot.busy { background: #1c1c20; border-color: var(--brand); }
+    .legend-dot.kitchen { background: #2a2411; border-color: #fb923c; }
+    .legend-dot.delivered { background: #141a26; border-color: #5b8def; }
+    .legend-dot.paid { background: #1c1c20; border-color: var(--brand); }
 
     .cost-block {
       display: grid;
@@ -619,7 +670,7 @@
       padding: 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff8ef;
+      background: #1c1c20;
     }
 
     .simple-card-grid {
@@ -666,7 +717,7 @@
 
     .progress {
       height: 12px;
-      background: #eadfd1;
+      background: #26262c;
       border-radius: 999px;
       overflow: hidden;
       margin-top: 10px;
@@ -684,7 +735,7 @@
       padding: 5px 9px;
       border-radius: 999px;
       background: #181614;
-      color: #fff6ed;
+      color: #1c1c206ed;
       font-size: 12px;
       font-weight: 850;
     }
@@ -699,21 +750,23 @@
 
     label {
       display: grid;
-      gap: 6px;
+      gap: 5px;
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
+      font-size: 11.5px;
+      font-weight: 650;
+      letter-spacing: .01em;
     }
 
     input, textarea, select {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 7px;
-      background: white;
+      border-radius: 8px;
+      background: #1c1c20;
       color: var(--ink);
-      padding: 10px 11px;
+      padding: 8px 11px;
       outline: none;
-      min-height: 42px;
+      min-height: 38px;
+      font-size: 14px;
     }
 
     textarea {
@@ -738,17 +791,19 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      min-height: 40px;
-      padding: 10px 13px;
-      border-radius: 7px;
+      min-height: 36px;
+      padding: 9px 14px;
+      border-radius: 8px;
       color: white;
       background: var(--brand);
-      font-weight: 850;
+      font-weight: 700;
+      font-size: 13px;
       text-decoration: none;
     }
 
     .btn.secondary {
-      background: #332923;
+      background: #2a2a31;
+      color: var(--ink);
     }
 
     .btn.ghost {
@@ -780,7 +835,7 @@
 
     th {
       color: var(--muted);
-      background: #f4eee6;
+      background: #1c1c20;
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0;
@@ -801,12 +856,12 @@
       padding: 5px 9px;
       font-size: 12px;
       font-weight: 850;
-      background: #eaf4ef;
+      background: #12211b;
       color: var(--ok);
     }
 
     .status.paused {
-      background: #f6e9e7;
+      background: #241618;
       color: var(--danger);
     }
 
@@ -845,9 +900,10 @@
 
     .command-grid {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
       gap: 14px;
       margin-top: 16px;
+      align-items: start;
     }
 
     .command-card {
@@ -885,19 +941,19 @@
     }
 
     .command-location.open {
-      border-color: #f28c28;
-      background: #fff1df;
+      border-color: #f97316;
+      background: #1e1d24;
     }
 
     .command-location.paid {
       border-color: var(--brand);
-      background: #fff6ec;
+      background: #1c1c20;
       box-shadow: inset 0 0 0 1px rgba(240, 122, 34, .18);
     }
 
     .command-card.paid {
       border-color: var(--brand);
-      background: #fff8f0;
+      background: #1c1c20;
     }
 
     .command-head {
@@ -990,7 +1046,7 @@
       gap: 6px;
       align-items: center;
       padding: 6px;
-      background: #f5efe7;
+      background: #1c1c20;
       border-radius: 7px;
       font-size: 13px;
     }
@@ -1020,7 +1076,7 @@
       padding: 7px 9px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff8ef;
+      background: #1c1c20;
       color: var(--ink);
       font-size: 12px;
       font-weight: 800;
@@ -1056,8 +1112,8 @@
     }
 
     .addon-toggle[open] summary {
-      background: #fff1df;
-      border-color: #f28c28;
+      background: #1e1d24;
+      border-color: #f97316;
     }
 
     .permission-grid {
@@ -1074,7 +1130,7 @@
       padding: 8px 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fff8ef;
+      background: #1c1c20;
       color: var(--ink);
       font-size: 12px;
       font-weight: 800;
@@ -1133,16 +1189,16 @@
     }
 
     .btn.paid {
-      background: #a85500;
-      border-color: #a85500;
-      color: #fff;
+      background: #f97316;
+      border-color: #f97316;
+      color: #1c1c20;
       cursor: default;
     }
 
     .command-card .btn.ok {
       background: var(--brand);
       border-color: var(--brand);
-      color: #fff;
+      color: #1c1c20;
     }
 
     .command-card .btn.ok:hover {
@@ -1189,7 +1245,7 @@
     .kanban-col {
       flex: 0 0 220px;
       min-width: 200px;
-      background: #f5ede3;
+      background: #1c1c20;
       border-radius: 10px;
       padding: 10px;
       display: flex;
@@ -1201,7 +1257,7 @@
     .kanban-card { cursor: grab; touch-action: none; }
     .kanban-card:active { cursor: grabbing; }
     .kanban-card.dragging { opacity: 0.3; pointer-events: none; }
-    .kanban-col.drag-over { outline: 2px dashed var(--brand); outline-offset: -4px; background: #fdefd8; }
+    .kanban-col.drag-over { outline: 2px dashed var(--brand); outline-offset: -4px; background: #241a10; }
 
     .kanban-col-header {
       display: flex;
@@ -1211,7 +1267,7 @@
       border-bottom: 2px solid rgba(0,0,0,.08);
       position: sticky;
       top: 0;
-      background: #f5ede3;
+      background: #1c1c20;
       z-index: 1;
     }
     .kanban-col-title {
@@ -1220,10 +1276,10 @@
       text-transform: uppercase;
       letter-spacing: .5px;
     }
-    .kanban-count { background: var(--brand); color: #fff; font-size: 10px; font-weight: 900; border-radius: 20px; padding: 2px 7px; }
+    .kanban-count { background: var(--brand); color: #1c1c20; font-size: 10px; font-weight: 900; border-radius: 20px; padding: 2px 7px; }
     .kanban-count.zero { background: var(--muted); }
     .kanban-card {
-      background: #fff;
+      background: #1c1c20;
       border: 1px solid var(--line);
       border-radius: 9px;
       padding: 10px 11px;
@@ -1269,13 +1325,13 @@
     .cmd-list th { text-align: left; font-size: 10px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 6px 10px; border-bottom: 2px solid var(--line); white-space: nowrap; }
     .cmd-list td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
     .cmd-list tr:last-child td { border-bottom: none; }
-    .cmd-list tbody tr:hover td { background: #fdf6ef; }
+    .cmd-list tbody tr:hover td { background: #1c1c20; }
     .cmd-status-chip { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 800; white-space: nowrap; }
-    .cmd-status-chip.montando  { background: #f3f3f3; color: #555; }
-    .cmd-status-chip.feito     { background: #fff7d6; color: #a07000; }
-    .cmd-status-chip.cozinha   { background: #fff0e0; color: var(--brand); }
-    .cmd-status-chip.entregue  { background: #e8f1ff; color: #2f80ed; }
-    .cmd-status-chip.pago      { background: #fff8f0; color: #a85500; }
+    .cmd-status-chip.montando  { background: #26262c; color: #a8a29e; }
+    .cmd-status-chip.feito     { background: #2a2411; color: #fb923c; }
+    .cmd-status-chip.cozinha   { background: #241a12; color: var(--brand); }
+    .cmd-status-chip.entregue  { background: #141a26; color: #5b8def; }
+    .cmd-status-chip.pago      { background: #1c1c20; color: #f97316; }
     .list-pay-inline { display: inline-flex; gap: 4px; align-items: center; vertical-align: middle; }
     .list-pay-inline select { font-size: 11px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 5px; }
 
@@ -1285,8 +1341,8 @@
     .addon-mini { position: relative; }
     .addon-mini summary { list-style: none; display: flex; align-items: center; justify-content: center; width: 36px; height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); cursor: pointer; font-size: 20px; line-height: 1; color: var(--ink); user-select: none; transition: background .12s; }
     .addon-mini summary::-webkit-details-marker { display: none; }
-    .addon-mini[open] summary { background: var(--brand); color: #fff; border-color: var(--brand); }
-    .addon-mini .addon-list { position: absolute; right: 0; bottom: calc(100% + 4px); width: 230px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.14); z-index: 200; margin: 0; }
+    .addon-mini[open] summary { background: var(--brand); color: #1c1c20; border-color: var(--brand); }
+    .addon-mini .addon-list { position: absolute; right: 0; bottom: calc(100% + 4px); width: 230px; background: #1c1c20; border: 1px solid var(--line); border-radius: 10px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,.14); z-index: 200; margin: 0; }
 
     .print-ticket {
       width: 280px;
@@ -1307,7 +1363,7 @@
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      background: #f28c28;
+      background: #f97316;
       margin: 0 auto 6px;
     }
 
@@ -1431,10 +1487,10 @@
     .pm-card-name { font-weight: 900; font-size: 15px; margin: 0; color: #fff; }
     .pm-card-desc { font-size: 13px; color: #888; margin: 0; flex: 1; line-height: 1.4; }
     .pm-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
-    .pm-price { font-family: 'Anton', sans-serif; font-size: 22px; color: #f6921e; letter-spacing: .5px; }
+    .pm-price { font-family: 'Anton', sans-serif; font-size: 22px; color: #f97316; letter-spacing: .5px; }
 
     .pm-add-btn {
-      background: #f6921e; color: #000; border: 0; border-radius: 8px;
+      background: #f97316; color: #000; border: 0; border-radius: 8px;
       width: 38px; height: 38px; font-size: 22px; font-weight: 900; cursor: pointer;
       display: flex; align-items: center; justify-content: center; line-height: 1;
       transition: background .15s, transform .1s; flex-shrink: 0;
@@ -1444,7 +1500,7 @@
     /* FAB */
     .pm-fab {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: #f6921e; color: #000; border: 0; border-radius: 10px;
+      background: #f97316; color: #000; border: 0; border-radius: 10px;
       padding: 15px 32px; font-weight: 900; font-size: 15px; cursor: pointer;
       box-shadow: 0 8px 32px rgba(246,146,30,.55);
       display: flex; align-items: center; gap: 10px; z-index: 50;
@@ -1463,7 +1519,7 @@
     .pm-cart-panel, .pm-addon-panel, .pm-checkout-panel {
       background: #161616; border-radius: 20px 20px 0 0;
       width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto;
-      padding: 22px 20px 36px; border-top: 3px solid #f6921e;
+      padding: 22px 20px 36px; border-top: 3px solid #f97316;
       font-family: 'Questrial', sans-serif;
     }
     .pm-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
@@ -1473,7 +1529,7 @@
       background: #2a2a2a; border: 0; border-radius: 50%; width: 36px; height: 36px;
       font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff;
     }
-    .pm-close-btn:hover { background: #f6921e; color: #000; }
+    .pm-close-btn:hover { background: #f97316; color: #000; }
 
     .pm-cart-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #2a2a2a; }
     .pm-cart-item-info { flex: 1; min-width: 0; }
@@ -1484,9 +1540,9 @@
       background: #2a2a2a; border: 0; border-radius: 50%; width: 30px; height: 30px;
       font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff;
     }
-    .pm-qty-btn:hover { background: #f6921e; color: #000; }
+    .pm-qty-btn:hover { background: #f97316; color: #000; }
     .pm-qty-num { font-weight: 900; min-width: 22px; text-align: center; color: #fff; }
-    .pm-cart-item-price { font-weight: 900; min-width: 72px; text-align: right; font-size: 14px; color: #f6921e; }
+    .pm-cart-item-price { font-weight: 900; min-width: 72px; text-align: right; font-size: 14px; color: #f97316; }
     .pm-cart-total { display: flex; justify-content: space-between; font-weight: 900; font-size: 18px; padding: 16px 0 18px; color: #fff; }
 
     .pm-btn-full {
@@ -1494,7 +1550,7 @@
       border: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
       font-family: 'Questrial', sans-serif; transition: background .15s;
     }
-    .pm-btn-green { background: #f6921e; color: #000; }
+    .pm-btn-green { background: #f97316; color: #000; }
     .pm-btn-green:hover { background: #ffe597; }
     .pm-btn-ghost { background: #2a2a2a; color: #fff; margin-top: 10px; }
     .pm-btn-ghost:hover { background: #3a3a3a; }
@@ -1507,14 +1563,14 @@
       padding: 10px 12px; font-size: 15px; font-family: 'Questrial', sans-serif;
     }
     .pm-cart-panel input:focus, .pm-checkout-panel input:focus, .pm-checkout-panel select:focus {
-      border-color: #f6921e; outline: none;
+      border-color: #f97316; outline: none;
     }
 
     /* Addon modal */
     .pm-addon-item { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #2a2a2a; cursor: pointer; }
     .pm-addon-item label { cursor: pointer; flex: 1; font-size: 14px; font-weight: 700; color: #fff; }
-    .pm-addon-price { font-size: 13px; color: #f6921e; font-weight: 700; }
-    .pm-addon-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: #f6921e; }
+    .pm-addon-price { font-size: 13px; color: #f97316; font-weight: 700; }
+    .pm-addon-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; accent-color: #f97316; }
     .pm-qty-row { display: flex; align-items: center; justify-content: space-between; padding: 16px 0 10px; font-weight: 700; color: #fff; }
     .pm-qty-controls { display: flex; align-items: center; gap: 16px; background: #2a2a2a; border-radius: 30px; padding: 6px 18px; }
 
@@ -1560,7 +1616,7 @@
     .empty {
       padding: 18px;
       border: 1px dashed var(--line);
-      background: rgba(255,255,255,.55);
+      background: var(--panel-2);
       border-radius: 8px;
       color: var(--muted);
       text-align: center;
@@ -1698,7 +1754,7 @@
       .metric-vendidos-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
       .metric-vendidos-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; gap: 4px; }
       .metric-vendidos-row span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #222; }
-      .metric-vendidos-row span:last-child { flex-shrink: 0; font-weight: 700; color: #f6921e; font-size: 10px; }
+      .metric-vendidos-row span:last-child { flex-shrink: 0; font-weight: 700; color: #f97316; font-size: 10px; }
       .metric-vendidos-empty { font-size: 11px; color: #aaa; }
     }
 
@@ -1737,7 +1793,7 @@
     .login-logo-tile {
       display: inline-flex; align-items: center; justify-content: center;
       width: 60px; height: 60px; border-radius: 18px;
-      background: #f6921e;
+      background: #f97316;
       box-shadow: 0 12px 30px -8px rgba(246,146,30,.55);
       margin-bottom: 18px;
     }
@@ -1769,7 +1825,7 @@
     }
     .login-field input::placeholder { color: #555; }
     .login-field input:focus {
-      border-color: #f6921e; box-shadow: 0 0 0 3px rgba(246,146,30,.18);
+      border-color: #f97316; box-shadow: 0 0 0 3px rgba(246,146,30,.18);
     }
 
     /* Modo "bem-vindo de volta": avatar + nome, pede só a senha */
@@ -1780,7 +1836,7 @@
     .login-quick.hidden { display: none; }
     .login-avatar {
       flex-shrink: 0; width: 42px; height: 42px; border-radius: 50%;
-      background: #f6921e; color: #fff;
+      background: #f97316; color: #fff;
       display: flex; align-items: center; justify-content: center;
       font-size: 18px; font-weight: 700;
     }
@@ -1806,7 +1862,7 @@
       margin-top: 2px; width: 100%; min-height: 50px;
       display: flex; align-items: center; justify-content: center;
       padding: 14px; font-size: 15px; font-weight: 700;
-      background: #f6921e; color: #fff; border: 0; border-radius: 12px;
+      background: #f97316; color: #fff; border: 0; border-radius: 12px;
       cursor: pointer; transition: background .15s, transform .05s;
       box-shadow: 0 8px 20px -8px rgba(246,146,30,.6);
     }
@@ -1887,7 +1943,7 @@
       <nav class="nav" id="nav"></nav>
       <div class="sidebar-footer">
         <div id="syncBadge" style="font-size:10px;color:var(--muted);margin-bottom:5px;text-align:center;letter-spacing:.3px"></div>
-        <div id="sessionBadge" style="font-size:11px;color:#f6921e;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
+        <div id="sessionBadge" style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
         <div id="proxyBanner"></div>
         <button class="btn sidebar-logout" type="button" data-logout>⏏ Sair</button>
       </div>
@@ -1906,7 +1962,7 @@
 
         <!-- Títulos — centro -->
         <div class="topbar-titles">
-          <p class="eyebrow" id="pageEyebrow" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect width="42" height="42" rx="9" fill="#f6921e"/><polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/><polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/><polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/></svg>Perspecta Bistro</p>
+          <p class="eyebrow" id="pageEyebrow" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0"><rect width="42" height="42" rx="9" fill="#f97316"/><polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/><polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/><polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/></svg>Perspecta Bistro</p>
           <h1 id="pageTitle">Visão do dia</h1>
           <p class="page-subtitle" id="pageSubtitle">Operação simples para caixa, mesas, pedidos, clientes e cardápio.</p>
         </div>
@@ -1917,7 +1973,7 @@
         <!-- Logo — direita, só mobile -->
         <div class="topbar-logo-right">
           <svg width="32" height="32" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
-            <rect width="42" height="42" rx="9" fill="#f6921e"/>
+            <rect width="42" height="42" rx="9" fill="#f97316"/>
             <polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/>
             <polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/>
             <polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/>
@@ -1977,15 +2033,23 @@
     };
 
     const navItems = [
-      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
+      ["dashboard", "Visão do dia"], ["mesas", "Salão"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
       ["cardapio", "Cardápio"], ["comandas", "Comandas"], ["relatorios", "Relatórios"], ["dados", "Configurações"]
+    ];
+
+    // Agrupamento do menu lateral (só organização visual — ids inalterados).
+    const NAV_GROUPS = [
+      ["Operação", ["dashboard", "mesas", "comandas", "caixa"]],
+      ["Cadastros", ["cardapio", "custos", "insumos", "estoque", "clientes"]],
+      ["Gestão", ["metas", "previsao", "relatorios"]],
+      ["Config", ["dados", "empresas"]],
     ];
 
     const pageCopy = {
       dashboard: ["Visão do dia", ""],
       empresas: ["Empresas", ""],
       caixa: ["Caixa", ""],
-      mesas: ["Mesas e áreas", ""],
+      mesas: ["Salão", ""],
       estoque: ["Estoque", ""],
       insumos: ["Insumos", ""],
       custos: ["Fichas de custo", ""],
@@ -3469,9 +3533,19 @@
     }
 
     function renderNav() {
-      document.getElementById("nav").innerHTML = orderedMenuItems().map(({ id, label }) =>
-        `<button class="${id === activeSection() ? "active" : ""}" data-section="${id}">${icon(id)}<span>${escapeHTML(label)}</span></button>`
-      ).join("");
+      const items = orderedMenuItems();                       // já filtrado por permissão/ordem
+      const byId = new Map(items.map(it => [it.id, it]));
+      const used = new Set();
+      const btn = ({ id, label }) => { used.add(id); return `<button class="${id === activeSection() ? "active" : ""}" data-section="${id}">${icon(id)}<span>${escapeHTML(label)}</span></button>`; };
+      let html = "";
+      for (const [group, ids] of NAV_GROUPS) {
+        const groupItems = ids.map(id => byId.get(id)).filter(Boolean);
+        if (!groupItems.length) continue;
+        html += `<div class="nav-group"><div class="nav-eyebrow">${group}</div>${groupItems.map(btn).join("")}</div>`;
+      }
+      const rest = items.filter(it => !used.has(it.id));       // defensivo: nada some
+      if (rest.length) html += `<div class="nav-group"><div class="nav-eyebrow">Mais</div>${rest.map(btn).join("")}</div>`;
+      document.getElementById("nav").innerHTML = html;
     }
 
     function activeSection() {
@@ -3585,7 +3659,7 @@
             </form>
           </div>
           ${metaDia > 0 ? `
-            <div style="height:14px;border-radius:7px;background:#e8e0d8;overflow:hidden;margin-bottom:8px">
+            <div style="height:14px;border-radius:7px;background:#26262c;overflow:hidden;margin-bottom:8px">
               <div style="height:100%;width:${metaPct.toFixed(1)}%;background:${metaCor};border-radius:7px"></div>
             </div>
             <div style="display:flex;justify-content:space-between;font-size:12px">
@@ -3661,9 +3735,12 @@
       `;
     }
 
+    let salaoSel = null;
+
     function tableMap(draggable = false, allowOpen = true) {
       const open = state.commands.filter(c => c.status === "aberta");
       const onlyActive = Boolean(state.settings.tableOnlyActive);
+      const selName = String(salaoSel || "").toLowerCase();
       const content = (state.tables || []).sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => {
         const command = open.find(c => c.local.toLowerCase() === table.nome.toLowerCase());
         if (onlyActive && !command) return "";
@@ -3677,9 +3754,10 @@
         const paidBadge = command?.paidAt ? `<span class="table-paid-badge" title="Pago">✓</span>` : "";
         const mainText = command ? escapeHTML(command.cliente || "Avulso") : escapeHTML(table.nome);
         const subText = command ? `<span class="table-name">${escapeHTML(table.nome)}</span>` : "";
-        return `<button class="table-tile ${status.className}" ${style} data-table-id="${table.id}" ${openAttr}>
+        const selClass = selName && table.nome.toLowerCase() === selName ? " sel" : "";
+        return `<button class="table-tile ${status.className}${selClass}" ${style} data-table-id="${table.id}" ${openAttr}>
           ${paidBadge}
-          <div><strong class="table-client">${mainText}</strong>${subText}<span class="table-status">${statusText}</span></div>
+          <div><strong class="table-client">${mainText}</strong>${subText}<span class="table-status">${statusText}</span>${command ? `<span class="table-total">${money(commandTotal(command))}</span>` : ""}</div>
           <span class="table-resize-handle" data-resize-tables title="Ajustar tamanho das mesas"></span>
         </button>`;
       }).join("");
@@ -4059,7 +4137,7 @@
               const inS = "width:100%;box-sizing:border-box;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)";
               const lab = "display:flex;flex-direction:column;gap:3px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px";
               const un = escapeHTML(item.unidade || "");
-              return `<tr data-addstock-row="${item.id}"><td colspan="7" style="background:#fff6ec;padding:14px 16px;border-left:3px solid var(--brand)">
+              return `<tr data-addstock-row="${item.id}"><td colspan="7" style="background:#241a0f;padding:14px 16px;border-left:3px solid var(--brand)">
                 <div style="font-size:13px;font-weight:800;color:var(--brand);margin-bottom:2px">➕ Adicionar ao estoque — ${escapeHTML(item.item)}</div>
                 <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Saldo atual: <strong>${num(item.quantidade).toLocaleString("pt-BR",{maximumFractionDigits:3})} ${un}</strong> · custo médio atual <strong>${money(item.custo)}</strong></div>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px">
@@ -4101,38 +4179,85 @@
       </tbody></table>`;
     }
 
+    function salaoComandaPanel() {
+      // Comanda ao lado do mapa. Se a mesa selecionada tem comanda aberta, mostra o card;
+      // se está livre, oferece abrir; sem seleção, mostra a dica.
+      if (!salaoSel) {
+        return `<div class="salao-empty">
+          <div class="salao-empty-ico">${icon("mesas")}</div>
+          <strong>Toque numa mesa</strong>
+          <p>A comanda aparece aqui, ao lado do mapa.</p>
+        </div>`;
+      }
+      const table = (state.tables || []).find(t => t.nome.toLowerCase() === String(salaoSel).toLowerCase());
+      const command = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === String(salaoSel).toLowerCase());
+      if (command) return commandCard(command);
+      return `<div class="salao-empty">
+        <div class="salao-empty-ico">${icon("mesas")}</div>
+        <strong>${escapeHTML(table ? table.nome : salaoSel)}</strong>
+        <p>Mesa livre. Abra uma comanda para começar o pedido.</p>
+        <button class="btn" type="button" data-open-table="${escapeHTML(salaoSel)}" data-open-btn>${icon("comandas")}Abrir comanda</button>
+      </div>`;
+    }
+
+    function salaoSummary() {
+      const open = state.commands.filter(c => c.status === "aberta");
+      const byLocal = {};
+      open.forEach(c => { byLocal[String(c.local).toLowerCase()] = c; });
+      let livres = 0, ocupadas = 0, cozinha = 0, prontas = 0;
+      (state.tables || []).forEach(t => {
+        const c = byLocal[t.nome.toLowerCase()];
+        if (!c) { livres++; return; }
+        ocupadas++;
+        if (c.kitchenSentAt && !c.deliveredAt) cozinha++;
+        if (c.deliveredAt && !c.paidAt) prontas++;
+      });
+      return `<div class="salao-sum">
+        <span class="fs"><i style="background:var(--ok)"></i><b>${livres}</b> livres</span>
+        <span class="fs"><i style="background:var(--brand)"></i><b>${ocupadas}</b> ocupadas</span>
+        <span class="fs"><i style="background:#ff8a3a"></i><b>${cozinha}</b> na cozinha</span>
+        <span class="fs"><i style="background:var(--gold)"></i><b>${prontas}</b> p/ pagar</span>
+      </div>`;
+    }
+
     function renderTables() {
       document.getElementById("mesas").innerHTML = `
-        <div class="panel">
-          <h2>Mesas e áreas</h2>
-          <form id="tableForm">
-            <div class="form-grid">
-              <label>Nome<input name="nome" required placeholder="Mesa 5"></label>
-              <label>Área<input name="area" placeholder="Salão, janela, balcão"></label>
-              <label>Ordem<input name="ordem" type="number" value="${(state.tables || []).length + 1}"></label>
-              <label>Tamanho<input name="tamanho" type="number" min="108" max="180" value="${Math.max(108, num(state.settings.tableTileSize || 118))}"></label>
+        <div class="salao-grid">
+          <div class="salao-map">
+            <div class="panel">
+              ${salaoSummary()}
+              ${tableMapControls()}
+              ${tableLegend()}
+              ${tableMap(true)}
             </div>
-            <div class="actions"><button class="btn" type="submit">${icon("mesas")}Adicionar mesa</button></div>
-          </form>
-        </div>
 
-        <div class="panel" style="margin-top:16px">
-          <h2>Mapa das mesas</h2>
-          ${tableMapControls()}
-          ${tableLegend()}
-          ${tableMap(true)}
-        </div>
-
-        ${(state.tables || []).length ? `<div class="panel" style="margin-top:16px">
-          <h3>Mesas cadastradas</h3>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
-            ${state.tables.sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => `
-              <span style="display:inline-flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 12px;font-size:13px;font-weight:750">
-                <input data-rename-table="${table.id}" value="${escapeHTML(table.nome)}" style="border:none;background:transparent;font:inherit;font-weight:750;width:${Math.max(4, table.nome.length)}ch;padding:0;outline:none;cursor:text" title="Renomear">
-                <button data-delete-table="${table.id}" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0 2px" title="Excluir">×</button>
-              </span>`).join("")}
+            <div class="panel" style="margin-top:16px">
+              <details class="salao-manage"${(state.tables || []).length ? "" : " open"}>
+                <summary>Gerenciar mesas</summary>
+                <form id="tableForm" style="margin-top:12px">
+                  <div class="form-grid">
+                    <label>Nome<input name="nome" required placeholder="Mesa 5"></label>
+                    <label>Área<input name="area" placeholder="Salão, janela, balcão"></label>
+                    <label>Ordem<input name="ordem" type="number" value="${(state.tables || []).length + 1}"></label>
+                    <label>Tamanho<input name="tamanho" type="number" min="108" max="180" value="${Math.max(108, num(state.settings.tableTileSize || 118))}"></label>
+                  </div>
+                  <div class="actions"><button class="btn" type="submit">${icon("mesas")}Adicionar mesa</button></div>
+                </form>
+                ${(state.tables || []).length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+                  ${state.tables.sort((a, b) => num(a.ordem) - num(b.ordem)).map(table => `
+                    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 12px;font-size:13px;font-weight:750">
+                      <input data-rename-table="${table.id}" value="${escapeHTML(table.nome)}" style="border:none;background:transparent;font:inherit;font-weight:750;width:${Math.max(4, table.nome.length)}ch;padding:0;outline:none;cursor:text" title="Renomear">
+                      <button data-delete-table="${table.id}" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;padding:0 2px" title="Excluir">×</button>
+                    </span>`).join("")}
+                </div>` : ""}
+              </details>
+            </div>
           </div>
-        </div>` : ""}
+
+          <aside class="panel salao-comanda">
+            ${salaoComandaPanel()}
+          </aside>
+        </div>
       `;
     }
 
@@ -4366,8 +4491,8 @@
         const fifoNewCostPerUnit = fifoTotalCost / fifoRendimento;
         const fifoNewSuggested = fifoNewCostPerUnit * (1 + num(row.margem)/100);
         const fifoBanner = fifoItems.length ? `
-          <div style="background:#fff8e1;border:1px solid #f0ad4e;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
-            <div style="font-weight:700;color:#7a4f00;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
+          <div style="background:#241f10;border:1px solid rgba(240,169,46,.5);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
+            <div style="font-weight:700;color:#fb923c;margin-bottom:4px">⚠️ Lote FIFO com preço novo (${fifoItems.length} ingrediente${fifoItems.length>1?"s":""})</div>
             ${fifoItems.map(({ing, change}) => {
               const pct = change.original ? ((change.delta/change.original)*100).toFixed(1) : "—";
               return `<div>• <strong>${escapeHTML(ing.nome)}</strong>: ${money(change.original)} → <strong>${money(change.current)}</strong> <span style="color:${change.delta>0?"#c0392b":"#27ae60"}">(${change.delta>0?"+":""}${pct}%)</span></div>`;
@@ -4777,8 +4902,8 @@
       const _kbCs=commandStatus(command);
       const _kbCur=_kbCs==="paga"?"pago":_kbCs==="entregue"?"entregue":_kbCs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
       const _kbCi=_kbOrd.indexOf(_kbCur);
-      const _kbStps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
-      const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#d8d8d8;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
+      const _kbStps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
+      const _kbBar=`<div style="display:flex;border-radius:5px;overflow:hidden;gap:2px;background:#26262c;height:22px;margin-bottom:6px">${_kbStps.map((s,i)=>{const isAct=s.k===_kbCur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;cursor:${isAct?"default":"pointer"}">${s.l}</div>`}).join("")}</div>`;
       return `<div class="kanban-card" data-drag-id="${command.id}" data-open-kb="${command.id}">
         <div class="kanban-card-top">
           <span class="kanban-card-mesa">👤 ${cliente}</span>
@@ -4910,8 +5035,8 @@
       const _cur = _cs==="paga"?"pago":_cs==="entregue"?"entregue":_cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
       const _ord=["montando","feito","cozinha","entregue","pago"];
       const _ci=_ord.indexOf(_cur);
-      const _stps=[{k:"montando",l:"Novo",bg:"#e8e8e8",fg:"#444"},{k:"feito",l:"Pedido",bg:"#fff7d6",fg:"#a07000"},{k:"cozinha",l:"Cozinha",bg:"#fff0e0",fg:"#d96800"},{k:"entregue",l:"Entregue",bg:"#ddeeff",fg:"#1a68cc"},{k:"pago",l:"Pago",bg:"#d4f5e2",fg:"#1a7a45"}];
-      const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#d8d8d8;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#f0f0f0"};color:${isAct?s.fg:"#c0c0c0"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
+      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
+      const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#26262c;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
@@ -4982,11 +5107,11 @@
 
     function commandProgressBar(command) {
       const steps = [
-        { key: "montando", label: "Sem pedido",   bg: "#f3f3f3", fg: "#555555" },
-        { key: "feito",    label: "Pedido feito", bg: "#fff7d6", fg: "#a07000" },
-        { key: "cozinha",  label: "Na cozinha",   bg: "#fff0e0", fg: "#e07a00" },
-        { key: "entregue", label: "Entregue",     bg: "#e8f1ff", fg: "#2f80ed" },
-        { key: "pago",     label: "Pago",         bg: "#e6f9ee", fg: "#1a8a45" },
+        { key: "montando", label: "Sem pedido",   bg: "#2a2a31", fg: "#cfcfd6" },
+        { key: "feito",    label: "Pedido feito", bg: "#2a2411", fg: "#fb923c" },
+        { key: "cozinha",  label: "Na cozinha",   bg: "#2a1c10", fg: "#ff8a3a" },
+        { key: "entregue", label: "Entregue",     bg: "#141a26", fg: "#5b8def" },
+        { key: "pago",     label: "Pago",         bg: "#12211b", fg: "#4ade80" },
       ];
       const s = commandStatus(command);
       const current =
@@ -4996,9 +5121,9 @@
         (s === "aberta" && command.itens.length) ? "feito" : "montando";
       const cells = steps.map(step => {
         const active = step.key === current;
-        return `<div style="display:flex;align-items:center;justify-content:center;padding:0 3px;${active ? `background:${step.bg};color:${step.fg};font-weight:900;font-size:10px;` : "background:#f0f0f0;color:#c0c0c0;font-weight:600;font-size:10px;"}">${step.label}</div>`;
+        return `<div style="display:flex;align-items:center;justify-content:center;padding:0 3px;${active ? `background:${step.bg};color:${step.fg};font-weight:900;font-size:10px;` : "background:#1c1c20;color:#6f6e78;font-weight:600;font-size:10px;"}">${step.label}</div>`;
       }).join("");
-      return `<div style="display:grid;grid-template-columns:repeat(5,1fr);border-radius:7px;overflow:hidden;gap:2px;background:#e4e4e4;height:26px;margin-bottom:10px">${cells}</div>`;
+      return `<div style="display:grid;grid-template-columns:repeat(5,1fr);border-radius:7px;overflow:hidden;gap:2px;background:#26262c;height:26px;margin-bottom:10px">${cells}</div>`;
     }
 
     function commandItemRow(command, item, index) {
@@ -5355,7 +5480,7 @@
 
       // ── Formas de pagamento ──
       const _payAliases = { dinheiro:"💵 Dinheiro", cartão:"💳 Cartão", cartao:"💳 Cartão", pix:"📱 Pix", fiado:"📋 Fiado", credito:"💳 Crédito", debito:"💳 Débito" };
-      const _payColors = ["#f6921e","#4caf50","#2196f3","#9c27b0","#e91e63","#607d8b"];
+      const _payColors = ["#f97316","#4caf50","#2196f3","#9c27b0","#e91e63","#607d8b"];
       const _payRaw = {};
       orders.forEach(order => {
         if (!order.paidAt) return;
@@ -5422,7 +5547,7 @@
                 ${simpleCard("Custo estimado", money(_custoVendas), _comFicha+" tipo(s) com ficha."+(_semFicha > 0 ? " "+_semFicha+" sem ficha (ignorados)." : ""))}
                 <article class="simple-card"><span class="mini">Margem bruta</span><strong style="font-size:22px;color:${margemColor}">${margemBruta.toFixed(1).replace(".",",")}%</strong><p class="mini">Lucro: ${money(summary.vendas - _custoVendas)}</p></article>
               </div>
-              <div style="height:10px;border-radius:5px;background:#e8e0d8;overflow:hidden">
+              <div style="height:10px;border-radius:5px;background:#26262c;overflow:hidden">
                 <div style="height:100%;width:${Math.min(100,Math.max(0,margemBruta)).toFixed(1)}%;background:${margemColor};border-radius:5px"></div>
               </div>`}
         </div>
@@ -5437,7 +5562,7 @@
                     <span style="font-size:13px;font-weight:700">${escapeHTML(p.label)}</span>
                     <span style="font-size:11px;color:var(--muted)">${p.pct}% · ${money(p.total)} · ${p.count}×</span>
                   </div>
-                  <div style="height:8px;border-radius:4px;background:#e8e0d8;overflow:hidden">
+                  <div style="height:8px;border-radius:4px;background:#26262c;overflow:hidden">
                     <div style="height:100%;width:${p.pct}%;background:${p.color};border-radius:4px"></div>
                   </div>
                 </div>`).join("")}
@@ -5522,7 +5647,7 @@
                 const pct = (row.total / maxDowTotal * 100).toFixed(1);
                 return `<div style="display:flex;align-items:center;gap:10px">
                   <span style="font-size:12px;font-weight:600;width:28px;color:var(--muted);flex-shrink:0">${dowLabels[d]}</span>
-                  <div style="flex:1;height:22px;border-radius:4px;background:#f0ece6;overflow:hidden">
+                  <div style="flex:1;height:22px;border-radius:4px;background:#26262c;overflow:hidden">
                     <div style="height:100%;width:${pct}%;background:var(--brand);border-radius:4px;opacity:${row.count > 0 ? 1 : 0.15}"></div>
                   </div>
                   <span style="font-size:12px;width:84px;text-align:right;font-weight:${row.count > 0 ? 700 : 400};color:${row.count > 0 ? "var(--text)" : "var(--muted)"}">${row.count > 0 ? money(row.total) : "—"}</span>
@@ -5682,8 +5807,8 @@
             <p class="mini" style="color:var(--muted);margin-bottom:10px;font-weight:600">LOGO DA SIDEBAR</p>
             <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
               ${currentLogo
-                ? `<img src="${currentLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:10px;background:#f0ede8;padding:6px;" alt="Logo">`
-                : `<div style="width:56px;height:56px;border-radius:10px;background:#f0ede8;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
+                ? `<img src="${currentLogo}" style="width:56px;height:56px;object-fit:contain;border-radius:10px;background:#22222a;padding:6px;" alt="Logo">`
+                : `<div style="width:56px;height:56px;border-radius:10px;background:#22222a;display:grid;place-items:center;font-size:11px;color:#999;">Sem logo</div>`}
               <div style="display:flex;flex-direction:column;gap:8px">
                 <label class="btn secondary" style="cursor:pointer;margin:0">
                   📁 ${currentLogo ? "Trocar logo" : "Enviar logo"}
@@ -5696,8 +5821,8 @@
             <p class="mini" style="color:var(--muted);margin-bottom:10px;font-weight:600">FAVICON (ícone da aba do navegador)</p>
             <div style="display:flex;align-items:center;gap:16px">
               ${state.settings.favicon
-                ? `<img src="${state.settings.favicon}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#f0ede8;padding:4px;" alt="Favicon">`
-                : `<div style="width:32px;height:32px;border-radius:6px;background:#f0ede8;display:grid;place-items:center;font-size:9px;color:#999;text-align:center">Aba</div>`}
+                ? `<img src="${state.settings.favicon}" style="width:32px;height:32px;object-fit:contain;border-radius:6px;background:#22222a;padding:4px;" alt="Favicon">`
+                : `<div style="width:32px;height:32px;border-radius:6px;background:#22222a;display:grid;place-items:center;font-size:9px;color:#999;text-align:center">Aba</div>`}
               <div style="display:flex;flex-direction:column;gap:8px">
                 <label class="btn secondary" style="cursor:pointer;margin:0;font-size:12px">
                   📁 ${state.settings.favicon ? "Trocar favicon" : "Enviar favicon"}
@@ -6156,7 +6281,7 @@
         ? `<img src="${logo}" class="brand-mark" style="object-fit:contain;background:transparent;" alt="Logo">
            <div class="brand-wordmark"><strong>Perspecta</strong><span>Bistro</span></div>`
         : `<svg class="brand-mark" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
-             <rect width="42" height="42" rx="9" fill="#f6921e"/>
+             <rect width="42" height="42" rx="9" fill="#f97316"/>
              <polygon points="21,9 32,15.5 21,22 10,15.5" fill="#fff"/>
              <polygon points="10,15.5 21,22 21,33 10,26.5" fill="rgba(0,0,0,0.28)"/>
              <polygon points="21,22 32,15.5 32,26.5 21,33" fill="rgba(0,0,0,0.14)"/>
@@ -6171,7 +6296,7 @@
       const proxyBanner = document.getElementById("proxyBanner");
       if (proxyBanner) {
         if (currentSession?.type === "gestor-proxy") {
-          proxyBanner.innerHTML = `<button class="btn sidebar-logout" type="button" data-return-to-gestor style="background:rgba(246,146,30,.15);color:#f6921e;margin-bottom:6px;font-size:11px;width:100%">⬅ Voltar ao Gestor</button>`;
+          proxyBanner.innerHTML = `<button class="btn sidebar-logout" type="button" data-return-to-gestor style="background:rgba(246,146,30,.15);color:#f97316;margin-bottom:6px;font-size:11px;width:100%">⬅ Voltar ao Gestor</button>`;
         } else {
           proxyBanner.innerHTML = "";
         }
@@ -6378,9 +6503,17 @@
       const openTable = event.target.closest("[data-open-table]")?.dataset.openTable;
       if (openTable) {
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
-        if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
-        setSection("comandas");
-        save();
+        const explicitOpen = Boolean(event.target.closest("[data-open-table]")?.hasAttribute("data-open-btn"));
+        // No Salão: seleciona a mesa e mostra a comanda ao lado (só cria comanda ao clicar "Abrir comanda").
+        if (activeSection() === "mesas") {
+          salaoSel = openTable;
+          if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
+          save();
+        } else {
+          if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
+          setSection("comandas");
+          save();
+        }
       }
 
       const quickCommand = event.target.closest("[data-quick-command]")?.dataset.quickCommand;
