@@ -738,6 +738,18 @@
     .cash-status.open { background: rgba(74,222,128,.14); color: var(--ok); }
     .cash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 
+    /* Comanda — dobras compactas (editar / adicionar item) */
+    .cc-fold { margin: 8px 0; }
+    .cc-fold > summary {
+      list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      padding: 7px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2);
+    }
+    .cc-fold > summary::-webkit-details-marker { display: none; }
+    .cc-fold > summary:hover { color: var(--ink); border-color: var(--line-2); }
+    .cc-fold > summary.add { color: var(--brand); border-color: rgba(249,115,22,.35); }
+    .cc-fold[open] > summary { margin-bottom: 10px; }
+
     /* Ordem do menu — lista compacta com toggle */
     .order-list { display: flex; flex-direction: column; gap: 6px; }
     .order-row {
@@ -5150,33 +5162,39 @@
           </div>
           <strong>${money(commandTotal(command))}</strong>
         </div>
-        <form class="editCommandForm" data-command="${command.id}" style="margin-top:10px">
-          <div style="display:grid;grid-template-columns:1fr 2fr 52px 72px;gap:6px;align-items:end">
-            <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), command.local)}</label>
-            <label style="font-size:11px">Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
-            <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
-            <button class="btn ghost" type="submit">Salvar</button>
-          </div>
-        </form>
+        <details class="cc-fold">
+          <summary>✎ Editar mesa · cliente · qtd</summary>
+          <form class="editCommandForm" data-command="${command.id}">
+            <div style="display:grid;grid-template-columns:1fr 2fr 52px 72px;gap:6px;align-items:end">
+              <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), command.local)}</label>
+              <label style="font-size:11px">Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
+              <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
+              <button class="btn ghost" type="submit">Salvar</button>
+            </div>
+          </form>
+        </details>
         <div class="line-items" style="margin:10px 0">
           ${command.itens.length ? command.itens.map((item, index) => commandItemRow(command, item, index)).join("") : `<div class="empty">Sem itens</div>`}
         </div>
-        <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:10px">
-          <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:end;margin-bottom:8px">
-            <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
-            <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
-            <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
-          </div>
-          <div class="obs-addon-row">
-            <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
-            <details class="addon-mini">
-              <summary title="Adicionais">+</summary>
-              <div class="addon-list">
-                ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio.</span>`}
-              </div>
-            </details>
-          </div>
-        </form>
+        <details class="cc-fold" ${command.itens.length ? "" : "open"}>
+          <summary class="add">＋ Adicionar item</summary>
+          <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px">
+            <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:end;margin-bottom:8px">
+              <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
+              <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
+              <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
+            </div>
+            <div class="obs-addon-row">
+              <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
+              <details class="addon-mini">
+                <summary title="Adicionais">+</summary>
+                <div class="addon-list">
+                  ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio.</span>`}
+                </div>
+              </details>
+            </div>
+          </form>
+        </details>
         <div class="command-flow">
           ${_bar}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
