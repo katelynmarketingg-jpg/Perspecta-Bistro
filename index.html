@@ -4738,39 +4738,51 @@
       const publicUrl = companyId
         ? `${baseUrl}#cardapio-publico-${pubSlug}`
         : `${baseUrl}#cardapio-publico`;
+      const cnameTarget = location.hostname || "seu-sistema.perspecta.app";
+      const shareUrl = customDomain ? `https://${customDomain}/` : publicUrl;
       document.getElementById("cardapio").innerHTML = `
         <div class="panel">
-          <h2>Cardápio</h2>
-          <form id="settingsForm">
-            <div class="form-grid">
+          <div class="panel-h" style="display:flex;align-items:center;gap:9px;margin-bottom:13px"><h2 style="margin:0">Cardápio público</h2></div>
+
+          <label class="mini" style="font-weight:700;color:var(--muted)">Link para divulgar
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+              <input readonly id="publicLinkInput" value="${shareUrl}" style="flex:1;min-width:220px;font-size:13px">
+              <a class="btn ok" href="${publicUrl}" target="_blank">${icon("cardapio")}Abrir</a>
+              <button class="btn ghost" type="button" id="copyPublicLink">Copiar</button>
+            </div>
+          </label>
+
+          <form id="settingsForm" style="margin-top:16px">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr">
               <label>Nome do restaurante<input name="restaurant" value="${escapeHTML(state.settings.restaurant)}"></label>
               <label>WhatsApp para pedidos<input name="whatsapp" value="${escapeHTML(state.settings.whatsapp)}"></label>
-              <label style="grid-column:span 2">Logo da empresa <span class="mini" style="font-weight:400">— aparece centralizada bem no topo do cardápio público</span>
-                <input type="file" accept="image/*" id="logoUploadInput" style="font-size:13px">
-                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · máx 600 × 300 px · sem logo, aparece o nome do restaurante</span>`}
-              </label>
-              <label style="grid-column:span 2">Endereço do link <span class="mini" style="font-weight:400">— o nome que aparece no fim do link público</span>
+              <label style="grid-column:span 2">Endereço do link
                 <input name="publicSlug" value="${escapeHTML(pubSlug)}" placeholder="nome-do-seu-restaurante">
-                <span class="mini" style="display:block;margin-top:4px">Apenas letras, números e hífens. Ex.: <strong>cantinho-da-vovo</strong></span>
+                <span class="mini" style="display:block;margin-top:4px">Só letras, números e hífens — vira o fim do link: …/#cardapio-publico-<strong>${escapeHTML(pubSlug || "nome")}</strong></span>
               </label>
-              <label style="grid-column:span 2">Domínio próprio <span class="mini" style="font-weight:400">— opcional</span>
-                <input name="customDomain" value="${escapeHTML(customDomain)}" placeholder="cardapio.seurestaurante.com.br">
-                <span class="mini" style="display:block;margin-top:4px">Fica salvo para você usar o seu próprio endereço. A ativação do domínio é um passo à parte.</span>
+              <label style="grid-column:span 2">Logo da empresa
+                <input type="file" accept="image/*" id="logoUploadInput" style="font-size:13px">
+                ${state.settings.logoUrl ? `<span class="mini" style="display:block;margin-top:4px">✓ Logo carregado${state.settings.logoDims ? ` · <strong>${state.settings.logoDims}</strong>` : ""} · <button type="button" class="btn ghost" style="font-size:11px;padding:2px 8px" id="removeLogoBtn">Remover</button></span>` : `<span class="mini" style="display:block;margin-top:4px">PNG ou JPG · aparece no topo do cardápio</span>`}
               </label>
             </div>
-            <div class="actions">
-              <button class="btn secondary" type="submit">Salvar ajustes</button>
+
+            <div style="margin-top:14px;border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:var(--panel-2)">
+              <div style="font-weight:700;font-size:13px;font-family:var(--display)">Domínio próprio (CNAME) <span class="mini" style="font-weight:400;color:var(--muted)">— opcional</span></div>
+              <p class="mini" style="margin:4px 0 8px">Use o seu endereço no lugar do link do sistema. Ex.: <strong>cardapio.seurestaurante.com.br</strong></p>
+              <input name="customDomain" value="${escapeHTML(customDomain)}" placeholder="cardapio.seurestaurante.com.br">
+              <div class="mini" style="margin-top:10px;line-height:1.6">
+                No painel do seu domínio, crie um registro <strong>CNAME</strong> apontando para o sistema:
+                <div style="margin-top:6px;background:#000;border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow-x:auto;white-space:nowrap">
+                  <span style="color:var(--muted)">tipo</span> CNAME &nbsp;·&nbsp; <span style="color:var(--muted)">nome</span> ${escapeHTML((customDomain||"cardapio.seudominio.com.br").split(".")[0])} &nbsp;·&nbsp; <span style="color:var(--muted)">valor</span> <strong style="color:var(--ink)">${escapeHTML(cnameTarget)}</strong>
+                </div>
+                Depois de salvar e o DNS propagar (alguns minutos), o link acima já usa o seu domínio.
+              </div>
+            </div>
+
+            <div class="actions" style="margin-top:14px">
+              <button class="btn" type="submit">Salvar ajustes</button>
             </div>
           </form>
-        </div>
-        <div class="panel" style="margin-top:16px">
-          <h3>Link do cardápio público</h3>
-          <label>Link para divulgar<input readonly id="publicLinkInput" value="${publicUrl}" style="font-size:13px"></label>
-          <div class="actions" style="margin-top:12px">
-            <a class="btn ok" href="${publicUrl}" target="_blank">${icon("cardapio")}Abrir cardápio público</a>
-            <button class="btn ghost" type="button" id="copyPublicLink">Copiar link</button>
-          </div>
-          ${customDomain ? `<span class="mini" style="display:block;margin-top:10px">Domínio salvo: <strong>${escapeHTML(customDomain)}</strong> — será usado no link quando estiver conectado.</span>` : ""}
         </div>
         <div class="panel" style="margin-top:16px">
           <h3>Novo item</h3>
@@ -4996,6 +5008,7 @@
       }
 
       document.getElementById("comandas").innerHTML = `
+        ${salaoSummary()}
         <div class="panel">
           <form id="commandForm">
             <div class="form-grid" style="grid-template-columns:1fr 1fr 72px;gap:8px">
@@ -5531,7 +5544,7 @@
           </form>
         </div>
 
-        <div class="simple-card-grid" style="margin-top:16px">
+        <div class="simple-card-grid" style="margin-top:16px;grid-template-columns:repeat(4,minmax(0,1fr))">
           ${simpleCard("Pedidos no período", summary.pedidos, "Quantidade de comandas/vendas encontradas.")}
           ${simpleCard("Vendas do período", money(summary.vendas), "Valor total vendido no filtro.")}
           ${simpleCard("Itens vendidos", summary.itens, "Soma das quantidades vendidas.")}
