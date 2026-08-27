@@ -2215,6 +2215,9 @@
         clientPassword: "",
         theme: "preto-laranja",
         menuNote: "Pedido finalizado pelo WhatsApp da empresa.",
+        // Mensagem do pedido enviada no WhatsApp. A dona edita nas Configurações.
+        // Marcadores entre { }: {restaurante} {cliente} {tipo} {telefone} {itens} {total}
+        orderMessage: "*🍽️ Novo Pedido — {restaurante}*\nCliente: {cliente}\nTipo: {tipo}\n\n📦 *Itens:*\n{itens}\n\n💰 *Total: {total}*",
         logoUrl: null,
         perspectaLogo: null,
         favicon: null,
@@ -3224,6 +3227,7 @@
           restaurant: s.restaurant || "",
           logoUrl: s.logoUrl || null,
           menuNote: s.menuNote || "",
+          orderMessage: s.orderMessage || "",
           whatsapp: s.whatsapp || "",
           theme: s.theme || "",
           favicon: s.favicon || null,
@@ -4986,6 +4990,13 @@
               <div class="form-grid" style="grid-template-columns:1fr 1fr">
                 <label>Nome do restaurante<input name="restaurant" value="${escapeHTML(state.settings.restaurant)}"></label>
                 <label>WhatsApp para pedidos<input name="whatsapp" value="${escapeHTML(state.settings.whatsapp)}"></label>
+                <label style="grid-column:span 2">Frase no topo do cardápio
+                  <input name="menuNote" value="${escapeHTML(state.settings.menuNote || "")}" placeholder="Ex: Escolha os itens e finalize no WhatsApp.">
+                </label>
+                <label style="grid-column:span 2">Mensagem do pedido (WhatsApp)
+                  <textarea name="orderMessage" rows="7" style="font:inherit;font-size:14px;line-height:1.5;resize:vertical">${escapeHTML(state.settings.orderMessage || "")}</textarea>
+                  <span class="mini" style="display:block;margin-top:4px">Marcadores (troca sozinho): <strong>{restaurante}</strong> <strong>{cliente}</strong> <strong>{tipo}</strong> <strong>{telefone}</strong> <strong>{itens}</strong> <strong>{total}</strong></span>
+                </label>
                 <label style="grid-column:span 2">Endereço do link
                   <input name="publicSlug" value="${escapeHTML(pubSlug)}" placeholder="nome-do-seu-restaurante">
                   <span class="mini" style="display:block;margin-top:4px">Só letras, números e hífens.</span>
@@ -7925,12 +7936,22 @@
         // bloqueado no celular (não é gesto do usuário) e window.location.href levava
         // a página inteira embora ("o pedido só fechava"). Em vez disso, mostramos um
         // link tocável (gesto real → abre certo) e um resultado que FICA na tela.
-        const msg = `*🍽️ Novo Pedido — ${escapeHTML(state.settings.restaurant)}*\nCliente: ${nome}\nTipo: ${tipoLabel}\n\n📦 *Itens:*\n${lines}\n\n💰 *Total: ${money(pmCartTotal())}*\n\n${saved ? "✅ Pedido registrado no sistema!" : "⚠️ Confirme o recebimento com o restaurante."}`;
+        // Mensagem configurável pela dona (Configurações → Mensagem do pedido).
+        // Troca os marcadores {…}; se estiver vazia, usa um padrão.
+        const tpl = (state.settings.orderMessage && state.settings.orderMessage.trim())
+          || "*🍽️ Novo Pedido — {restaurante}*\nCliente: {cliente}\nTipo: {tipo}\n\n📦 *Itens:*\n{itens}\n\n💰 *Total: {total}*";
+        const vars = {
+          restaurante: state.settings.restaurant || "", cliente: nome, tipo: tipoLabel,
+          telefone: telefone || "", itens: lines, total: money(pmCartTotal()),
+        };
+        const preenchida = tpl.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+        const confirmacao = saved ? "✅ Pedido registrado no sistema!" : "⚠️ Confirme o recebimento com o restaurante.";
+        const msg = `${preenchida}\n\n${confirmacao}`;
         const waUrl = whatsappLink(state.settings.whatsapp, msg);
         const status = document.getElementById("pmCheckoutStatus");
         const submitBtn = form.querySelector('button[type="submit"]');
         const waLink = state.settings.whatsapp
-          ? `<a href="${waUrl}" target="_blank" rel="noopener" class="pm-wa-btn" style="margin-top:10px;text-decoration:none;display:flex">Avisar pelo WhatsApp</a>`
+          ? `<a href="${waUrl}" target="_blank" rel="noopener" class="pm-wa-btn" style="margin-top:10px;text-decoration:none;display:flex">Fazer pedido pelo WhatsApp →</a>`
           : "";
         if (saved) {
           publicCart = [];
