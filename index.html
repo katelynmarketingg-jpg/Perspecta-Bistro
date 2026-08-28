@@ -1586,7 +1586,8 @@
 
     /* Custom select */
     .csel { position:relative; display:inline-block; }
-    .csel-trigger { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); cursor:pointer; font-size:13px; user-select:none; white-space:nowrap; min-height:36px; box-sizing:border-box; }
+    .csel-trigger { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); cursor:pointer; font-size:13px; user-select:none; white-space:nowrap; min-height:36px; box-sizing:border-box; overflow:hidden; }
+    .csel-val { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
     .csel-trigger::after { content:'▾'; font-size:10px; color:var(--muted); flex-shrink:0; }
     .csel-drop { position:absolute; top:calc(100% + 4px); left:0; min-width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:9000; overflow:hidden; display:none; max-height:240px; overflow-y:auto; }
     .csel-drop.open { display:block; }
@@ -3553,8 +3554,8 @@
     }
     // Traduz a comanda no status que o cliente vê.
     function orderCustomerStatus(c) {
-      if (c.paidAt || c.status === "fechada") return "finalizado";
-      if (c.deliveredAt) return "entrega";
+      if (c.paidAt || c.deliveredAt || c.status === "fechada") return "finalizado";
+      if (c.dispatchedAt || c.readyAt) return "entrega"; // "Saiu para entrega" / "Pronto para retirar"
       if (c.kitchenSentAt) return "cozinha";
       return "recebido";
     }
@@ -3802,16 +3803,32 @@
       return "aberta";
     }
 
+    // Etapa detalhada (com Pronto e Saiu para entrega). Fonte única da verdade.
+    function commandStage(command) {
+      if (command.paidAt) return "pago";
+      if (command.deliveredAt) return "entregue";
+      if (command.dispatchedAt) return "saiu";
+      if (command.readyAt) return "pronto";
+      if (command.kitchenSentAt) return "cozinha";
+      if (command.itens && command.itens.length) return "feito";
+      return "montando";
+    }
+    function isDeliveryCmd(c) { return c.tipoEntrega === "tele" || c.tipo === "tele"; }
+    const STAGE_LABEL = { montando: "Sem pedido", feito: "Pedido feito", cozinha: "Na cozinha", pronto: "Pronto", saiu: "Saiu p/ entrega", entregue: "Entregue", pago: "Pago" };
+
     function commandStatusText(command) {
-      const status = commandStatus(command);
+      if (command.closedAt) return "Fechada";
+      const st = commandStage(command);
       const labels = {
-        aberta: "Montando pedido",
+        montando: "Montando pedido",
+        feito: "Pedido feito",
         cozinha: "Enviado para cozinha",
+        pronto: "Pronto",
+        saiu: "Saiu para entrega",
         entregue: "Pedido entregue",
-        paga: `Pago${command.paymentMethod ? ` em ${command.paymentMethod}` : ""}`,
-        fechada: "Fechada"
+        pago: `Pago${command.paymentMethod ? ` em ${command.paymentMethod}` : ""}`,
       };
-      return labels[status] || "Aberta";
+      return labels[st] || "Aberta";
     }
 
     function todaySales() {
@@ -5345,10 +5362,10 @@
     }
 
     function commandStatusChip(command) {
-      const s = commandStatus(command);
-      const display = (s === "aberta" && command.itens.length) ? "feito" : s === "aberta" ? "montando" : s === "cozinha" ? "cozinha" : s === "entregue" ? "entregue" : "pago";
-      const labels = { montando: "Montando", feito: "Pedido feito", cozinha: "Na cozinha", entregue: "Entregue", pago: "Pago" };
-      return `<span class="cmd-status-chip ${display}">${labels[display] || display}</span>`;
+      const st = commandStage(command);
+      // reaproveita as cores existentes (pronto/saiu herdam o visual de cozinha/entregue)
+      const cls = st === "pronto" ? "cozinha" : st === "saiu" ? "entregue" : st;
+      return `<span class="cmd-status-chip ${cls}">${STAGE_LABEL[st] || st}</span>`;
     }
 
     function commandKanbanCard(command) {
@@ -5359,15 +5376,23 @@
       const pessoas = Math.max(1, num(command.pessoas || 1));
       const itens = command.itens.length;
       let action = "";
-      if (status === "aberta" && !itens) {
+      const stage = commandStage(command);
+      const entregar = `<button class="btn ghost btn-sm" style="width:100%" data-deliver-command="${command.id}">✓ Marcar entregue</button>`;
+      if (stage === "montando") {
         action = `<span class="mini" style="color:var(--muted)">Sem itens</span>`;
-      } else if (status === "aberta") {
+      } else if (stage === "feito") {
         action = `<button class="btn secondary btn-sm" style="width:100%" data-send-kitchen="${command.id}">🍳 Mandar para cozinha</button>`;
-      } else if (status === "cozinha") {
-        action = `<button class="btn ghost btn-sm" style="width:100%" data-deliver-command="${command.id}">✓ Marcar entregue</button>`;
-      } else if (status === "entregue") {
+      } else if (stage === "cozinha") {
+        action = `<button class="btn secondary btn-sm" style="width:100%" data-mark-ready="${command.id}">🔔 Marcar pronto</button>`;
+      } else if (stage === "pronto") {
+        action = isDeliveryCmd(command)
+          ? `<button class="btn secondary btn-sm" style="width:100%" data-dispatch="${command.id}">🛵 Saiu para entrega</button>`
+          : entregar;
+      } else if (stage === "saiu") {
+        action = entregar;
+      } else if (stage === "entregue") {
         action = `<div class="kb-pay-row">${cselBuild("_kbpay_"+command.id,[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro","width:100%")}<button class="btn ok btn-sm" data-pay-kanban="${command.id}">💰 Pagar</button></div>`;
-      } else if (status === "paga") {
+      } else if (stage === "pago") {
         action = `<button class="btn ok btn-sm" style="width:100%" data-close-command="${command.id}">✓ Liberar mesa</button>`;
       }
       const _kbItems = command.itens.length
@@ -5407,11 +5432,14 @@
       const status = commandStatus(command);
       const total = commandTotal(command);
       const paySelect = `<span class="list-pay-inline" style="display:inline-flex;align-items:center;gap:6px">${cselBuild("_kbpay_"+command.id,[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro","min-width:110px")}<button class="btn ok btn-sm" data-pay-kanban="${command.id}">Pagar</button></span>`;
+      const _st = commandStage(command);
       const actions = [
-        status === "aberta" && command.itens.length ? `<button class="btn secondary btn-sm" data-send-kitchen="${command.id}">Cozinha</button>` : "",
-        status === "cozinha" ? `<button class="btn ghost btn-sm" data-deliver-command="${command.id}">Entregue</button>` : "",
-        status === "entregue" ? paySelect : "",
-        status === "paga" ? `<button class="btn ok btn-sm" data-close-command="${command.id}">Liberar</button>` : "",
+        _st === "feito" ? `<button class="btn secondary btn-sm" data-send-kitchen="${command.id}">Cozinha</button>` : "",
+        _st === "cozinha" ? `<button class="btn secondary btn-sm" data-mark-ready="${command.id}">Pronto</button>` : "",
+        _st === "pronto" && isDeliveryCmd(command) ? `<button class="btn secondary btn-sm" data-dispatch="${command.id}">Saiu</button>` : "",
+        (_st === "pronto" && !isDeliveryCmd(command)) || _st === "saiu" ? `<button class="btn ghost btn-sm" data-deliver-command="${command.id}">Entregue</button>` : "",
+        _st === "entregue" ? paySelect : "",
+        _st === "pago" ? `<button class="btn ok btn-sm" data-close-command="${command.id}">Liberar</button>` : "",
       ].filter(Boolean).join(" ");
       return `<tr>
         <td><strong>${escapeHTML(command.local)}</strong>${command.source === "whatsapp" ? ` <span class="badge-wa" style="font-size:10px;padding:1px 5px">📲</span>` : ""}</td>
@@ -5439,11 +5467,13 @@
         content = `${viewToggle}<div class="command-grid">${open.length ? open.map(commandCard).join("") : empty("Nenhuma comanda aberta.")}</div>`;
       } else if (mode === "colunas") {
         const cols = [
-          { id: "montando", label: "Sem pedido",   filter: c => !c.itens.length },
-          { id: "feito",    label: "Pedido feito", filter: c => c.itens.length && !c.kitchenSentAt },
-          { id: "cozinha",  label: "Na cozinha",   filter: c => c.kitchenSentAt && !c.deliveredAt },
-          { id: "entregue", label: "Entregue",     filter: c => c.deliveredAt && !c.paidAt },
-          { id: "pago",     label: "Pago",         filter: c => !!c.paidAt },
+          { id: "montando", label: "Sem pedido",     filter: c => commandStage(c) === "montando" },
+          { id: "feito",    label: "Pedido feito",   filter: c => commandStage(c) === "feito" },
+          { id: "cozinha",  label: "Na cozinha",     filter: c => commandStage(c) === "cozinha" },
+          { id: "pronto",   label: "Pronto",         filter: c => commandStage(c) === "pronto" },
+          { id: "saiu",     label: "Saiu p/ entrega", filter: c => commandStage(c) === "saiu" },
+          { id: "entregue", label: "Entregue",       filter: c => commandStage(c) === "entregue" },
+          { id: "pago",     label: "Pago",           filter: c => commandStage(c) === "pago" },
         ].map(col => {
           const cards = open.filter(col.filter);
           return `<div class="kanban-col" data-drop-col="${col.id}">
@@ -5514,11 +5544,11 @@
       const waBadge = command.source === "whatsapp" ? `<span class="badge-wa">📲 Online</span>` : "";
       const clienteName = escapeHTML(command.cliente || "Avulso");
       const pessoas = Math.max(1, num(command.pessoas || 1));
-      const _cs = commandStatus(command);
-      const _cur = _cs==="paga"?"pago":_cs==="entregue"?"entregue":_cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
-      const _ord=["montando","feito","cozinha","entregue","pago"];
+      const _cur = commandStage(command);
+      const _isDeliv = isDeliveryCmd(command);
+      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"pronto",l:"Pronto",bg:"#1f2410",fg:"#a3e635"},...(_isDeliv?[{k:"saiu",l:"Saiu",bg:"#231a0f",fg:"#fbbf24"}]:[]),{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
+      const _ord=_stps.map(s=>s.k);
       const _ci=_ord.indexOf(_cur);
-      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
       const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#26262c;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
@@ -5556,7 +5586,7 @@
         <details class="cc-fold" ${command.itens.length ? "" : "open"}>
           <summary class="add">＋ Adicionar item</summary>
           <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px">
-            <div style="display:grid;grid-template-columns:1fr 80px 90px;gap:8px;align-items:end;margin-bottom:8px">
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) 64px auto;gap:8px;align-items:end;margin-bottom:8px">
               <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
               <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
               <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
@@ -5574,9 +5604,11 @@
         </details>
         <div class="command-flow">
           ${_bar}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-            <button class="btn secondary" type="button" data-send-kitchen="${command.id}">Cozinha</button>
-            <button class="btn ghost" type="button" data-deliver-command="${command.id}">Entregue</button>
+          <div style="display:grid;grid-template-columns:repeat(${_isDeliv?4:3},1fr);gap:6px;margin-bottom:8px">
+            <button class="btn ${_cur==="cozinha"?"ok":"secondary"} btn-sm" type="button" data-send-kitchen="${command.id}">Cozinha</button>
+            <button class="btn ${_cur==="pronto"?"ok":"secondary"} btn-sm" type="button" data-mark-ready="${command.id}">Pronto</button>
+            ${_isDeliv?`<button class="btn ${_cur==="saiu"?"ok":"secondary"} btn-sm" type="button" data-dispatch="${command.id}">Saiu</button>`:""}
+            <button class="btn ${_cur==="entregue"?"ok":"ghost"} btn-sm" type="button" data-deliver-command="${command.id}">Entregue</button>
           </div>
           ${command.paidAt ? "" : `<div class="pay-box">
             <div class="pay-eyebrow">Pagamento</div>
@@ -7065,12 +7097,22 @@
       if (!command) return;
       const now = new Date().toISOString();
       if (targetCol === "montando" || targetCol === "feito") {
-        command.kitchenSentAt = null; command.deliveredAt = null; command.paidAt = null;
+        command.kitchenSentAt = null; command.readyAt = null; command.dispatchedAt = null; command.deliveredAt = null; command.paidAt = null;
       } else if (targetCol === "cozinha") {
         command.kitchenSentAt = command.kitchenSentAt || now;
+        command.readyAt = null; command.dispatchedAt = null; command.deliveredAt = null; command.paidAt = null;
+      } else if (targetCol === "pronto") {
+        command.kitchenSentAt = command.kitchenSentAt || now;
+        command.readyAt = command.readyAt || now;
+        command.dispatchedAt = null; command.deliveredAt = null; command.paidAt = null;
+      } else if (targetCol === "saiu") {
+        command.kitchenSentAt = command.kitchenSentAt || now;
+        command.readyAt = command.readyAt || now;
+        command.dispatchedAt = command.dispatchedAt || now;
         command.deliveredAt = null; command.paidAt = null;
       } else if (targetCol === "entregue") {
         command.kitchenSentAt = command.kitchenSentAt || now;
+        command.readyAt = command.readyAt || now;
         command.deliveredAt = command.deliveredAt || now;
         command.paidAt = null;
       } else if (targetCol === "pago") {
@@ -7588,43 +7630,35 @@
         save();
       }
 
-      // ── Status bar step click ──
+      // ── Status bar step click (montando→feito→cozinha→pronto→saiu→entregue→pago) ──
       const stepAdvance = event.target.closest("[data-step-advance]")?.dataset.stepAdvance;
       if (stepAdvance) {
         const [cmdId, step] = stepAdvance.split(":");
         const command = state.commands.find(c => c.id === cmdId);
         if (command) {
-          const ord = ["montando","feito","cozinha","entregue","pago"];
-          const cs = commandStatus(command);
-          const cur = cs==="paga"?"pago":cs==="entregue"?"entregue":cs==="cozinha"?"cozinha":(command.itens&&command.itens.length?"feito":"montando");
-          const curI = ord.indexOf(cur), stepI = ord.indexOf(step);
-          if (stepI !== curI) {
+          const ord = ["montando","feito","cozinha","pronto","saiu","entregue","pago"];
+          const curI = ord.indexOf(commandStage(command)), stepI = ord.indexOf(step);
+          if (stepI !== curI && stepI >= 0) {
             const _now = new Date().toISOString();
             if (stepI > curI) {
-              if (step === "cozinha") {
-                if (!(command.itens||[]).length) { showToast("Adicione itens antes de mandar para a cozinha.", 2500); }
-                else {
-                  command.kitchenSentAt = _now; save(); printKitchenCommand(command);
-                  // O cliente acompanha em "Meus pedidos" (sem mensagem de WhatsApp).
-                }
-              } else if (step === "entregue") {
-                if (!command.kitchenSentAt) command.kitchenSentAt = _now;
-                command.deliveredAt = _now; save(); renderCommands();
-                // O cliente vê "saiu para entrega" em "Meus pedidos".
-              } else if (step === "pago") {
-                if (!command.kitchenSentAt) command.kitchenSentAt = _now;
-                if (!command.deliveredAt) command.deliveredAt = _now;
-                command.paidAt = _now;
-                command.paymentMethod = "dinheiro";
-                command.paymentAmount = commandTotal(command);
-                save(); renderCommands();
+              // avançar: preenche o que falta até o passo escolhido
+              if (stepI >= 2) {
+                if (!(command.itens||[]).length) { showToast("Adicione itens antes de mandar para a cozinha.", 2500); return; }
+                if (!command.kitchenSentAt) { command.kitchenSentAt = _now; printKitchenCommand(command); }
               }
+              if (stepI >= 3 && !command.readyAt) command.readyAt = _now;
+              if (stepI >= 4 && isDeliveryCmd(command) && !command.dispatchedAt) command.dispatchedAt = _now;
+              if (stepI >= 5 && !command.deliveredAt) command.deliveredAt = _now;
+              if (stepI >= 6) { command.paidAt = _now; command.paymentMethod = command.paymentMethod || "dinheiro"; command.paymentAmount = commandTotal(command); }
             } else {
-              if (step === "montando" || step === "feito") { command.kitchenSentAt = null; command.deliveredAt = null; command.paidAt = null; }
-              else if (step === "cozinha") { command.deliveredAt = null; command.paidAt = null; }
-              else if (step === "entregue") { command.paidAt = null; }
-              save(); renderCommands();
+              // voltar: limpa as etapas à frente do passo escolhido
+              if (stepI < 2) command.kitchenSentAt = null;
+              if (stepI < 3) command.readyAt = null;
+              if (stepI < 4) command.dispatchedAt = null;
+              if (stepI < 5) command.deliveredAt = null;
+              if (stepI < 6) command.paidAt = null;
             }
+            save(); renderCommands();
           }
         }
       }
@@ -7641,6 +7675,31 @@
             printKitchenCommand(command);
             // Sem mensagem de WhatsApp — o cliente acompanha em "Meus pedidos".
           }
+        }
+      }
+
+      // Marcar PRONTO (comida pronta, antes de sair/entregar)
+      const markReady = event.target.closest("[data-mark-ready]")?.dataset.markReady;
+      if (markReady) {
+        const command = state.commands.find(c => c.id === markReady);
+        if (command) {
+          if (!command.kitchenSentAt) command.kitchenSentAt = new Date().toISOString();
+          command.readyAt = new Date().toISOString();
+          command.dispatchedAt = null; command.deliveredAt = null; command.paidAt = null;
+          save(); renderCommands();
+        }
+      }
+
+      // SAIU PARA ENTREGA (delivery)
+      const dispatchCmd = event.target.closest("[data-dispatch]")?.dataset.dispatch;
+      if (dispatchCmd) {
+        const command = state.commands.find(c => c.id === dispatchCmd);
+        if (command) {
+          if (!command.kitchenSentAt) command.kitchenSentAt = new Date().toISOString();
+          if (!command.readyAt) command.readyAt = new Date().toISOString();
+          command.dispatchedAt = new Date().toISOString();
+          command.deliveredAt = null; command.paidAt = null;
+          save(); renderCommands();
         }
       }
 
