@@ -739,6 +739,8 @@
     .cash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 
     /* Comanda — dobras compactas (editar / adicionar item) */
+    .cc-order-info { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 12px; line-height: 1.5; color: var(--ink); }
+    .cc-order-info div { white-space: normal; word-break: break-word; }
     .cc-fold { margin: 8px 0; }
     .cc-fold > summary {
       list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
@@ -3224,7 +3226,14 @@
             referencia: order.referencia || "",
             tipoEntrega: order.tipo || "retirada",
             tipoLabel: order.tipoLabel || "",
-            telefone: order.telefone || ""
+            telefone: order.telefone || "",
+            // Detalhes do pedido do site (entram na comanda p/ cozinha/entrega).
+            entrega: num(order.entrega) || 0,
+            bairro: order.bairro || "",
+            observacao: order.observacao || "",
+            trocoPara: num(order.trocoPara) || 0,
+            troco: num(order.troco) || 0,
+            paymentMethod: order.paymentMethod || ""
           });
           ensureClientFromCommand(order.nome || "WhatsApp");
           newCmds++;
@@ -3728,7 +3737,7 @@
     }
 
     function commandTotal(command) {
-      return (command.itens || []).reduce((sum, item) => sum + commandItemTotal(item), 0);
+      return (command.itens || []).reduce((sum, item) => sum + commandItemTotal(item), 0) + num(command.entrega);
     }
 
     function commandItemAddons(item) {
@@ -5468,6 +5477,15 @@
           </div>
           <strong>${money(commandTotal(command))}</strong>
         </div>
+        ${(command.referencia || command.telefone || command.entrega || command.troco || command.observacao) ? `
+        <div class="cc-order-info">
+          ${command.referencia ? `<div>📍 ${escapeHTML(command.referencia)}</div>` : ""}
+          ${command.telefone ? `<div>📱 ${escapeHTML(command.telefone)}</div>` : ""}
+          ${command.entrega ? `<div>🛵 Entrega: ${money(command.entrega)}</div>` : ""}
+          ${command.paymentMethod ? `<div>💳 ${escapeHTML(command.paymentMethod)}</div>` : ""}
+          ${command.troco ? `<div>💵 Troco p/ ${money(command.trocoPara)} · levar ${money(command.troco)}</div>` : ""}
+          ${command.observacao ? `<div>📝 ${escapeHTML(command.observacao)}</div>` : ""}
+        </div>` : ""}
         <details class="cc-fold">
           <summary>✎ Editar mesa · cliente · qtd</summary>
           <form class="editCommandForm" data-command="${command.id}">
