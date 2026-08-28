@@ -739,6 +739,9 @@
     .cash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 
     /* Comanda — dobras compactas (editar / adicionar item) */
+    /* "Mandar para cozinha" em laranja (destaque da ação principal) */
+    .btn[data-send-kitchen] { background: var(--brand) !important; border-color: var(--brand) !important; color: #1c1c20 !important; font-weight: 800; }
+    .btn[data-send-kitchen]:hover { background: #d96a18 !important; border-color: #d96a18 !important; }
     .cc-order-info { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 12px; line-height: 1.5; color: var(--ink); }
     .cc-order-info div { white-space: normal; word-break: break-word; }
     .cc-fold { margin: 8px 0; }
