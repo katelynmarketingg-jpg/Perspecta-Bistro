@@ -58,7 +58,9 @@ async function readJson(req) {
   } catch { return {}; }
 }
 
-const norm = (s) => String(s || "").trim().toLowerCase();
+// Normaliza p/ comparar login: minúsculas, sem espaços nas pontas e SEM ACENTO
+// ("Aliança" == "alianca"), pra não travar o acesso por causa de cedilha/til.
+const norm = (s) => String(s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 // Mesmo esquema do cliente (index.html): passHash = "salt$hexSHA256(salt + ':' + senha)".
 function verifyPassHash(senha, passHash) {
@@ -111,12 +113,16 @@ module.exports = async (req, res) => {
       return res.status(200).json({ token, role: "gestor" });
     }
     // ── Empresa ──
+    // Casa se o que foi digitado (no campo Empresa OU Nome) bater com o NOME ou o
+    // LOGIN da empresa (sem acento) E a senha conferir. Não exige mais o campo
+    // "responsável" — muita gente digita o nome da loja nos dois campos, e a senha
+    // já garante a segurança. Isso destrava o acesso de qualquer aparelho.
     for (const c of (master.companies || [])) {
       if (!c || c.status === "inativo") continue;
-      const nomeOk = norm(c.nome) === emp;
-      const pessoaOk = !c.responsavel || norm(c.responsavel) === pes;
-      const loginAntigo = c.login && (norm(c.login) === emp || norm(c.login) === pes);
-      if (((nomeOk && pessoaOk) || loginAntigo) && credOk(senha, c)) {
+      const cand = [emp, pes];
+      const nomeOk = cand.includes(norm(c.nome));
+      const loginOk = c.login && cand.includes(norm(c.login));
+      if ((nomeOk || loginOk) && credOk(senha, c)) {
         const uid = String(c.id);
         const token = await admin.auth(app).createCustomToken(uid, { role: "company", storeId: uid });
         return res.status(200).json({ token, role: "company", company: { id: c.id, nome: c.nome, login: c.login || null } });
