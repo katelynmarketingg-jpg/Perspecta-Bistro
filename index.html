@@ -2095,6 +2095,22 @@
   </style>
 </head>
 <body>
+  <script>
+    // Domínio do cardápio (ex.: cardapiobistro.perspecta.app.br/<restaurante>):
+    // transforma o caminho no link do cardápio público ANTES de qualquer render,
+    // pra NÃO piscar a tela de login. O nome no caminho vira o "slug" do
+    // restaurante — o mesmo definido em Configurações → Nome do cardápio.
+    //   cardapiobistro.perspecta.app.br/alianca  →  #cardapio-publico-alianca
+    (function () {
+      try {
+        if (location.hash.indexOf("#cardapio-publico") === 0) return;
+        if (!/cardapio/i.test(location.hostname)) return; // só no domínio do cardápio
+        var seg = (location.pathname || "").split("/").filter(Boolean)[0] || "";
+        var slug = seg.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+        history.replaceState(null, "", (location.pathname || "/") + "#cardapio-publico" + (slug ? "-" + slug : ""));
+      } catch (e) {}
+    })();
+  </script>
   <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <!-- LOGIN SCREEN -->
   <div id="loginScreen">
