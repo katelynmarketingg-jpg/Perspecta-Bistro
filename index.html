@@ -1461,6 +1461,10 @@
     .kanban-card-cliente { font-size: 12px; font-weight: 700; color: var(--brand); }
     .kanban-card-meta { font-size: 11px; color: var(--muted); }
     .kanban-card-action { margin-top: 3px; }
+    .kb-drink-row { display: flex; justify-content: flex-end; margin: 4px 0 2px; }
+    .btn-drink { background: rgba(59,130,246,.16); border: 1px solid rgba(59,130,246,.55); color: #7fb2ff; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 800; cursor: pointer; }
+    .btn-drink:hover { background: rgba(59,130,246,.28); color: #cfe0ff; }
+    .kbi.drink-done { color: var(--faint); text-decoration: line-through; }
     .kb-pay-row { display: flex; gap: 5px; align-items: center; }
     .kb-pay-row select { flex: 1; font-size: 11px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); }
 
@@ -3902,6 +3906,10 @@
       return "montando";
     }
     function isDeliveryCmd(c) { return c.tipoEntrega === "tele" || c.tipo === "tele"; }
+    // Bebida: pela categoria do item (no próprio item ou buscando no cardápio pelo id).
+    function itemCategoria(item) { return item.categoria || ((state.menu || []).find(m => m.id === item.id) || {}).categoria || ""; }
+    function isDrinkItem(item) { return /bebida|drink|suco|refri|caf[eé]/i.test(itemCategoria(item)); }
+    function commandUndeliveredDrinks(command) { return (command.itens || []).filter(it => isDrinkItem(it) && !it.bebidaEntregue); }
     const STAGE_LABEL = { montando: "Sem pedido", feito: "Pedido feito", cozinha: "Na cozinha", pronto: "Pronto", saiu: "Saiu p/ entrega", entregue: "Entregue", pago: "Pago" };
 
     function commandStatusText(command) {
@@ -5495,8 +5503,11 @@
         action = `<button class="btn ok btn-sm" style="width:100%" data-close-command="${command.id}">✓ Liberar mesa</button>`;
       }
       const _kbItems = command.itens.length
-        ? `<div class="kanban-card-items">${command.itens.slice(0, 4).map(it => `<div class="kbi"><b class="num">${Math.max(1, num(it.quantidade))}×</b> ${escapeHTML(it.nome)}</div>`).join("")}${command.itens.length > 4 ? `<div class="kbi more">+${command.itens.length - 4} item(ns)…</div>` : ""}</div>`
+        ? `<div class="kanban-card-items">${command.itens.slice(0, 4).map(it => { const dr = isDrinkItem(it); const done = dr && it.bebidaEntregue; return `<div class="kbi${done ? " drink-done" : ""}"><b class="num">${Math.max(1, num(it.quantidade))}×</b> ${dr ? "🥤 " : ""}${escapeHTML(it.nome)}${done ? " ✓" : ""}</div>`; }).join("")}${command.itens.length > 4 ? `<div class="kbi more">+${command.itens.length - 4} item(ns)…</div>` : ""}</div>`
         : `<div class="kanban-card-items empty">Sem itens ainda</div>`;
+      const _drinks = commandUndeliveredDrinks(command);
+      const _drinkBtn = (_drinks.length && commandStage(command) !== "pago")
+        ? `<button class="btn-drink" type="button" data-deliver-drinks="${command.id}" title="Marcar bebida(s) como entregue">🥤 Entregar bebida</button>` : "";
       return `<div class="kanban-card" data-drag-id="${command.id}" data-open-kb="${command.id}">
         <div class="kanban-card-top">
           <span class="kanban-card-mesa">👤 ${cliente}</span>
@@ -5504,6 +5515,7 @@
         </div>
         <div class="kanban-card-cliente">${mesa}${command.source === "whatsapp" ? `<span class="badge-wa" style="font-size:10px;padding:1px 5px;margin-left:4px">📲</span>` : ""}</div>
         ${_kbItems}
+        ${_drinkBtn ? `<div class="kb-drink-row">${_drinkBtn}</div>` : ""}
         <div class="kanban-card-action">${action}</div>
       </div>`;
     }
@@ -7805,6 +7817,19 @@
             // Sem mensagem de WhatsApp — o cliente acompanha em "Meus pedidos".
           }
         }
+      }
+
+      // Entregar bebida (marca as bebidas da comanda como entregues, sem mexer no resto)
+      const deliverDrinks = event.target.closest("[data-deliver-drinks]")?.dataset.deliverDrinks;
+      if (deliverDrinks) {
+        const command = state.commands.find(c => c.id === deliverDrinks);
+        if (command) {
+          const now = Date.now();
+          (command.itens || []).forEach(it => { if (isDrinkItem(it) && !it.bebidaEntregue) it.bebidaEntregue = now; });
+          save(); renderCommands();
+          showToast("🥤 Bebida entregue!", 1800);
+        }
+        return;
       }
 
       // Marcar PRONTO (comida pronta, antes de sair/entregar)
