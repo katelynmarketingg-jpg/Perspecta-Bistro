@@ -1164,7 +1164,17 @@
     .line-main {
       display: grid;
       gap: 4px;
+      min-width: 0;
     }
+    .line-item-fold > summary.line-item { cursor: pointer; list-style: none; }
+    .line-item-fold > summary::-webkit-details-marker { display: none; }
+    .line-item .line-edit-ico { color: var(--muted); font-size: 13px; }
+    .line-item-fold[open] > summary.line-item { border-radius: 7px 7px 0 0; background: var(--raise); }
+    .line-item-fold[open] .line-edit-ico { color: var(--brand); }
+    .line-item-edit { background: #141416; border: 1px solid var(--line); border-top: none; border-radius: 0 0 7px 7px; padding: 10px; }
+    .line-item-edit input { width: 100%; box-sizing: border-box; }
+    .btn-cancel-cmd { display: block; width: 100%; margin-top: 8px; background: transparent; border: 1px solid rgba(248,113,113,.4); color: var(--danger); border-radius: 8px; padding: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-cancel-cmd:hover { background: rgba(248,113,113,.12); }
 
     .item-notes {
       color: var(--muted);
@@ -5750,6 +5760,7 @@
               : ""}
           </div>` : ""}
           <p class="mini" style="margin-top:6px">${command.paidAt ? `Pago: ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}` : "Registre o pagamento antes de liberar."}</p>
+          <button class="btn-cancel-cmd" type="button" data-cancel-command="${command.id}">🗑️ Apagar comanda (desistiu)</button>
         </div>
       </article>`;
     }
@@ -5781,14 +5792,27 @@
         adicionais.length ? `Adicionais: ${adicionais.map(addon => `${addon.nome} (${money(addon.preco)})`).join(", ")}` : "",
         item.observacao ? `Obs.: ${item.observacao}` : ""
       ].filter(Boolean).join(" · ");
-      return `<div class="line-item">
-        <div class="line-main">
-          <span>${escapeHTML(item.nome)} x${item.quantidade}</span>
-          ${detail ? `<span class="item-notes">${escapeHTML(detail)}</span>` : ""}
+      // Clica no item → abre embaixo pra mudar quantidade / obs / remover.
+      return `<details class="line-item-fold">
+        <summary class="line-item">
+          <div class="line-main">
+            <span>${escapeHTML(item.nome)} x${item.quantidade}</span>
+            ${detail ? `<span class="item-notes">${escapeHTML(detail)}</span>` : ""}
+          </div>
+          <strong>${money(commandItemTotal(item))}</strong>
+          <span class="line-edit-ico" title="Editar">✎</span>
+        </summary>
+        <div class="line-item-edit">
+          <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:end">
+            <label style="font-size:11px">Qtd.<input type="number" min="1" value="${Math.max(1, num(item.quantidade))}" data-edit-item-qty></label>
+            <label style="font-size:11px">Observação<input value="${escapeHTML(item.observacao || "")}" data-edit-item-obs placeholder="Ex: sem cebola, bem passado…"></label>
+          </div>
+          <div class="actions full" style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn" type="button" data-save-item="${command.id}:${index}">Salvar</button>
+            <button class="btn ghost" type="button" data-remove-item="${command.id}:${index}">🗑️ Remover item</button>
+          </div>
         </div>
-        <strong>${money(commandItemTotal(item))}</strong>
-        <button class="btn ghost" data-remove-item="${command.id}:${index}">×</button>
-      </div>`;
+      </details>`;
     }
 
     function printKitchenCommand(command) {
@@ -7771,6 +7795,23 @@
         save();
       }
 
+      // Salvar edição do item (quantidade + observação)
+      const saveItem = event.target.closest("[data-save-item]")?.dataset.saveItem;
+      if (saveItem) {
+        const [commandId, index] = saveItem.split(":");
+        const command = state.commands.find(c => c.id === commandId);
+        const fold = event.target.closest(".line-item-fold");
+        if (command && command.itens[Number(index)] && fold) {
+          const q = Math.max(1, num(fold.querySelector("[data-edit-item-qty]")?.value) || 1);
+          const o = (fold.querySelector("[data-edit-item-obs]")?.value || "").trim();
+          command.itens[Number(index)].quantidade = q;
+          command.itens[Number(index)].observacao = o;
+          save();
+          showToast("Item atualizado ✓", 1500);
+        }
+        return;
+      }
+
       // ── Status bar step click (montando→feito→cozinha→pronto→saiu→entregue→pago) ──
       const stepAdvance = event.target.closest("[data-step-advance]")?.dataset.stepAdvance;
       if (stepAdvance) {
@@ -7884,6 +7925,19 @@
           }
         }
         save();
+      }
+
+      // Apagar/cancelar comanda (cliente desistiu) — não vira venda, some das comandas.
+      const cancelCommand = event.target.closest("[data-cancel-command]")?.dataset.cancelCommand;
+      if (cancelCommand) {
+        const command = state.commands.find(c => c.id === cancelCommand);
+        if (command && confirm(`Apagar a comanda de ${command.cliente || command.local || "Avulso"}? Isso não pode ser desfeito.`)) {
+          state.commands = state.commands.filter(c => c.id !== cancelCommand);
+          closeKbModal();
+          save();
+          showToast("Comanda apagada.", 2000);
+        }
+        return;
       }
 
       // ── Public menu: open addon modal ──
