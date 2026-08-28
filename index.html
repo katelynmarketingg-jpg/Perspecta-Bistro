@@ -2228,14 +2228,14 @@
     };
 
     const navItems = [
-      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
+      ["dashboard", "Visão do dia"], ["empresas", "Empresas"], ["caixa", "Caixa"], ["mesas", "Mesas"], ["estoque", "Estoque"], ["insumos", "Insumos"], ["custos", "Fichas de custo"], ["metas", "Metas"], ["previsao", "Planejamento"], ["clientes", "Clientes"],
       ["cardapio", "Cardápio"], ["comandas", "Comandas"], ["relatorios", "Relatórios"], ["dados", "Configurações"]
     ];
 
     // Agrupamento do menu lateral (só organização visual — ids inalterados).
-    // "Salão" saiu do menu: agora vive dentro da aba Comandas (mapa + comanda ao lado).
+    // "Mesas" = cadastro das mesas + QR por mesa. As comandas operam no Salão dentro de Comandas.
     const NAV_GROUPS = [
-      ["Operação", ["dashboard", "comandas", "caixa"]],
+      ["Operação", ["dashboard", "comandas", "mesas", "caixa"]],
       ["Cadastros", ["cardapio", "custos", "insumos", "estoque", "clientes"]],
       ["Gestão", ["metas", "previsao", "relatorios"]],
       ["Config", ["dados", "empresas"]],
@@ -2245,7 +2245,7 @@
       dashboard: ["Visão do dia", ""],
       empresas: ["Empresas", ""],
       caixa: ["Caixa", ""],
-      mesas: ["Salão", ""],
+      mesas: ["Mesas", "Cadastre as mesas e gere o QR de cada uma"],
       estoque: ["Estoque", ""],
       insumos: ["Insumos", ""],
       custos: ["Fichas de custo", ""],
@@ -4764,6 +4764,12 @@
                     </span>`).join("")}
                 </div>` : ""}
               </details>
+            </div>
+
+            <div class="panel" style="margin-top:16px">
+              <h2 style="margin:0 0 6px">📱 QR das mesas</h2>
+              <p class="mini" style="color:var(--muted);margin:0 0 12px">Gere um QR pra cada mesa. O cliente escaneia, vê o cardápio e o pedido cai direto na comanda daquela mesa (a mesa acende um círculo azul quando chega pedido novo).</p>
+              <button class="btn" type="button" data-open-qr>📱 Gerar / imprimir QR das mesas</button>
             </div>
           </div>
 
