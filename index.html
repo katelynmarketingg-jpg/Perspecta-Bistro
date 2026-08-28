@@ -739,6 +739,8 @@
     .cash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 
     /* Comanda — dobras compactas (editar / adicionar item) */
+    .cc-order-info { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 12px; line-height: 1.5; color: var(--ink); }
+    .cc-order-info div { white-space: normal; word-break: break-word; }
     .cc-fold { margin: 8px 0; }
     .cc-fold > summary {
       list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
@@ -2638,8 +2640,10 @@
       // Sync no boot: puxa e junta dados da nuvem (merge por item)
       pollSync();
 
-      // Polling a cada 8s: junta o que outro aparelho salvou + verifica pedidos do cardápio público
-      setInterval(() => { pollSync(); checkPendingOrders(); }, 8000);
+      // Pedidos do cardápio: verifica a cada 4s (chegada quase em tempo real).
+      setInterval(checkPendingOrders, 4000);
+      // Sync entre aparelhos: a cada 8s.
+      setInterval(pollSync, 8000);
     }
 
     function getSessionLabel() {
@@ -3197,21 +3201,35 @@
 
     // Verifica pedidos pendentes feitos pelo cardápio público e cria comandas automaticamente
     async function checkPendingOrders() {
-      if (!storeKey) return;
+      if (!storeKey || storeKey.indexOf("gestaoCompany.") !== 0) return;
       try {
         const path = fbPath(storeKey);
-        const r = await authedFetch(`${FIREBASE_URL}/orders/${path}.json`);
-        if (!r.ok) return;
-        const orders = await r.json();
+        const companyId = companyIdFromKey();
+        // 1) Caminho principal: SERVIDOR (conta de serviço) — não depende do token/regra
+        //    do Firebase do navegador (era o que travava a chegada dos pedidos).
+        let orders = null, viaServer = false;
+        try {
+          const sr = await fetch(`https://perspecta-bistro.vercel.app/api/pending-orders?companyId=${encodeURIComponent(companyId)}`, { cache: "no-store" });
+          if (sr.ok) { orders = (await sr.json()).orders || {}; viaServer = true; }
+        } catch (e) {}
+        // 2) Fallback: leitura direta no Firebase (quando o servidor não responde).
+        if (orders == null) {
+          const r = await authedFetch(`${FIREBASE_URL}/orders/${path}.json`);
+          if (!r.ok) return;
+          orders = await r.json();
+        }
         if (!orders || typeof orders !== 'object') return;
         let newCmds = 0;
+        const processados = [];
         for (const [orderId, order] of Object.entries(orders)) {
+          processados.push(orderId);
           // Ignora se já foi processado (comanda aberta ou fechada com esse sourceOrderId)
           if ((state.commands || []).find(c => c.sourceOrderId === orderId)) continue;
           if ((state.sales || []).find(s => s.sourceOrderId === orderId)) continue;
           state.commands = state.commands || [];
           state.commands.push({
-            id: uid(),
+            // id determinístico: 2 abas abertas geram o MESMO id → sem comanda duplicada
+            id: "src_" + orderId,
             sourceOrderId: orderId,
             local: order.local || "Cardápio online",
             cliente: order.nome || "WhatsApp",
@@ -3224,12 +3242,27 @@
             referencia: order.referencia || "",
             tipoEntrega: order.tipo || "retirada",
             tipoLabel: order.tipoLabel || "",
-            telefone: order.telefone || ""
+            telefone: order.telefone || "",
+            // Detalhes do pedido do site (entram na comanda p/ cozinha/entrega).
+            entrega: num(order.entrega) || 0,
+            bairro: order.bairro || "",
+            observacao: order.observacao || "",
+            trocoPara: num(order.trocoPara) || 0,
+            troco: num(order.troco) || 0,
+            paymentMethod: order.paymentMethod || ""
           });
           ensureClientFromCommand(order.nome || "WhatsApp");
           newCmds++;
-          // Remove o pedido do Firebase após processar
-          authedFetch(`${FIREBASE_URL}/orders/${path}/${orderId}.json`, { method: 'DELETE' }).catch(() => {});
+        }
+        // Depois de virar comanda, remove os pedidos de /orders. Preferimos o
+        // SERVIDOR (não depende do token do navegador); com fallback direto.
+        if (processados.length) {
+          fetch("https://perspecta-bistro.vercel.app/api/pending-orders", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId, ids: processados })
+          }).catch(() => {
+            processados.forEach(id => authedFetch(`${FIREBASE_URL}/orders/${path}/${id}.json`, { method: 'DELETE' }).catch(() => {}));
+          });
         }
         if (newCmds > 0) {
           save();
@@ -3728,7 +3761,7 @@
     }
 
     function commandTotal(command) {
-      return (command.itens || []).reduce((sum, item) => sum + commandItemTotal(item), 0);
+      return (command.itens || []).reduce((sum, item) => sum + commandItemTotal(item), 0) + num(command.entrega);
     }
 
     function commandItemAddons(item) {
@@ -5468,6 +5501,15 @@
           </div>
           <strong>${money(commandTotal(command))}</strong>
         </div>
+        ${(command.referencia || command.telefone || command.entrega || command.troco || command.observacao) ? `
+        <div class="cc-order-info">
+          ${command.referencia ? `<div>📍 ${escapeHTML(command.referencia)}</div>` : ""}
+          ${command.telefone ? `<div>📱 ${escapeHTML(command.telefone)}</div>` : ""}
+          ${command.entrega ? `<div>🛵 Entrega: ${money(command.entrega)}</div>` : ""}
+          ${command.paymentMethod ? `<div>💳 ${escapeHTML(command.paymentMethod)}</div>` : ""}
+          ${command.troco ? `<div>💵 Troco p/ ${money(command.trocoPara)} · levar ${money(command.troco)}</div>` : ""}
+          ${command.observacao ? `<div>📝 ${escapeHTML(command.observacao)}</div>` : ""}
+        </div>` : ""}
         <details class="cc-fold">
           <summary>✎ Editar mesa · cliente · qtd</summary>
           <form class="editCommandForm" data-command="${command.id}">
