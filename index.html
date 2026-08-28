@@ -1588,6 +1588,9 @@
     .csel { position:relative; display:inline-block; }
     .csel-trigger { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--panel-2); cursor:pointer; font-size:13px; user-select:none; white-space:nowrap; min-height:36px; box-sizing:border-box; overflow:hidden; }
     .csel-val { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+    /* itens de grid (labels) precisam poder encolher, senão o Item invade o Qtd */
+    .addItemForm label { min-width: 0; }
+    .addItemForm label .csel, .addItemForm label input { width: 100%; box-sizing: border-box; }
     .csel-trigger::after { content:'▾'; font-size:10px; color:var(--muted); flex-shrink:0; }
     .csel-drop { position:absolute; top:calc(100% + 4px); left:0; min-width:100%; background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); z-index:9000; overflow:hidden; display:none; max-height:240px; overflow-y:auto; }
     .csel-drop.open { display:block; }
@@ -5586,10 +5589,12 @@
         <details class="cc-fold" ${command.itens.length ? "" : "open"}>
           <summary class="add">＋ Adicionar item</summary>
           <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px">
-            <div style="display:grid;grid-template-columns:minmax(0,1fr) 64px auto;gap:8px;align-items:end;margin-bottom:8px">
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
               <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
-              <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
-              <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar</button>
+              <div style="display:grid;grid-template-columns:84px 1fr;gap:8px;align-items:end">
+                <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
+                <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar item</button>
+              </div>
             </div>
             <div class="obs-addon-row">
               <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
