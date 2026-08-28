@@ -1942,20 +1942,18 @@
     }
 
     @media print {
-      body * {
-        visibility: hidden;
-      }
-      #printArea,
-      #printArea * {
-        visibility: visible;
-      }
-      #printArea {
-        display: block !important;
-        position: absolute;
-        left: 0;
-        top: 0;
-        background: white;
-      }
+      /* Cupom térmico 80mm. Antes usávamos visibility:hidden, que MANTÉM o espaço
+         do app inteiro no papel (saía em A4 com 3 páginas em branco). Agora
+         escondemos tudo de verdade (display:none) e deixamos só o cupom. */
+      @page { size: 80mm auto; margin: 3mm; }
+      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; }
+      body > *:not(#printArea) { display: none !important; }
+      #printArea, #printArea.hidden { display: block !important; position: static !important; background: #fff; color: #000; }
+      .print-ticket { width: 74mm; margin: 0 auto; font-family: 'Courier New', ui-monospace, monospace; color: #000; }
+      .print-ticket .logo-dot { display: none !important; }
+      .print-ticket h1 { font-size: 15px; text-align: center; margin: 0 0 6px; letter-spacing: .5px; }
+      .print-ticket p { font-size: 13px; line-height: 1.35; margin: 2px 0; color: #000; }
+      .print-ticket hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
     }
 
     /* ===== LOGIN SCREEN — padronizado com Perspecta Juris (fonte Inter) ===== */
