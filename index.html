@@ -765,6 +765,21 @@
     .cc-fold > summary:hover { color: var(--ink); border-color: var(--line-2); }
     .cc-fold > summary.add { color: var(--brand); border-color: rgba(249,115,22,.35); }
     .cc-fold[open] > summary { margin-bottom: 10px; }
+    /* Botão "+ Adicionar item": laranja e centralizado, mais intuitivo */
+    .add-item-fold > summary.add { background: rgba(249,115,22,.13); border-color: rgba(249,115,22,.55); color: var(--brand); font-weight: 800; justify-content: center; text-align: center; }
+    .add-item-fold > summary.add:hover { background: rgba(249,115,22,.22); color: var(--brand); }
+    /* Seletor visual de itens: procurar + tocar pra selecionar */
+    .item-picker { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+    .item-picker-search { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); font-size: 13px; }
+    .item-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; max-height: 220px; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 2px; }
+    .item-chip { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); cursor: pointer; transition: transform .08s, border-color .12s, background .12s; }
+    .item-chip:hover { border-color: var(--brand); background: rgba(249,115,22,.08); }
+    .item-chip:active { transform: scale(.96); }
+    .item-chip .ic-name { font-size: 12px; font-weight: 600; line-height: 1.15; }
+    .item-chip .ic-price { font-size: 11px; color: var(--brand); font-weight: 700; }
+    .item-picker-hint { margin: 8px 0 0; }
+    .pay-done { text-align: center; font-weight: 800; color: var(--ok); background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+    .flow-sent { margin: 0 0 6px; color: var(--brand); font-weight: 700; }
 
     /* Kanban — prévia do pedido no card */
     .kanban-card-items { margin: 8px 0; display: flex; flex-direction: column; gap: 3px; }
@@ -5724,12 +5739,6 @@
       const waBadge = command.source === "whatsapp" ? `<span class="badge-wa">📲 Online</span>` : "";
       const clienteName = escapeHTML(command.cliente || "Avulso");
       const pessoas = Math.max(1, num(command.pessoas || 1));
-      const _cur = commandStage(command);
-      const _isDeliv = isDeliveryCmd(command);
-      const _stps=[{k:"montando",l:"Novo",bg:"#2a2a31",fg:"#cfcfd6"},{k:"feito",l:"Pedido",bg:"#2a2411",fg:"#fb923c"},{k:"cozinha",l:"Cozinha",bg:"#2a1c10",fg:"#ff8a3a"},{k:"pronto",l:"Pronto",bg:"#1f2410",fg:"#a3e635"},...(_isDeliv?[{k:"saiu",l:"Saiu",bg:"#231a0f",fg:"#fbbf24"}]:[]),{k:"entregue",l:"Entregue",bg:"#141a26",fg:"#5b8def"},{k:"pago",l:"Pago",bg:"#12211b",fg:"#4ade80"}];
-      const _ord=_stps.map(s=>s.k);
-      const _ci=_ord.indexOf(_cur);
-      const _bar=`<div style="display:flex;border-radius:6px;overflow:hidden;gap:2px;background:#26262c;height:24px;margin-bottom:10px">${_stps.map((s,i)=>{const isAct=s.k===_cur;return`<div data-step-advance="${command.id}:${s.k}" style="flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:${isAct?900:600};background:${isAct?s.bg:"#1c1c20"};color:${isAct?s.fg:"#6f6e78"};white-space:nowrap;letter-spacing:${isAct?"0":"-0.2px"};cursor:${isAct?"default":"pointer"};transition:background .15s">${s.l}</div>`}).join("")}</div>`;
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
@@ -5763,51 +5772,40 @@
         <div class="line-items" style="margin:10px 0">
           ${command.itens.length ? command.itens.map((item, index) => commandItemRow(command, item, index)).join("") : `<div class="empty">Sem itens</div>`}
         </div>
-        <details class="cc-fold" ${command.itens.length ? "" : "open"}>
+        <details class="cc-fold add-item-fold" ${command.itens.length ? "" : "open"}>
           <summary class="add">＋ Adicionar item</summary>
-          <form class="addItemForm" data-command="${command.id}" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px">
-            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
-              <label style="font-size:11px">Item${cselBuild("itemId", activeItems.map(i=>({v:i.id, l:`${i.nome} — ${money(i.preco)}`})), activeItems[0]?.id||"")}</label>
-              <div style="display:grid;grid-template-columns:84px 1fr;gap:8px;align-items:end">
-                <label style="font-size:11px">Qtd.<input name="quantidade" type="number" min="1" value="1"></label>
-                <button class="btn ghost" type="submit" style="align-self:flex-end">+ Adicionar item</button>
-              </div>
+          <div class="item-picker">
+            <input type="search" class="item-picker-search" data-item-filter placeholder="🔎 Procurar item…" autocomplete="off">
+            <div class="item-picker-grid">
+              ${activeItems.length ? activeItems.map(i=>`<button type="button" class="item-chip" data-add-menu-item="${command.id}:${i.id}" data-name="${escapeHTML(_cselNorm(i.nome))}"><span class="ic-name">${escapeHTML(i.nome)}</span><span class="ic-price">${money(i.preco)}</span></button>`).join("") : `<span class="mini">Cadastre itens no Cardápio.</span>`}
             </div>
-            <div class="obs-addon-row">
-              <label style="font-size:11px">Obs.<input name="observacao" placeholder="Ex: sem tomate, bem passado…"></label>
-              <details class="addon-mini">
-                <summary title="Adicionais">+</summary>
-                <div class="addon-list">
-                  ${activeAddons.length ? activeAddons.map(addon => `<label><input type="checkbox" name="adicionais" value="${addon.id}"> ${escapeHTML(addon.nome)} · ${money(addon.preco)}</label>`).join("") : `<span class="mini">Cadastre adicionais no Cardápio.</span>`}
-                </div>
-              </details>
-            </div>
-          </form>
+            <p class="mini item-picker-hint">Toque no item para adicionar. Clique no item na lista acima para mudar a quantidade ou a observação.</p>
+          </div>
         </details>
         <div class="command-flow">
-          ${_bar}
-          <div style="display:grid;grid-template-columns:repeat(${_isDeliv?4:3},1fr);gap:6px;margin-bottom:8px">
-            <button class="btn ${_cur==="cozinha"?"ok":"secondary"} btn-sm" type="button" data-send-kitchen="${command.id}">Cozinha</button>
-            <button class="btn ${_cur==="pronto"?"ok":"secondary"} btn-sm" type="button" data-mark-ready="${command.id}">Pronto</button>
-            ${_isDeliv?`<button class="btn ${_cur==="saiu"?"ok":"secondary"} btn-sm" type="button" data-dispatch="${command.id}">Saiu</button>`:""}
-            <button class="btn ${_cur==="entregue"?"ok":"ghost"} btn-sm" type="button" data-deliver-command="${command.id}">Entregue</button>
-          </div>
-          ${command.paidAt ? "" : `<div class="pay-box">
-            <div class="pay-eyebrow">Pagamento</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-              <button class="btn ok" type="button" data-quick-pay="${command.id}:pix">Pix</button>
-              <button class="btn ok" type="button" data-quick-pay="${command.id}:cartao">Cartão</button>
-              <button class="btn secondary" type="button" data-cash-pay="${command.id}">Dinheiro</button>
-            </div>
-            <div class="cash-pay-panel hidden" data-cash-panel="${command.id}">
-              <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px">
-                <label style="font-size:11px;flex:1">Valor recebido<input type="number" step="0.01" inputmode="decimal" data-cash-received="${command.id}" placeholder="${commandTotal(command).toFixed(2)}"></label>
-                <div class="troco-view" data-troco="${command.id}">Troco<br><strong>R$ 0,00</strong></div>
+          ${command.kitchenSentAt
+            ? `<p class="mini flow-sent">🍳 Enviado pra cozinha</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir cozinha</button>`
+            : `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`}
+          ${command.paidAt
+            ? `<div class="pay-done">✓ Pago ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}</div>`
+            : `<button class="btn secondary" type="button" data-pay-toggle="${command.id}" style="width:100%;margin-bottom:8px">💳 Pagar</button>
+            <div class="pay-box hidden" data-pay-box="${command.id}" style="margin-bottom:8px">
+              <div class="pay-eyebrow">Forma de pagamento</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+                <button class="btn ok" type="button" data-quick-pay="${command.id}:pix">Pix</button>
+                <button class="btn ok" type="button" data-quick-pay="${command.id}:cartao">Cartão</button>
+                <button class="btn secondary" type="button" data-cash-pay="${command.id}">Dinheiro</button>
               </div>
-              <button class="btn ok" type="button" data-confirm-cash="${command.id}" style="width:100%;margin-top:8px">Confirmar dinheiro</button>
-            </div>
-          </div>`}
-          <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">Liberar mesa</button>
+              <p class="mini" style="margin:6px 0 0">💳 Pix/Cartão: cobre na maquininha e confirme aqui. 💵 Dinheiro: informe o valor recebido e veja o troco.</p>
+              <div class="cash-pay-panel hidden" data-cash-panel="${command.id}">
+                <div style="display:flex;gap:10px;align-items:flex-end;margin-top:8px">
+                  <label style="font-size:11px;flex:1">Valor recebido<input type="number" step="0.01" inputmode="decimal" data-cash-received="${command.id}" placeholder="${commandTotal(command).toFixed(2)}"></label>
+                  <div class="troco-view" data-troco="${command.id}">Troco<br><strong>R$ 0,00</strong></div>
+                </div>
+                <button class="btn ok" type="button" data-confirm-cash="${command.id}" style="width:100%;margin-top:8px">Confirmar dinheiro</button>
+              </div>
+            </div>`}
+          <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">✓ Feito</button>
           ${command.paidAt ? `
           <div style="display:flex;gap:6px;margin-top:8px">
             <button class="btn ghost" type="button" data-print-receipt="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🧾 Cupom</button>
@@ -5817,7 +5815,7 @@
                   : `<button class="btn ghost" type="button" data-emitir-nfce="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🗒️ Emitir NFC-e</button>`)
               : ""}
           </div>` : ""}
-          <p class="mini" style="margin-top:6px">${command.paidAt ? `Pago: ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}` : "Registre o pagamento antes de liberar."}</p>
+          <p class="mini" style="margin-top:6px">${command.paidAt ? "Comanda paga — clique em Feito pra finalizar e enviar pra Pedido feito." : "Mande pra cozinha, receba o pagamento e clique em Feito."}</p>
           <button class="btn-cancel-cmd" type="button" data-cancel-command="${command.id}">🗑️ Apagar comanda (desistiu)</button>
         </div>
       </article>`;
@@ -7494,6 +7492,38 @@
         }
       }
 
+      // "Pagar": revela as formas de pagamento (Pix/Cartão/Dinheiro) no mesmo card.
+      const payToggle = event.target.closest("[data-pay-toggle]")?.dataset.payToggle;
+      if (payToggle) {
+        const card = event.target.closest(".command-card") || document;
+        const box = card.querySelector(`[data-pay-box="${payToggle}"]`);
+        if (box) box.classList.toggle("hidden");
+        return;
+      }
+
+      // Seletor visual de itens: tocar no item adiciona 1 à comanda (soma se repetir).
+      const addMenuItem = event.target.closest("[data-add-menu-item]")?.dataset.addMenuItem;
+      if (addMenuItem) {
+        const [cid, iid] = addMenuItem.split(":");
+        const command = state.commands.find(c => c.id === cid);
+        const item = state.menu.find(m => m.id === iid);
+        if (command && item) {
+          const same = command.itens.find(x => x.id === item.id && !x.observacao && !(x.adicionais && x.adicionais.length));
+          if (same) same.quantidade = num(same.quantidade) + 1;
+          else command.itens.push({ id: item.id, nome: item.nome, preco: item.preco, quantidade: 1, adicionais: [], observacao: "" });
+          save();
+          renderCommands();
+          // Mantém o seletor de itens ABERTO pra adicionar vários rapidinho
+          // (o renderCommands recria o card e o <details> fecharia sozinho).
+          document.querySelectorAll(`.command-card [data-add-menu-item^="${cid}:"]`).forEach(btn => {
+            const fold = btn.closest(".add-item-fold");
+            if (fold) fold.open = true;
+          });
+          showToast(`+1 ${item.nome}`, 1200);
+        }
+        return;
+      }
+
       // Dinheiro: abre o painel de valor recebido / troco (no mesmo card clicado).
       const cashPayBtn = event.target.closest("[data-cash-pay]");
       if (cashPayBtn) {
@@ -8866,6 +8896,17 @@
         });
         const hint = drop.querySelector(".csel-empty-hint");
         if (hint) hint.style.display = visible ? "none" : "block";
+        return;
+      }
+      // Busca no seletor visual de itens da comanda (filtra os cards ao digitar).
+      if (event.target.matches("[data-item-filter]")) {
+        const grid = event.target.closest(".item-picker")?.querySelector(".item-picker-grid");
+        if (grid) {
+          const q = _cselNorm(event.target.value);
+          grid.querySelectorAll(".item-chip").forEach(b => {
+            b.style.display = (!q || (b.dataset.name || "").includes(q)) ? "" : "none";
+          });
+        }
         return;
       }
       // Troco ao vivo no checkout público (dinheiro + delivery).
