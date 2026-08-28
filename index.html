@@ -3271,7 +3271,8 @@
           publicSlug: s.publicSlug || "",
           // Pagamento online (InfinitePay): o @handle é público por natureza
           // (é a InfiniteTag da loja). O servidor /api/payment-link lê daqui.
-          pay: s.pay ? { infinitepay: { handle: (s.pay.infinitepay && s.pay.infinitepay.handle) || "", ativo: !!(s.pay.infinitepay && s.pay.infinitepay.ativo) } } : null
+          pay: s.pay ? { infinitepay: { handle: (s.pay.infinitepay && s.pay.infinitepay.handle) || "", ativo: !!(s.pay.infinitepay && s.pay.infinitepay.ativo) } } : null,
+          deliveryZones: (s.deliveryZones || []).map(z => ({ id: z.id, bairro: z.bairro || "", taxa: num(z.taxa) }))
         },
         menu: (state.menu || []).filter(m => m && m.ativo).map(m => ({
           id: m.id, nome: m.nome || "", descricao: m.descricao || "", preco: m.preco || 0,
@@ -5246,6 +5247,18 @@
       </div>`;
     }
 
+    function deliveryZonesTable() {
+      const zones = state.settings.deliveryZones || [];
+      if (!zones.length) return empty("Nenhum bairro cadastrado. Adicione abaixo os bairros que você atende.");
+      return `<div class="prod-list">
+        ${zones.map(z => `<div class="prod-row" data-zone-row="${z.id}">
+          <div class="prod-info"><strong>${escapeHTML(z.bairro)}</strong></div>
+          <span class="prod-price">${money(z.taxa)}</span>
+          <button class="btn ghost btn-sm" type="button" data-delete-zone="${z.id}">Excluir</button>
+        </div>`).join("")}
+      </div>`;
+    }
+
     function addonsTable() {
       if (!(state.addons || []).length) return empty("Nenhum adicional cadastrado ainda.");
       return `<div class="prod-list">
@@ -6280,6 +6293,20 @@
             </div>
           </div>
 
+          <!-- ── 🛵 Entrega por bairro ── -->
+          <div class="panel">
+            <h2>🛵 Taxa de entrega por bairro</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:14px">Cadastre os bairros que você atende e a taxa de entrega de cada um. No cardápio, quando o cliente escolher <strong>Delivery</strong>, ele seleciona o bairro e a taxa é somada ao total.</p>
+            <div class="table-wrap">${deliveryZonesTable()}</div>
+            <form id="deliveryZoneForm" style="margin-top:12px">
+              <div style="display:grid;grid-template-columns:1fr 130px auto;gap:8px;align-items:end">
+                <label style="font-size:12px">Bairro<input name="bairro" placeholder="Ex: Centro" required></label>
+                <label style="font-size:12px">Taxa (R$)<input name="taxa" type="number" step="0.01" min="0" placeholder="0,00" required></label>
+                <button class="btn" type="submit">+ Adicionar</button>
+              </div>
+            </form>
+          </div>
+
           <!-- ── 🗒️ NFC-e ── -->
           <div class="panel">
             <h2>🗒️ NFC-e — Nota Fiscal do Consumidor</h2>
@@ -6432,6 +6459,7 @@
       pmActiveCat = "all";
       const _ip = state.settings.pay && state.settings.pay.infinitepay;
       const payOnline = !!(_ip && _ip.ativo && _ip.handle);
+      const zones = state.settings.deliveryZones || [];
 
       root.innerHTML = `
         <div class="pm-wrap">
@@ -6534,11 +6562,25 @@
                   <option value="mesa">Comer no local</option>
                 </select>
               </label>
-              <div id="pmReferenceWrap" class="hidden">
-                <label id="pmReferenceLabel">Endereço de entrega
-                  <input name="referencia" id="pmReferenceInput" placeholder="Rua, número, bairro">
+              <!-- Delivery: endereço estruturado -->
+              <div id="pmDeliveryWrap" class="hidden">
+                <div style="display:grid;grid-template-columns:1fr 92px;gap:8px">
+                  <label>Rua<input name="rua" id="pmRua" placeholder="Nome da rua"></label>
+                  <label>Número<input name="numero" id="pmNumero" placeholder="Nº" inputmode="numeric"></label>
+                </div>
+                <label>Bairro
+                  <select name="bairro" id="pmBairroSelect">
+                    <option value="">${zones.length ? "Selecione o bairro…" : "Nenhum bairro cadastrado"}</option>
+                    ${zones.map(z => `<option value="${z.id}">${escapeHTML(z.bairro)}${num(z.taxa) > 0 ? ` — ${money(z.taxa)}` : " — grátis"}</option>`).join("")}
+                  </select>
                 </label>
+                <label>Complemento <span style="font-weight:400;font-size:12px">(opcional)</span><input name="complemento" placeholder="Apto, bloco, ponto de referência…"></label>
               </div>
+              <!-- Comer no local: número da mesa -->
+              <div id="pmMesaWrap" class="hidden">
+                <label>Mesa <span style="font-weight:400;font-size:12px">(opcional)</span><input name="mesaNum" placeholder="Ex: Mesa 3"></label>
+              </div>
+              <label>Observação <span style="font-weight:400;font-size:12px">(opcional)</span><input name="obs" placeholder="Ex: sem cebola, troco pra R$ 50…"></label>
               <div class="pm-pay-block">
                 <span class="pm-pay-title">Forma de pagamento</span>
                 <div class="pm-pay-opts" id="pmPayOpts">
@@ -6610,24 +6652,38 @@
     async function pmPersistOrder(data) {
       const nome = escapeHTML(data.nome || "").trim();
       const tipo = data.tipo || "retirada";
-      const referencia = escapeHTML(data.referencia || "").trim();
       const telefone = (data.telefone || "").replace(/\D/g, "");
       const pagamento = data.pagamento || "dinheiro";
       const payOnline = data.payOnline === "1" && (pagamento === "pix" || pagamento === "cartao");
       const payMap = { dinheiro: "Dinheiro", pix: "Pix", cartao: "Cartão" };
+      const obs = escapeHTML(data.obs || "").trim();
+      // Endereço estruturado (delivery) + taxa do bairro.
+      const zone = (state.settings.deliveryZones || []).find(z => z.id === data.bairro);
+      const bairroNome = zone ? zone.bairro : "";
+      const entrega = tipo === "tele" && zone ? num(zone.taxa) : 0;
+      let referencia = "";
+      if (tipo === "tele") {
+        const rua = escapeHTML(data.rua || "").trim();
+        const numero = escapeHTML(data.numero || "").trim();
+        const compl = escapeHTML(data.complemento || "").trim();
+        referencia = [`${rua}${numero ? `, ${numero}` : ""}`, bairroNome].filter(Boolean).join(" — ") + (compl ? ` (${compl})` : "");
+      } else if (tipo === "mesa") {
+        referencia = escapeHTML(data.mesaNum || "").trim();
+      }
       const itemsForComanda = publicCart.map(item => ({
         id: item.id, nome: item.nome, preco: item.preco,
         quantidade: item.quantidade, adicionais: item.adicionais || [], observacao: item.observacao || ""
       }));
       const orderId = uid();
       const tipoLabel = tipo === "tele" ? `Delivery${referencia ? ` — ${referencia}` : ""}` : tipo === "mesa" ? `${referencia ? referencia : "Comer no local"}` : "Retirada no local";
-      const payload = { id: orderId, nome, tipo, referencia, telefone, itens: itemsForComanda, total: pmCartTotal(), ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
+      const total = pmCartTotal() + entrega;
+      const payload = { id: orderId, nome, tipo, referencia, bairro: bairroNome, entrega, observacao: obs, telefone, itens: itemsForComanda, total, ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
       const lines = publicCart.map(item => {
         const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
         const addNames = (item.adicionais || []).filter(a => a.nome).map(a => `  + ${a.nome}`).join("\n");
-        const obs = item.observacao ? `  📝 ${item.observacao}` : "";
-        return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${obs ? "\n" + obs : ""}`;
-      }).join("\n");
+        const iobs = item.observacao ? `  📝 ${item.observacao}` : "";
+        return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${iobs ? "\n" + iobs : ""}`;
+      }).join("\n") + (entrega ? `\n🛵 Entrega (${bairroNome}): ${money(entrega)}` : "") + (obs ? `\n📝 Obs: ${obs}` : "");
       const companyId = String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
       let saved = false, failReason = "";
       try {
@@ -6701,10 +6757,24 @@
     function renderPmOrderRecap() {
       const el = document.getElementById("pmOrderRecap");
       if (!el) return;
+      const fee = pmDeliveryFee();
+      const subtotal = pmCartTotal();
       el.innerHTML = publicCart.map(item => {
         const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
         return `<div class="pm-recap-row"><span>${item.quantidade}× ${escapeHTML(item.nome)}</span><span>${money((num(item.preco) + addT) * item.quantidade)}</span></div>`;
-      }).join("") + `<div class="pm-recap-row pm-recap-total"><span>Total</span><strong>${money(pmCartTotal())}</strong></div>`;
+      }).join("")
+        + (fee.tipo === "tele" ? `<div class="pm-recap-row"><span>Entrega${fee.bairro ? ` · ${escapeHTML(fee.bairro)}` : ""}</span><span>${fee.selected ? (fee.taxa > 0 ? money(fee.taxa) : "grátis") : "—"}</span></div>` : "")
+        + `<div class="pm-recap-row pm-recap-total"><span>Total</span><strong>${money(subtotal + fee.taxa)}</strong></div>`;
+    }
+
+    // Taxa de entrega do bairro selecionado no checkout (0 se não for delivery).
+    function pmDeliveryFee() {
+      const tipo = document.getElementById("pmTipoSelect")?.value || "retirada";
+      if (tipo !== "tele") return { tipo, taxa: 0, bairro: "", selected: true };
+      const sel = document.getElementById("pmBairroSelect");
+      const id = sel ? sel.value : "";
+      const zone = (state.settings.deliveryZones || []).find(z => z.id === id);
+      return { tipo, taxa: zone ? num(zone.taxa) : 0, bairro: zone ? zone.bairro : "", selected: !!zone };
     }
 
     function pmItemCard(item) {
@@ -7158,6 +7228,9 @@
 
       const delAddon = event.target.closest("[data-delete-addon]")?.dataset.deleteAddon;
       if (delAddon) { state.addons = (state.addons || []).filter(x => x.id !== delAddon); save(); }
+
+      const delZone = event.target.closest("[data-delete-zone]")?.dataset.deleteZone;
+      if (delZone) { state.settings.deliveryZones = (state.settings.deliveryZones || []).filter(z => z.id !== delZone); save(); renderDataTools(); }
 
       const clearMenuPhoto = event.target.closest("[data-clear-menu-photo]")?.dataset.clearMenuPhoto;
       if (clearMenuPhoto) {
@@ -8157,6 +8230,18 @@
         showToast(handle ? "✅ Pagamento online salvo." : "Pagamento online desativado.", 2200);
       }
 
+      if (form.id === "deliveryZoneForm") {
+        const bairro = (data.bairro || "").trim();
+        const taxa = num(data.taxa);
+        if (!bairro) return;
+        state.settings.deliveryZones = state.settings.deliveryZones || [];
+        state.settings.deliveryZones.push({ id: uid(), bairro, taxa });
+        form.reset();
+        save();                 // republica o nó público (deliveryZones vai junto)
+        renderDataTools();
+        showToast(`✅ ${bairro} · ${money(taxa)}`, 1800);
+      }
+
       if (form.id === "reportFilterForm" || form.id === "comparisonForm") {
         state.settings = { ...state.settings, ...data };
         save();
@@ -8392,27 +8477,24 @@
 
       // ── Tipo de pedido no checkout público ──
       if (event.target.id === "pmTipoSelect") {
-        const wrap = document.getElementById("pmReferenceWrap");
-        const label = document.getElementById("pmReferenceLabel");
-        const input = document.getElementById("pmReferenceInput");
-        if (!wrap || !label || !input) return;
+        const deliv = document.getElementById("pmDeliveryWrap");
+        const mesa = document.getElementById("pmMesaWrap");
+        const rua = document.getElementById("pmRua");
+        const numero = document.getElementById("pmNumero");
+        const bairro = document.getElementById("pmBairroSelect");
         const tipo = event.target.value;
-        if (tipo === "retirada") {
-          wrap.classList.add("hidden");
-          input.required = false;
-        } else if (tipo === "mesa") {
-          wrap.classList.remove("hidden");
-          label.childNodes[0].textContent = "Número da mesa";
-          input.placeholder = "Ex: Mesa 3";
-          input.required = false;
-        } else {
-          wrap.classList.remove("hidden");
-          label.childNodes[0].textContent = "Endereço de entrega";
-          input.placeholder = "Rua, número, bairro";
-          input.required = true;
-        }
+        const isTele = tipo === "tele";
+        if (deliv) deliv.classList.toggle("hidden", !isTele);
+        if (mesa) mesa.classList.toggle("hidden", tipo !== "mesa");
+        if (rua) rua.required = isTele;
+        if (numero) numero.required = isTele;
+        if (bairro) bairro.required = isTele && (state.settings.deliveryZones || []).length > 0;
         pmUpdatePayHint();
+        renderPmOrderRecap();   // atualiza o total com/sem taxa de entrega
       }
+
+      // ── Bairro selecionado → recalcula a taxa de entrega no resumo ──
+      if (event.target.id === "pmBairroSelect") { renderPmOrderRecap(); }
 
       // ── Forma de pagamento no checkout público ──
       if (event.target.name === "pagamento") { pmUpdatePayHint(); }

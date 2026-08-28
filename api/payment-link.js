@@ -116,6 +116,11 @@ module.exports = async (req, res) => {
       const unit = (Number(it.preco) || 0) + addPrice;
       return { name: str(it.nome, 120) || "Item", priceCents: Math.max(0, Math.round(unit * 100)), qty: Math.max(1, Math.min(99, Number(it.quantidade) || 1)) };
     });
+    // Taxa de entrega do bairro entra como um item do checkout.
+    const entrega = Number(order.entrega) || 0;
+    if (entrega > 0) {
+      items.push({ name: `Entrega${order.bairro ? ` — ${str(order.bairro, 60)}` : ""}`, priceCents: Math.round(entrega * 100), qty: 1 });
+    }
     const customer = {
       name: str(order.nome, 120) || "Cliente",
       phone: str(order.telefone, 20).replace(/\D/g, ""),
