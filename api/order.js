@@ -100,10 +100,30 @@ module.exports = async (req, res) => {
         adicionais: Array.isArray(it.adicionais) ? it.adicionais.slice(0, 20).map((a) => ({ nome: str(a.nome, 80), preco: Number(a.preco) || 0 })) : [],
         observacao: str(it.observacao, 200),
       })),
+      // Detalhes de entrega/pagamento (o admin usa na comanda p/ cozinha e entrega).
+      bairro: str(order.bairro, 60),
+      entrega: Number(order.entrega) || 0,
+      observacao: str(order.observacao, 300),
+      trocoPara: Number(order.trocoPara) || 0,
+      troco: Number(order.troco) || 0,
+      paymentMethod: str(order.paymentMethod, 30),
+      paymentStatus: str(order.paymentStatus, 30),
       ts: Date.now(),
       createdAt: new Date().toISOString(),
     };
     await db.ref(`/orders/gestaoCompany_${companyId}_v1/${clean.id}`).set(clean);
+
+    // Índice do cliente por TELEFONE (sobrevive quando o admin puxa o pedido de
+    // /orders). Alimenta o "Acesso do cliente" (/api/my-orders): histórico por
+    // nome+telefone, mesmo de outro aparelho.
+    const phoneKey = clean.telefone.replace(/\D/g, "");
+    if (phoneKey) {
+      const itensCount = clean.itens.reduce((s, it) => s + (Number(it.quantidade) || 1), 0);
+      await db.ref(`/customers/gestaoCompany_${companyId}_v1/${phoneKey}/${clean.id}`).set({
+        id: clean.id, nome: clean.nome, telefone: clean.telefone, total: clean.total,
+        tipoLabel: clean.tipoLabel, tipoEntrega: clean.tipo, itensCount, ts: clean.ts,
+      });
+    }
     return res.status(200).json({ ok: true, orderId: clean.id });
   } catch (e) {
     return res.status(500).json({ error: "falha ao enviar pedido", detail: String((e && e.message) || e) });

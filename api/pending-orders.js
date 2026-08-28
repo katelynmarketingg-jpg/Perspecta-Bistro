@@ -60,10 +60,16 @@ module.exports = async (req, res) => {
     const db = admin.database(app);
 
     if (req.method === "GET") {
-      const companyId = str(req.query.companyId || req.query.company, 60).replace(/[^\w-]/g, "");
+      let companyId = str(req.query.companyId || req.query.company, 60).replace(/[^\w-]/g, "");
+      // Também aceita ?slug= (resolve pelo índice público) — robustez/diagnóstico.
+      if (!companyId && req.query.slug) {
+        const slug = str(req.query.slug, 80).replace(/[^\w-]/g, "");
+        const mapped = (await db.ref(`/public/slug__${slug}`).get()).val();
+        if (typeof mapped === "string") companyId = mapped.replace(/[^\w-]/g, "");
+      }
       if (!companyId) return res.status(400).json({ error: "companyId ausente" });
       const snap = await db.ref(`/orders/gestaoCompany_${companyId}_v1`).get();
-      return res.status(200).json({ orders: snap.exists() ? snap.val() : {} });
+      return res.status(200).json({ companyId, count: snap.exists() ? Object.keys(snap.val()).length : 0, orders: snap.exists() ? snap.val() : {} });
     }
 
     if (req.method === "POST") {
