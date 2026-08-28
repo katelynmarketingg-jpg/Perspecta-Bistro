@@ -4369,6 +4369,38 @@
         .reduce((sum, row) => sum + num(row.valor), 0);
     }
 
+    // Normaliza a forma de pagamento (vinda de botões diferentes: "Pix", "Cartão",
+    // "Dinheiro", "debito"…) para uma chave única usada no Caixa.
+    function normalizePayForma(method) {
+      const m = String(method || "").toLowerCase();
+      if (m.indexOf("dinheiro") >= 0) return "dinheiro";
+      if (m.indexOf("pix") >= 0) return "pix";
+      if (m.indexOf("déb") >= 0 || m.indexOf("deb") >= 0) return "debito";
+      if (m.indexOf("créd") >= 0 || m.indexOf("cred") >= 0) return "credito";
+      if (m.indexOf("cart") >= 0) return "cartao";
+      return m || "dinheiro";
+    }
+
+    // Soma as vendas do dia de um conjunto de formas (ex.: cartão = débito+crédito+genérico).
+    function cashByMethods(rows = cashToday(), methods) {
+      return methods.reduce((sum, m) => sum + cashByMethod(rows, m), 0);
+    }
+
+    // Registra no Caixa a venda paga de uma comanda — UMA única vez (flag cashRegistered).
+    // Chamado por TODOS os caminhos de pagamento (Pix/Cartão/Dinheiro, card ou kanban),
+    // pra que todo pedido pago entre no caixa e apareça nos totais do dia por forma.
+    function registerCashSale(command) {
+      if (!command || !command.paidAt || command.cashRegistered) return;
+      state.cash = state.cash || [];
+      const forma = normalizePayForma(command.paymentMethod);
+      const valor = num(command.paymentAmount != null ? command.paymentAmount : commandTotal(command));
+      state.cash.push({
+        id: uid(), tipo: "entrada", descricao: `Pagamento ${command.local || "comanda"}`,
+        valor, forma, createdAt: command.paidAt, comandaId: command.id,
+      });
+      command.cashRegistered = true;
+    }
+
     function currentCashSession() {
       const today = todayISO();
       return (state.cashSessions || []).find(session => session.date === today && session.status === "aberto") || null;
@@ -4386,17 +4418,25 @@
       const entradasDinheiro = rows.filter(r => r.forma === "dinheiro" && r.tipo === "entrada").reduce((s, r) => s + num(r.valor), 0);
       const saidasDinheiro = rows.filter(r => r.forma === "dinheiro" && r.tipo === "saida").reduce((s, r) => s + num(r.valor), 0);
       const dinheiro = entradasDinheiro - saidasDinheiro;
+      // Vendas do dia por forma (como na aba "Vendas" do Commerce): Dinheiro, Pix,
+      // Cartão (débito+crédito+genérico) e o Total do dia.
+      const vendaDinheiro = cashByMethod(rows, "dinheiro");
+      const vendaPix = cashByMethod(rows, "pix");
+      const vendaCartao = cashByMethods(rows, ["cartao", "debito", "credito"]);
+      const vendaTotal = vendaDinheiro + vendaPix + vendaCartao;
       const methodTotals = [
-        ["dinheiro", "Dinheiro"],
-        ["pix", "Pix"],
-        ["debito", "Débito"],
-        ["credito", "Crédito"]
+        ["Dinheiro", vendaDinheiro],
+        ["Pix", vendaPix],
+        ["Cartão", vendaCartao],
+        ["Total do dia", vendaTotal]
       ];
       const session = currentCashSession();
       const lastSession = lastCashSession();
       const status = session ? "Aberto" : "Fechado";
 
-      const valorAtual = cashBalance(rows);
+      // Saldo = dinheiro físico na gaveta (troco inicial + entradas − saídas em
+      // dinheiro). Pix/Cartão entram nas "Vendas do dia", não na gaveta.
+      const valorAtual = dinheiro;
       const lastCloseInfo = lastSession && lastSession.status === "fechado"
         ? `<p class="mini" style="text-align:center;margin-top:12px">Último fechamento: ${money(lastSession.countedCash)}${num(lastSession.difference) ? ` · diferença ${money(lastSession.difference)}` : " · conferido"}.</p>` : "";
 
@@ -4416,7 +4456,7 @@
       }
 
       // ── CAIXA ABERTO ──
-      const methodCard = (label, val) => `<div class="metric" style="min-height:auto;padding:13px 15px"><div class="metric-top" style="margin-bottom:7px"><span class="label">${label}</span></div><div class="value" style="font-size:20px">${money(val)}</div></div>`;
+      const methodCard = (label, val, strong) => `<div class="metric" style="min-height:auto;padding:13px 15px${strong ? ";border-color:var(--brand)" : ""}"><div class="metric-top" style="margin-bottom:7px"><span class="label">${label}</span></div><div class="value" style="font-size:20px${strong ? ";color:var(--brand)" : ""}">${money(val)}</div></div>`;
       document.getElementById("caixa").innerHTML = `
         <div class="cash-head">
           <span class="cash-status open">● Caixa aberto</span>
@@ -4455,8 +4495,10 @@
               <button class="btn" type="submit">${icon("caixa")}Lançar no caixa</button>
             </div>
           </form>
-          <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px">
-            ${methodTotals.map(([method, label]) => methodCard(label, cashByMethod(rows, method))).join("")}
+          <h2 style="margin-top:20px">Vendas do dia</h2>
+          <p class="mini" style="margin:-4px 0 12px">Tudo que já entrou hoje — inclui os pedidos pagos nas comandas.</p>
+          <div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
+            ${methodTotals.map(([label, val]) => methodCard(label, val, label === "Total do dia")).join("")}
           </div>
         </div>
 
@@ -7414,6 +7456,7 @@
           command.paidAt = new Date().toISOString();
           command.paymentMethod = method;
           command.paymentAmount = commandTotal(command);
+          registerCashSale(command);
           save();
           renderCommands();
         }
@@ -7428,6 +7471,7 @@
           command.paidAt = new Date().toISOString();
           command.paymentMethod = method === "cartao" ? "Cartão" : "Pix";
           command.paymentAmount = commandTotal(command);
+          registerCashSale(command);
           save();
           renderCommands();
           showToast(`Pagamento em ${command.paymentMethod} registrado ✅`, 2500);
@@ -7461,6 +7505,7 @@
           command.paymentAmount = total;
           if (recebido > total) command.troco = recebido - total;
           if (recebido) command.recebido = recebido;
+          registerCashSale(command);
           save();
           renderCommands();
           showToast(command.troco ? `Pago em dinheiro ✅ Troco: ${money(command.troco)}` : "Pago em dinheiro ✅", 3500);
@@ -8785,8 +8830,7 @@
             command.paidAt = paidAt;
             command.paymentMethod = data.forma;
             command.paymentAmount = num(data.valor || total);
-            state.cash = state.cash || [];
-            state.cash.push({ id: uid(), tipo: "entrada", descricao: `Pagamento ${command.local}`, valor: command.paymentAmount, forma: data.forma, createdAt: paidAt });
+            registerCashSale(command);
             save();
           }
         }
