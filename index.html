@@ -2644,6 +2644,9 @@
       setInterval(checkPendingOrders, 4000);
       // Sync entre aparelhos: a cada 8s.
       setInterval(pollSync, 8000);
+      // Assim que a aba do admin volta a ficar visível, busca na hora (sem F5).
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkPendingOrders(); pollSync(); } });
+      window.addEventListener("focus", () => { checkPendingOrders(); });
     }
 
     function getSessionLabel() {
@@ -3527,6 +3530,19 @@
 
     // ── Status do pedido para o cliente ("Meus pedidos") ──
     const ORDER_STATUS_API = "https://perspecta-bistro.vercel.app/api/order-status";
+    const MY_ORDERS_API = "https://perspecta-bistro.vercel.app/api/my-orders";
+    // Identidade do cliente (nome+telefone) pra ver o histórico entre aparelhos.
+    function getBistroClient() { try { return JSON.parse(localStorage.getItem("bistroClient") || "null"); } catch (e) { return null; } }
+    function setBistroClient(c) { try { c ? localStorage.setItem("bistroClient", JSON.stringify(c)) : localStorage.removeItem("bistroClient"); } catch (e) {} }
+    let _myServerOrders = [];
+    async function fetchMyServerOrders() {
+      const c = getBistroClient(); const cid = companyIdFromKey();
+      if (!c || !c.telefone || !cid) { _myServerOrders = []; return; }
+      try {
+        const r = await fetch(`${MY_ORDERS_API}?companyId=${encodeURIComponent(cid)}&phone=${encodeURIComponent(c.telefone)}`, { cache: "no-store" });
+        if (r.ok) _myServerOrders = (await r.json()).orders || [];
+      } catch (e) {}
+    }
     function companyIdFromKey() {
       return String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
     }
