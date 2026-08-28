@@ -101,6 +101,7 @@ module.exports = async (req, res) => {
         observacao: str(it.observacao, 200),
       })),
       // Detalhes de entrega/pagamento (o admin usa na comanda p/ cozinha e entrega).
+      mesa: str(order.mesa, 40),
       bairro: str(order.bairro, 60),
       entrega: Number(order.entrega) || 0,
       observacao: str(order.observacao, 300),
