@@ -454,6 +454,17 @@
       overflow: hidden;
     }
 
+    /* Círculo azul: pedido novo pelo QR da mesa (pisca até o atendente abrir) */
+    .table-qr-dot { position: absolute; top: 6px; left: 6px; width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 0 0 rgba(59,130,246,.7); animation: qrpulse 1.4s infinite; z-index: 3; }
+    .qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .qr-card { background: #fff; border-radius: 10px; padding: 12px; text-align: center; color: #111; }
+    .qr-card img { width: 100%; max-width: 160px; height: auto; display: block; margin: 0 auto; }
+    .qr-card .qr-name { font-weight: 900; font-size: 16px; margin-bottom: 6px; color: #111; }
+    .qr-card .qr-hint { font-size: 11px; color: #555; margin-top: 6px; }
+    .qr-card .qr-brand { font-size: 10px; color: #999; margin-top: 2px; }
+    .qr-loading { color: var(--muted); font-size: 13px; padding: 20px 0; text-align: center; }
+    @keyframes qrpulse { 0% { box-shadow: 0 0 0 0 rgba(59,130,246,.7); } 70% { box-shadow: 0 0 0 8px rgba(59,130,246,0); } 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } }
+
     .floor-plan .table-tile {
       position: absolute;
       width: var(--table-size, 132px);
@@ -1698,6 +1709,8 @@
     .pm-pay-hint { font-size: 12px; color: rgba(255,255,255,.5); margin: 8px 0 0; min-height: 15px; }
     .pm-wa-mini { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 9px; background: transparent; border: none; color: rgba(255,255,255,.55); font-size: 13px; font-weight: 600; cursor: pointer; }
     .pm-wa-mini:hover { color: #25D366; }
+    .pm-mesa-banner { background: rgba(249,115,22,.14); border: 1px solid rgba(249,115,22,.5); border-radius: 12px; padding: 12px 14px; font-size: 14px; color: #fff; }
+    .pm-mesa-banner strong { color: #f97316; }
 
     .pm-cart-panel, .pm-addon-panel, .pm-checkout-panel {
       background: #161616; border-radius: 20px 20px 0 0;
@@ -2182,6 +2195,7 @@
   <div id="publicMenu" class="public-menu hidden"></div>
   <div id="printArea" class="print-area hidden"></div>
   <div id="kbModal" class="kb-modal-overlay hidden"></div>
+  <div id="qrModal" class="kb-modal-overlay hidden"></div>
 
   <template id="iconTemplate">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
@@ -3233,10 +3247,25 @@
         const processados = [];
         for (const [orderId, order] of Object.entries(orders)) {
           processados.push(orderId);
-          // Ignora se já foi processado (comanda aberta ou fechada com esse sourceOrderId)
-          if ((state.commands || []).find(c => c.sourceOrderId === orderId)) continue;
+          // Ignora se já foi processado (comanda/venda com esse sourceOrderId — inclui os somados na mesa)
+          if ((state.commands || []).find(c => c.sourceOrderId === orderId || (c.sourceOrderIds || []).includes(orderId))) continue;
           if ((state.sales || []).find(s => s.sourceOrderId === orderId)) continue;
           state.commands = state.commands || [];
+          // Pedido do QR de uma MESA e já existe comanda aberta pra ela → SOMA os itens.
+          const mesaName = (order.mesa || "").trim();
+          if (mesaName) {
+            const mesaCmd = state.commands.find(c => c.status === "aberta" && (c.local || "").toLowerCase() === mesaName.toLowerCase());
+            if (mesaCmd) {
+              mesaCmd.itens = mesaCmd.itens || [];
+              (Array.isArray(order.itens) ? order.itens : []).forEach(it => mesaCmd.itens.push(it));
+              mesaCmd.qrNewAt = Date.now();                 // acende o círculo azul no Salão
+              mesaCmd.sourceOrderIds = mesaCmd.sourceOrderIds || [];
+              mesaCmd.sourceOrderIds.push(orderId);
+              if (order.observacao && !mesaCmd.observacao) mesaCmd.observacao = order.observacao;
+              newCmds++;
+              continue;
+            }
+          }
           state.commands.push({
             // id determinístico: 2 abas abertas geram o MESMO id → sem comanda duplicada
             id: "src_" + orderId,
@@ -3259,7 +3288,8 @@
             observacao: order.observacao || "",
             trocoPara: num(order.trocoPara) || 0,
             troco: num(order.troco) || 0,
-            paymentMethod: order.paymentMethod || ""
+            paymentMethod: order.paymentMethod || "",
+            qrNewAt: mesaName ? Date.now() : undefined
           });
           ensureClientFromCommand(order.nome || "WhatsApp");
           newCmds++;
@@ -3481,6 +3511,63 @@
       const custom = state.settings.publicSlug;
       const raw = (custom && custom.trim() && custom !== "perspecta-bistro") ? custom : state.settings.restaurant;
       return slugify(raw);
+    }
+
+    // ── QR por mesa ──
+    // Link do cardápio já travado numa mesa: ?mesa=Nome#cardapio-publico-<slug>
+    function tableQRUrl(tableName) {
+      const custom = (state.settings.customDomain || "").trim();
+      const base = custom ? `https://${custom}/` : location.href.split("#")[0].split("?")[0];
+      return `${base}?mesa=${encodeURIComponent(tableName)}#cardapio-publico-${effectivePublicSlug()}`;
+    }
+    let _qrLibPromise = null;
+    function loadQrLib() {
+      if (window.qrcode) return Promise.resolve(window.qrcode);
+      if (_qrLibPromise) return _qrLibPromise;
+      _qrLibPromise = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js";
+        s.onload = () => resolve(window.qrcode);
+        s.onerror = () => { _qrLibPromise = null; reject(new Error("cdn")); };
+        document.head.appendChild(s);
+      });
+      return _qrLibPromise;
+    }
+    function qrDataUrl(text) {
+      const qr = window.qrcode(0, "M");   // typeNumber auto, correção média
+      qr.addData(text); qr.make();
+      return qr.createDataURL(6, 12);      // cellSize, margem
+    }
+    async function showTableQRCodes() {
+      const modal = document.getElementById("qrModal");
+      if (!modal) return;
+      const tables = (state.tables || []).slice().sort((a, b) => num(a.ordem) - num(b.ordem));
+      modal.classList.remove("hidden");
+      modal.innerHTML = `<div class="kb-modal-inner" style="max-width:760px"><button class="kb-modal-close" id="qrModalClose">✕</button>
+        <div class="kb-modal-body" style="padding:18px"><h2 style="margin:0 0 4px">📱 QR das mesas</h2>
+        <p class="mini" style="color:var(--muted);margin:0 0 14px">Imprima e cole na mesa. O cliente escaneia, vê o cardápio e o pedido cai direto na comanda dessa mesa.</p>
+        <div class="qr-loading">Gerando QR codes…</div></div></div>`;
+      try {
+        await loadQrLib();
+      } catch (e) {
+        modal.querySelector(".qr-loading").innerHTML = `<span style="color:var(--danger)">Não consegui carregar o gerador de QR (precisa de internet). Tente de novo.</span>`;
+        return;
+      }
+      if (!tables.length) { modal.querySelector(".qr-loading").textContent = "Cadastre mesas primeiro (no Salão)."; return; }
+      const cards = tables.map(t => {
+        let img = "";
+        try { img = qrDataUrl(tableQRUrl(t.nome)); } catch (e) {}
+        return `<div class="qr-card">
+          <div class="qr-name">${escapeHTML(t.nome)}</div>
+          ${img ? `<img src="${img}" alt="QR ${escapeHTML(t.nome)}">` : `<div class="mini" style="color:var(--danger)">erro</div>`}
+          <div class="qr-hint">Aponte a câmera para ver o cardápio e pedir</div>
+          <div class="qr-brand">${escapeHTML(state.settings.restaurant || "")}</div>
+        </div>`;
+      }).join("");
+      const body = modal.querySelector(".kb-modal-body");
+      body.querySelector(".qr-loading").remove();
+      body.insertAdjacentHTML("beforeend", `<div class="qr-grid" id="qrPrintArea">${cards}</div>
+        <button class="btn ok" id="qrPrintBtn" style="width:100%;margin-top:14px">🖨️ Imprimir todos</button>`);
     }
 
     // Traduz o token do link (#cardapio-publico-TOKEN) para o id da empresa.
@@ -4156,11 +4243,12 @@
         const showMinutes = command && !command.deliveredAt && !command.paidAt;
         const statusText = command ? `${status.label}${showMinutes ? ` · ${minutes} min` : ""}` : "Livre";
         const paidBadge = command?.paidAt ? `<span class="table-paid-badge" title="Pago">✓</span>` : "";
+        const qrDot = command?.qrNewAt ? `<span class="table-qr-dot" title="Novo pedido pelo QR da mesa"></span>` : "";
         const mainText = command ? escapeHTML(command.cliente || "Avulso") : escapeHTML(table.nome);
         const subText = command ? `<span class="table-name">${escapeHTML(table.nome)}</span>` : "";
         const selClass = selName && table.nome.toLowerCase() === selName ? " sel" : "";
         return `<button class="table-tile ${status.className}${selClass}" ${style} data-table-id="${table.id}" ${openAttr}>
-          ${paidBadge}
+          ${paidBadge}${qrDot}
           <div><strong class="table-client">${mainText}</strong>${subText}<span class="table-status">${statusText}</span>${command ? `<span class="table-total">${money(commandTotal(command))}</span>` : ""}</div>
           <span class="table-resize-handle" data-resize-tables title="Ajustar tamanho das mesas"></span>
         </button>`;
@@ -5203,6 +5291,10 @@
               <button class="btn ghost" type="button" id="copyPublicLink">Copiar</button>
             </div>
           </label>
+          <div style="margin-top:12px">
+            <button class="btn secondary" type="button" data-open-qr>📱 QR das mesas</button>
+            <span class="mini" style="color:var(--muted);margin-left:8px">Gera um QR por mesa — o cliente escaneia e pede direto na comanda da mesa.</span>
+          </div>
 
           <details class="cc-fold" style="margin-top:14px">
             <summary>✎ Editar dados do cardápio</summary>
@@ -5413,6 +5505,7 @@
     function showKbModal(id) {
       const command = state.commands.find(c => c.id === id);
       if (!command) { closeKbModal(); return; }
+      if (command.qrNewAt) { command.qrNewAt = null; save({ silent: true }); } // abriu → apaga o círculo azul
       _kbModalId = id;
       const modal = document.getElementById("kbModal");
       if (!modal) return;
@@ -6661,13 +6754,17 @@
               <label>WhatsApp <span style="font-weight:400;font-size:12px">(para receber notificações)</span>
                 <input name="telefone" type="tel" placeholder="11999999999" autocomplete="tel" inputmode="numeric">
               </label>
+              ${pmMesa ? `
+              <div class="pm-mesa-banner">🍽️ Pedido para a <strong>${escapeHTML(pmMesa)}</strong> — direto na sua mesa</div>
+              <input type="hidden" name="tipo" value="mesa">
+              ` : `
               <label>Como deseja receber?
                 <select name="tipo" id="pmTipoSelect">
                   <option value="retirada">Retirada no local</option>
                   <option value="tele">Delivery</option>
                   <option value="mesa">Comer no local</option>
                 </select>
-              </label>
+              </label>`}
               <!-- Delivery: endereço estruturado -->
               <div id="pmDeliveryWrap" class="hidden">
                 <div style="display:grid;grid-template-columns:1fr 92px;gap:8px">
@@ -6687,6 +6784,7 @@
                 <label>Mesa <span style="font-weight:400;font-size:12px">(opcional)</span><input name="mesaNum" placeholder="Ex: Mesa 3"></label>
               </div>
               <label>Observação <span style="font-weight:400;font-size:12px">(opcional)</span><input name="obs" placeholder="Ex: sem cebola, troco pra R$ 50…"></label>
+              ${pmMesa ? `<p class="pm-pay-hint" style="margin:8px 0 0">O pagamento é no fim, com o atendimento. É só pedir 😉</p>` : `
               <div class="pm-pay-block">
                 <span class="pm-pay-title">Forma de pagamento</span>
                 <div class="pm-pay-opts" id="pmPayOpts">
@@ -6701,7 +6799,7 @@
                   </label>
                   <p class="pm-pay-hint" id="pmTrocoHint" style="margin-top:4px"></p>
                 </div>
-              </div>
+              </div>`}
               <div class="pm-order-recap" id="pmOrderRecap"></div>
               <div id="pmCheckoutStatus" class="pm-checkout-status hidden"></div>
               <input type="hidden" name="payOnline" value="${payOnline ? "1" : ""}">
@@ -6718,6 +6816,9 @@
     }
 
     let publicCart = [];
+    // Mesa do QR: quando o link tem ?mesa=..., o pedido já vai travado nessa mesa.
+    let pmMesa = "";
+    try { pmMesa = (new URLSearchParams(location.search).get("mesa") || "").slice(0, 40).trim(); } catch (e) {}
     let pmAddonTarget = null;
     let pmAddonQty = 1;
     let pmActiveCat = "all";
@@ -6799,7 +6900,7 @@
         const compl = escapeHTML(data.complemento || "").trim();
         referencia = [`${rua}${numero ? `, ${numero}` : ""}`, bairroNome].filter(Boolean).join(" — ") + (compl ? ` (${compl})` : "");
       } else if (tipo === "mesa") {
-        referencia = escapeHTML(data.mesaNum || "").trim();
+        referencia = pmMesa || escapeHTML(data.mesaNum || "").trim();
       }
       const itemsForComanda = publicCart.map(item => ({
         id: item.id, nome: item.nome, preco: item.preco,
@@ -6811,7 +6912,9 @@
       // Troco (só dinheiro + delivery): quanto o cliente vai pagar e o troco a levar.
       const trocoPara = (pagamento === "dinheiro" && tipo === "tele") ? num(data.trocoPara) : 0;
       const troco = trocoPara > total ? +(trocoPara - total).toFixed(2) : 0;
-      const payload = { id: orderId, nome, tipo, referencia, bairro: bairroNome, entrega, observacao: obs, telefone, itens: itemsForComanda, total, trocoPara, troco, ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
+      // Pedido do QR da mesa → local = a mesa (roteia pra comanda dela); senão "Cardápio online".
+      const localPedido = pmMesa ? pmMesa : "Cardápio online";
+      const payload = { id: orderId, nome, tipo, referencia, bairro: bairroNome, entrega, observacao: obs, telefone, itens: itemsForComanda, total, trocoPara, troco, ts: Date.now(), createdAt: new Date().toISOString(), local: localPedido, mesa: pmMesa || "", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
       const lines = publicCart.map(item => {
         const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
         const addNames = (item.adicionais || []).filter(a => a.nome).map(a => `  + ${a.nome}`).join("\n");
@@ -7329,6 +7432,7 @@
         // No Salão: seleciona a mesa e mostra a comanda ao lado (só cria comanda ao clicar "Abrir comanda").
         if (activeSection() === "mesas" || activeSection() === "comandas") {
           salaoSel = openTable;
+          if (existing && existing.qrNewAt) existing.qrNewAt = null; // abriu a mesa → apaga o círculo azul
           if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
         } else {
@@ -7616,6 +7720,22 @@
       if (toggleAddon) { const addon = (state.addons || []).find(x => x.id === toggleAddon); if (addon) addon.ativo = !addon.ativo; save(); }
 
       // ── Kanban card → open full command modal ──
+      // ── QR das mesas ──
+      if (event.target.closest("[data-open-qr]")) { showTableQRCodes(); return; }
+      if (event.target.id === "qrModalClose" || event.target.id === "qrModal") { document.getElementById("qrModal")?.classList.add("hidden"); return; }
+      if (event.target.id === "qrPrintBtn") {
+        const grid = document.getElementById("qrPrintArea");
+        if (grid) {
+          const w = window.open("", "_blank");
+          if (w) {
+            w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>QR das mesas</title><style>@page{size:A4;margin:12mm}body{font-family:system-ui,sans-serif;margin:0}.qr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10mm}.qr-card{border:1px dashed #bbb;border-radius:10px;padding:10px;text-align:center;page-break-inside:avoid}.qr-card img{width:100%;max-width:150px;height:auto}.qr-name{font-weight:800;font-size:18px}.qr-hint{font-size:12px;color:#555;margin-top:6px}.qr-brand{font-size:11px;color:#999;margin-top:2px}</style></head><body><div class="qr-grid">${grid.innerHTML}</div></body></html>`);
+            w.document.close(); w.focus();
+            setTimeout(() => { try { w.print(); } catch (e) {} }, 400);
+          }
+        }
+        return;
+      }
+
       if (event.target.id === "kbModalClose" || event.target.id === "kbModal") {
         closeKbModal();
       } else {
@@ -8498,7 +8618,10 @@
           if (status) {
             const trocoTxt = res.payload.troco ? ` Leve ${money(res.payload.trocoPara)} — troco de ${money(res.payload.troco)}.` : "";
             status.className = "pm-checkout-status ok";
-            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu. Você paga ${ondePaga} (${res.payMap[res.pagamento]}).${trocoTxt} Acompanhe em "Meus pedidos".</span>${myOrdersBtn}`;
+            const sub = pmMesa
+              ? `Seu pedido já foi pra <strong>${escapeHTML(pmMesa)}</strong>. O atendimento vai preparar — você acerta a conta no fim. 😊`
+              : `O restaurante já recebeu. Você paga ${ondePaga} (${res.payMap[res.pagamento]}).${trocoTxt} Acompanhe em "Meus pedidos".`;
+            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">${sub}</span>${pmMesa ? "" : myOrdersBtn}`;
             status.scrollIntoView({ behavior: "smooth", block: "center" });
           }
           showToast("Pedido enviado! ✅", 3000);
