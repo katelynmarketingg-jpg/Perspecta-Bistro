@@ -6589,6 +6589,12 @@
                   <label class="pm-pay-opt"><input type="radio" name="pagamento" value="cartao"><span>💳 Cartão</span></label>
                 </div>
                 <p class="pm-pay-hint" id="pmPayHint"></p>
+                <div id="pmTrocoWrap" class="hidden" style="margin-top:10px">
+                  <label style="font-size:13px;font-weight:800;color:#ccc">Precisa de troco? <span style="font-weight:400;font-size:12px">(opcional)</span>
+                    <input name="trocoPara" id="pmTrocoInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Troco para quanto? Ex: 50">
+                  </label>
+                  <p class="pm-pay-hint" id="pmTrocoHint" style="margin-top:4px"></p>
+                </div>
               </div>
               <div class="pm-order-recap" id="pmOrderRecap"></div>
               <div id="pmCheckoutStatus" class="pm-checkout-status hidden"></div>
@@ -6645,6 +6651,25 @@
       if (method === "dinheiro") hint.textContent = `Você paga em dinheiro ${onde}.`;
       else if (payOnline) hint.textContent = `Você paga agora, pelo site, com segurança (InfinitePay).`;
       else hint.textContent = `Você paga ${onde} (${method === "pix" ? "Pix" : "cartão na maquininha"}).`;
+      // Troco: só em Dinheiro + Delivery.
+      const trocoWrap = document.getElementById("pmTrocoWrap");
+      if (trocoWrap) {
+        const showTroco = method === "dinheiro" && tipo === "tele";
+        trocoWrap.classList.toggle("hidden", !showTroco);
+        if (!showTroco) { const ti = document.getElementById("pmTrocoInput"); if (ti) ti.value = ""; }
+        pmUpdateTrocoHint();
+      }
+    }
+
+    // Calcula o troco ao vivo (troco = valor informado − total do pedido).
+    function pmUpdateTrocoHint() {
+      const h = document.getElementById("pmTrocoHint");
+      if (!h) return;
+      const para = num(document.getElementById("pmTrocoInput")?.value);
+      const total = pmCartTotal() + pmDeliveryFee().taxa;
+      if (!para) { h.textContent = ""; return; }
+      if (para < total) { h.textContent = `Valor menor que o total (${money(total)}).`; h.style.color = "#f87171"; }
+      else { h.textContent = `Troco: ${money(para - total)}`; h.style.color = "#4ade80"; }
     }
 
     // Monta e grava o pedido do cardápio no sistema (servidor + fallback direto).
@@ -6677,13 +6702,16 @@
       const orderId = uid();
       const tipoLabel = tipo === "tele" ? `Delivery${referencia ? ` — ${referencia}` : ""}` : tipo === "mesa" ? `${referencia ? referencia : "Comer no local"}` : "Retirada no local";
       const total = pmCartTotal() + entrega;
-      const payload = { id: orderId, nome, tipo, referencia, bairro: bairroNome, entrega, observacao: obs, telefone, itens: itemsForComanda, total, ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
+      // Troco (só dinheiro + delivery): quanto o cliente vai pagar e o troco a levar.
+      const trocoPara = (pagamento === "dinheiro" && tipo === "tele") ? num(data.trocoPara) : 0;
+      const troco = trocoPara > total ? +(trocoPara - total).toFixed(2) : 0;
+      const payload = { id: orderId, nome, tipo, referencia, bairro: bairroNome, entrega, observacao: obs, telefone, itens: itemsForComanda, total, trocoPara, troco, ts: Date.now(), createdAt: new Date().toISOString(), local: "Cardápio online", tipoLabel, paymentMethod: payMap[pagamento] || "Dinheiro", paymentStatus: payOnline ? "aguardando_online" : "na_entrega" };
       const lines = publicCart.map(item => {
         const addT = (item.adicionais || []).reduce((s, a) => s + num(a.preco), 0);
         const addNames = (item.adicionais || []).filter(a => a.nome).map(a => `  + ${a.nome}`).join("\n");
         const iobs = item.observacao ? `  📝 ${item.observacao}` : "";
         return `• ${item.quantidade}× ${item.nome} — ${money((num(item.preco) + addT) * item.quantidade)}${addNames ? "\n" + addNames : ""}${iobs ? "\n" + iobs : ""}`;
-      }).join("\n") + (entrega ? `\n🛵 Entrega (${bairroNome}): ${money(entrega)}` : "") + (obs ? `\n📝 Obs: ${obs}` : "");
+      }).join("\n") + (entrega ? `\n🛵 Entrega (${bairroNome}): ${money(entrega)}` : "") + (troco ? `\n💵 Troco para ${money(trocoPara)} (levar ${money(troco)})` : "") + (obs ? `\n📝 Obs: ${obs}` : "");
       const companyId = String(storeKey || "").replace(/^gestaoCompany\./, "").replace(/\.v1$/, "");
       let saved = false, failReason = "";
       try {
@@ -8335,8 +8363,9 @@
         } else {
           if (finalizeBtn) finalizeBtn.style.display = "none";
           if (status) {
+            const trocoTxt = res.payload.troco ? ` Leve ${money(res.payload.trocoPara)} — troco de ${money(res.payload.troco)}.` : "";
             status.className = "pm-checkout-status ok";
-            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu. Você paga ${ondePaga} (${res.payMap[res.pagamento]}). Acompanhe em "Meus pedidos".</span>${myOrdersBtn}`;
+            status.innerHTML = `<span class="st-title">✅ Pedido enviado!</span><span class="st-sub">O restaurante já recebeu. Você paga ${ondePaga} (${res.payMap[res.pagamento]}).${trocoTxt} Acompanhe em "Meus pedidos".</span>${myOrdersBtn}`;
             status.scrollIntoView({ behavior: "smooth", block: "center" });
           }
           showToast("Pedido enviado! ✅", 3000);
@@ -8424,6 +8453,8 @@
     });
 
     document.addEventListener("input", event => {
+      // Troco ao vivo no checkout público (dinheiro + delivery).
+      if (event.target.id === "pmTrocoInput") { pmUpdateTrocoHint(); return; }
       // Troco ao vivo no card da comanda (dinheiro). Escopo no MESMO card
       // (a comanda pode existir 2x no DOM: no grid e no modal aberto).
       if (event.target.matches("[data-cash-received]")) {
