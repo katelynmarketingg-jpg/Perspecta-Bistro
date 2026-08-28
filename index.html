@@ -1593,6 +1593,8 @@
     .csel-opt { padding:9px 14px; font-size:13px; cursor:pointer; white-space:nowrap; }
     .csel-opt:hover { background:var(--panel-2); }
     .csel-opt.sel { color:var(--accent); font-weight:700; }
+    .csel-search { position:sticky; top:0; z-index:2; display:block; width:100%; box-sizing:border-box; padding:9px 14px; border:0; border-bottom:1px solid var(--line); background:var(--panel-2); color:var(--ink); font-size:13px; outline:none; }
+    .csel-search::placeholder { color:var(--muted); }
     label > .csel { width:100%; }
     label > .csel .csel-trigger { width:100%; box-sizing:border-box; }
 
@@ -3853,10 +3855,13 @@
       const selLabel = (match || opts[0])?.l || "";
       const selVal   = String((match || opts[0])?.v ?? selected ?? "");
       const items = opts.length
-        ? opts.map(o => `<div class="csel-opt${String(o.v)===String(selected)?" sel":""}" data-v="${escapeHTML(String(o.v))}">${escapeHTML(o.l)}</div>`).join("")
+        ? opts.map(o => `<div class="csel-opt${String(o.v)===String(selected)?" sel":""}" data-v="${escapeHTML(String(o.v))}" data-l="${escapeHTML(String(o.l))}">${escapeHTML(o.l)}</div>`).join("")
         : `<div style="padding:10px 14px;font-size:12px;color:var(--muted)">Nenhuma opção cadastrada</div>`;
-      return `<div class="csel" style="${style}"><div class="csel-trigger"><span class="csel-val">${escapeHTML(selLabel)}</span></div><div class="csel-drop">${items}</div><input type="hidden" name="${escapeHTML(name)}" value="${escapeHTML(selVal)}"></div>`;
+      // Lista grande (> 6 opções) ganha campo de busca: digita e filtra.
+      const searchBox = opts.length > 6 ? `<input type="text" class="csel-search" data-csel-search placeholder="🔎 Buscar…" autocomplete="off">` : "";
+      return `<div class="csel" style="${style}"><div class="csel-trigger"><span class="csel-val">${escapeHTML(selLabel)}</span></div><div class="csel-drop">${searchBox}<div class="csel-empty-hint" style="display:none;padding:10px 14px;font-size:12px;color:var(--muted)">Nada encontrado</div>${items}</div><input type="hidden" name="${escapeHTML(name)}" value="${escapeHTML(selVal)}"></div>`;
     }
+    function _cselNorm(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
     document.addEventListener("click", e => {
       const opt = e.target.closest(".csel-opt");
       if (opt) {
@@ -3874,7 +3879,12 @@
         const drop = csel.querySelector(".csel-drop");
         const isOpen = drop.classList.contains("open");
         document.querySelectorAll(".csel-drop.open").forEach(d => d.classList.remove("open"));
-        if (!isOpen) { drop.classList.add("open"); drop.scrollTop = 0; }
+        if (!isOpen) {
+          drop.classList.add("open"); drop.scrollTop = 0;
+          // reseta a busca e foca (pra já digitar e filtrar)
+          const s = drop.querySelector("[data-csel-search]");
+          if (s) { s.value = ""; drop.querySelectorAll(".csel-opt").forEach(o => o.style.display = ""); const h = drop.querySelector(".csel-empty-hint"); if (h) h.style.display = "none"; setTimeout(() => s.focus(), 20); }
+        }
         return;
       }
       if (!e.target.closest(".csel")) {
@@ -8514,6 +8524,20 @@
     });
 
     document.addEventListener("input", event => {
+      // Busca dentro do seletor (cselBuild): digita e filtra as opções.
+      if (event.target.matches("[data-csel-search]")) {
+        const drop = event.target.closest(".csel-drop");
+        const q = _cselNorm(event.target.value);
+        let visible = 0;
+        drop.querySelectorAll(".csel-opt").forEach(o => {
+          const hit = !q || _cselNorm(o.dataset.l || o.textContent).includes(q);
+          o.style.display = hit ? "" : "none";
+          if (hit) visible++;
+        });
+        const hint = drop.querySelector(".csel-empty-hint");
+        if (hint) hint.style.display = visible ? "none" : "block";
+        return;
+      }
       // Troco ao vivo no checkout público (dinheiro + delivery).
       if (event.target.id === "pmTrocoInput") { pmUpdateTrocoHint(); return; }
       // Troco ao vivo no card da comanda (dinheiro). Escopo no MESMO card
