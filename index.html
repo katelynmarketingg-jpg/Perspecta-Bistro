@@ -6682,6 +6682,29 @@
             </div>
           </div>
 
+          <!-- ── 💳 Integrações de pagamento (Stone / balcão) ── -->
+          <div class="panel">
+            <h2>💳 Maquininha Stone (cartão no balcão)</h2>
+            <p class="mini" style="color:var(--muted);margin-bottom:12px">Pra o sistema <strong>mandar o valor direto pra maquininha Stone</strong> e receber a confirmação automática, a Stone precisa liberar a <strong>integração (API)</strong> na sua conta. É um passo com a Stone — veja abaixo o que pedir. A <strong>chave secreta</strong> nunca fica no navegador: eu configuro no servidor, com segurança.</p>
+            <form id="payStoneForm">
+              <div class="form-grid form-grid-2col">
+                <label>Código Stone / nº da maquininha<input name="stoneCode" value="${escapeHTML((state.settings.pay&&state.settings.pay.stone&&state.settings.pay.stone.code)||"")}" placeholder="Ex.: 123456789"></label>
+                <label style="display:flex;align-items:center;gap:8px;align-self:end;padding-bottom:10px">
+                  <input type="checkbox" name="stoneAtivo" ${(state.settings.pay&&state.settings.pay.stone&&state.settings.pay.stone.ativo)?"checked":""} style="width:auto">
+                  Cobrar cartão pela maquininha Stone
+                </label>
+              </div>
+              <div class="actions" style="margin-top:12px"><button class="btn" type="submit">Salvar Stone</button></div>
+            </form>
+            <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--panel-2);font-size:12px;line-height:1.6">
+              <strong>Como ativar (passo a passo):</strong><br>
+              1. Fale com a Stone e peça a <strong>integração / API de pagamento</strong> (Stone Connect / TEF) para a sua conta.<br>
+              2. A Stone envia as <strong>credenciais</strong> (chave/token) e diz o modelo de maquininha compatível.<br>
+              3. Me passe esses dados — a chave secreta eu configuro <strong>no servidor</strong> (nunca no navegador) e ligo o "manda pra maquininha → confirma sozinho".<br>
+              <span style="color:var(--muted)">Status: ${(state.settings.pay&&state.settings.pay.stone&&state.settings.pay.stone.ativo)?"marcado como ativo — aguardando as credenciais da Stone no servidor.":"não configurado — por enquanto, cobre na maquininha e confirme o pagamento no sistema (Cartão)."}</span>
+            </div>
+          </div>
+
           <!-- ── 🛵 Entrega por bairro ── -->
           <div class="panel">
             <h2>🛵 Taxa de entrega por bairro</h2>
@@ -8803,6 +8826,17 @@
         save();                 // publishPublicMenu roda no save → nó público atualiza
         renderDataTools();
         showToast(handle ? "✅ Pagamento online salvo." : "Pagamento online desativado.", 2200);
+      }
+
+      if (form.id === "payStoneForm") {
+        const code = (data.stoneCode || "").trim();
+        state.settings.pay = state.settings.pay || {};
+        // Só dados NÃO-secretos aqui (código/nº da maquininha + liga/desliga). A
+        // chave secreta da Stone fica no servidor (env), nunca no navegador/nuvem.
+        state.settings.pay.stone = { code, ativo: data.stoneAtivo === "true" };
+        save();
+        renderDataTools();
+        showToast(state.settings.pay.stone.ativo ? "Stone marcada como ativa — falta configurar a chave no servidor." : "Stone salva.", 2600);
       }
 
       if (form.id === "deliveryZoneForm") {
