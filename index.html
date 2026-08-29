@@ -5413,7 +5413,9 @@
         ? `${baseUrl}#cardapio-publico-${pubSlug}`
         : `${baseUrl}#cardapio-publico`;
       const cnameTarget = location.hostname || "seu-sistema.perspecta.app";
-      const shareUrl = customDomain ? `https://${customDomain}/` : publicUrl;
+      // Com domínio próprio, o link de divulgação usa o caminho /slug (ex.:
+      // cardapiobistro.perspecta.app.br/alianca) — o mesmo que abre o cardápio.
+      const shareUrl = customDomain ? `https://${customDomain.replace(/\/+$/, "")}/${pubSlug}` : publicUrl;
       document.getElementById("cardapio").innerHTML = `
         <div class="panel">
           <div class="panel-h" style="display:flex;align-items:center;gap:9px;margin-bottom:13px"><h2 style="margin:0">Cardápio público</h2></div>
@@ -5421,7 +5423,7 @@
           <label class="mini" style="font-weight:700;color:var(--muted)">Link para divulgar
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
               <input readonly id="publicLinkInput" value="${shareUrl}" style="flex:1;min-width:220px;font-size:13px">
-              <a class="btn ok" href="${publicUrl}" target="_blank">${icon("cardapio")}Abrir</a>
+              <a class="btn ok" href="${shareUrl}" target="_blank">${icon("cardapio")}Abrir</a>
               <button class="btn ghost" type="button" id="copyPublicLink">Copiar</button>
             </div>
           </label>
