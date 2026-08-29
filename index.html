@@ -780,6 +780,17 @@
     .item-picker-hint { margin: 8px 0 0; }
     .pay-done { text-align: center; font-weight: 800; color: var(--ok); background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
     .flow-sent { margin: 0 0 6px; color: var(--brand); font-weight: 700; }
+    /* Cabeçalho da comanda editável direto (sem abrir nada) */
+    .cmd-head-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }
+    .cmd-name-inp { font-size: inherit; font-weight: 800; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; max-width: 200px; box-sizing: border-box; }
+    .cmd-name-inp:hover { border-color: var(--line-2); }
+    .cmd-name-inp:focus { border-color: var(--brand); background: var(--bg); outline: none; }
+    .cmd-head-local { margin-top: 3px; }
+    .cmd-head-local .csel { display: inline-block; min-width: 130px; vertical-align: middle; }
+    .cmd-head-local .csel-trigger { padding: 4px 9px; font-size: 13px; }
+    .cmd-qtd-inp { width: 42px; font-size: 12px; padding: 1px 4px; background: transparent; border: 1px solid transparent; border-radius: 5px; color: var(--muted); text-align: center; }
+    .cmd-qtd-inp:hover { border-color: var(--line-2); }
+    .cmd-qtd-inp:focus { border-color: var(--brand); background: var(--bg); color: var(--ink); outline: none; }
 
     /* Kanban — prévia do pedido no card */
     .kanban-card-items { margin: 8px 0; display: flex; flex-direction: column; gap: 3px; }
@@ -5769,9 +5780,9 @@
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
           <div class="command-head-info">
-            <h3>👤 ${clienteName}${waBadge}</h3>
-            <div class="command-client-name">${localLabel}</div>
-            <p class="mini">${pessoas} cliente(s) · ${commandStatusText(command)}</p>
+            <h3 class="cmd-head-name">👤 <input class="cmd-name-inp" data-head-name="${command.id}" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Cliente" autocomplete="off">${waBadge}</h3>
+            <div class="command-client-name cmd-head-local" data-head-local="${command.id}" title="Clique para trocar a mesa / tipo">${cselBuild("hl_" + command.id, locations.map(t=>({v:t.nome,l:t.nome})), command.local)}${command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : ""}</div>
+            <p class="mini"><input class="cmd-qtd-inp" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}" data-head-pessoas="${command.id}" title="Qtd. de clientes"> cliente(s) · ${commandStatusText(command)}</p>
           </div>
           <strong>${money(commandTotal(command))}</strong>
         </div>
@@ -5784,17 +5795,6 @@
           ${command.troco ? `<div>💵 Troco p/ ${money(command.trocoPara)} · levar ${money(command.troco)}</div>` : ""}
           ${command.observacao ? `<div>📝 ${escapeHTML(command.observacao)}</div>` : ""}
         </div>` : ""}
-        <details class="cc-fold edit-cmd-fold">
-          <summary>✎ Trocar mesa · cliente · qtd</summary>
-          <form class="editCommandForm" data-command="${command.id}">
-            <div style="display:grid;grid-template-columns:1fr 2fr 60px;gap:6px;align-items:end">
-              <label style="font-size:11px">Mesa/Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), command.local)}</label>
-              <label style="font-size:11px">Cliente<input name="cliente" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Avulso"></label>
-              <label style="font-size:11px">Qtd.<input name="pessoas" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}"></label>
-            </div>
-            <p class="mini" style="margin:6px 0 0">Salva sozinho — escolha a mesa na lista ou digite o nome do cliente.</p>
-          </form>
-        </details>
         <div class="line-items" style="margin:10px 0">
           ${command.itens.length ? command.itens.map((item, index) => commandItemRow(command, item, index)).join("") : `<div class="empty">Sem itens</div>`}
         </div>
@@ -8989,28 +8989,39 @@
     });
 
     document.addEventListener("change", event => {
-      // Editar comanda: salva SOZINHO ao escolher a mesa ou digitar o cliente/qtd
-      // (sem botão Salvar). Reabre o fold pra continuar ajustando.
-      const editFormEl = event.target.closest(".editCommandForm");
-      if (editFormEl) {
-        const command = state.commands.find(c => c.id === editFormEl.dataset.command);
+      // ── Edição DIRETA no cabeçalho da comanda (sem abrir nada) ──
+      // Nome do cliente: digita e salva ao sair do campo (não re-renderiza, pra
+      // não tirar o foco — o valor já está visível no próprio campo).
+      const headName = event.target.closest("[data-head-name]");
+      if (headName) {
+        const command = state.commands.find(c => c.id === headName.dataset.headName);
         if (command) {
-          const localVal = (editFormEl.querySelector('[name="local"]')?.value || command.local || "").trim();
-          const clienteVal = (editFormEl.querySelector('[name="cliente"]')?.value || "").trim() || "Avulso";
-          const pessoasVal = Math.max(1, num(editFormEl.querySelector('[name="pessoas"]')?.value || 1));
+          const v = (headName.value || "").trim() || "Avulso";
+          command.cliente = v;
+          ensureClientFromCommand(v);
+          save();
+        }
+        return;
+      }
+      // Qtd. de clientes: idem, salva ao sair do campo.
+      const headPessoas = event.target.closest("[data-head-pessoas]");
+      if (headPessoas) {
+        const command = state.commands.find(c => c.id === headPessoas.dataset.headPessoas);
+        if (command) { command.pessoas = Math.max(1, num(headPessoas.value || 1)); save(); }
+        return;
+      }
+      // Mesa / tipo: o seletor (cselBuild) dispara "change" ao escolher. Precisa
+      // re-renderizar (muda o rótulo e a associação da mesa no salão).
+      const headLocal = event.target.closest("[data-head-local]");
+      if (headLocal && event.target.closest(".csel")) {
+        const command = state.commands.find(c => c.id === headLocal.dataset.headLocal);
+        if (command) {
+          const localVal = (headLocal.querySelector('input[type="hidden"]')?.value || command.local || "").trim();
           const allowMulti = ["balcão", "delivery"].includes(localVal.toLowerCase());
           const localTaken = !allowMulti && state.commands.find(c => c.id !== command.id && c.status === "aberta" && c.local.toLowerCase() === localVal.toLowerCase());
-          if (localTaken) {
-            alert("Já existe uma comanda aberta nesse local.");
-          } else {
-            command.local = localVal;
-            command.cliente = clienteVal;
-            command.pessoas = pessoasVal;
-            ensureClientFromCommand(clienteVal);
-            save();
-          }
+          if (localTaken) { alert("Já existe uma comanda aberta nesse local."); }
+          else { command.local = localVal; save(); }
           renderCommands();
-          document.querySelectorAll(`.command-card .editCommandForm[data-command="${command.id}"]`).forEach(f => { const fold = f.closest(".edit-cmd-fold"); if (fold) fold.open = true; });
         }
         return;
       }
