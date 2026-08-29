@@ -780,6 +780,10 @@
     .item-picker-hint { margin: 8px 0 0; }
     .pay-done { text-align: center; font-weight: 800; color: var(--ok); background: rgba(74,222,128,.12); border: 1px solid rgba(74,222,128,.3); border-radius: 8px; padding: 10px; margin-bottom: 8px; }
     .flow-sent { margin: 0 0 6px; color: var(--brand); font-weight: 700; }
+    /* Barra "impressora da cozinha neste aparelho" */
+    .kitchen-printer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--panel-2, rgba(255,255,255,.03)); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
+    .kp-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
+    .kp-toggle input { width: auto; cursor: pointer; }
     /* Cabeçalho da comanda editável direto (sem abrir nada) */
     .cmd-head-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }
     .cmd-name-inp { font-size: inherit; font-weight: 800; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; max-width: 200px; box-sizing: border-box; }
@@ -3974,14 +3978,41 @@
     }
 
     // Etapa detalhada (com Pronto e Saiu para entrega). Fonte única da verdade.
+    // "Pedido feito" — a atendente confirmou o pedido (ou ele já avançou / veio do
+    // cardápio online). Só depois disso aparecem Cozinha e Pagar no card.
+    function isPlaced(c) {
+      return !!(c && (c.placedAt || c.kitchenSentAt || c.readyAt || c.dispatchedAt || c.deliveredAt || c.paidAt || c.source === "whatsapp"));
+    }
     function commandStage(command) {
       if (command.paidAt) return "pago";
       if (command.deliveredAt) return "entregue";
       if (command.dispatchedAt) return "saiu";
       if (command.readyAt) return "pronto";
       if (command.kitchenSentAt) return "cozinha";
-      if (command.itens && command.itens.length) return "feito";
+      if (isPlaced(command)) return "feito";
       return "montando";
+    }
+
+    // ── Estação de impressão da cozinha ──
+    // Um aparelho (o note ligado à impressora) é marcado como "impressora da
+    // cozinha". Ele imprime AUTOMATICAMENTE qualquer pedido mandado pra cozinha —
+    // inclusive os mandados do celular (que sincronizam via nuvem). Cada comanda é
+    // marcada como impressa (por kitchenSentAt) pra não repetir.
+    const KITCHEN_PRINTER_KEY = "perspectaKitchenPrinter";
+    function isKitchenPrinter() { try { return localStorage.getItem(KITCHEN_PRINTER_KEY) === "1"; } catch (e) { return false; } }
+    function setKitchenPrinter(on) { try { localStorage.setItem(KITCHEN_PRINTER_KEY, on ? "1" : "0"); } catch (e) {} }
+    let _autoPrinting = false;
+    function autoPrintKitchen() {
+      if (!isKitchenPrinter() || _autoPrinting) return;
+      const pend = (state.commands || []).filter(c => c && c.status === "aberta" && c.kitchenSentAt && c.kitchenPrinted !== c.kitchenSentAt);
+      if (!pend.length) return;
+      _autoPrinting = true;
+      const c = pend[0];
+      c.kitchenPrinted = c.kitchenSentAt;   // marca ANTES de imprimir (evita repetir)
+      save({ silent: true });
+      try { printKitchenCommand(c); } catch (e) {}
+      _autoPrinting = false;
+      if (pend.length > 1) setTimeout(autoPrintKitchen, 1200); // imprime as demais, uma a uma
     }
     function isDeliveryCmd(c) { return c.tipoEntrega === "tele" || c.tipo === "tele"; }
     // Bebida: pela categoria do item (no próprio item ou buscando no cardápio pelo id).
@@ -5744,6 +5775,10 @@
         </div>
 
         <div class="panel">
+          <div class="kitchen-printer-bar">
+            <label class="kp-toggle"><input type="checkbox" data-kitchen-printer-toggle ${isKitchenPrinter() ? "checked" : ""}> 🖨️ Imprimir a cozinha <strong>neste aparelho</strong></label>
+            <span class="mini">${isKitchenPrinter() ? "✅ Este é o aparelho da impressora — o que for mandado pra cozinha (até do celular) sai aqui sozinho." : "Marque isto no note ligado à impressora. Aí o que você mandar do celular imprime aqui automaticamente."}</span>
+          </div>
           <form id="commandForm">
             <div class="form-grid" style="grid-template-columns:1fr 1fr 72px;gap:8px">
               <label style="font-size:11px">Local${cselBuild("local", locations.map(t=>({v:t.nome,l:t.nome})), locations[0]?.nome||"")}</label>
@@ -5760,6 +5795,9 @@
         if (cmd) showKbModal(_kbModalId);
         else closeKbModal();
       }
+      // Estação de impressão: imprime os pedidos de cozinha que chegaram (inclusive
+      // do celular, via sync). Só age no aparelho marcado como impressora.
+      autoPrintKitchen();
     }
 
     function commandLocations() {
@@ -5779,6 +5817,7 @@
       const clienteName = escapeHTML(command.cliente || "Avulso");
       const pessoas = Math.max(1, num(command.pessoas || 1));
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
+      const _placed = isPlaced(command);
       return `<article class="command-card ${command.paidAt ? "paid" : ""}">
         <div class="command-head">
           <div class="command-head-info">
@@ -5811,12 +5850,26 @@
           </div>
         </details>
         <div class="command-flow">
-          ${command.kitchenSentAt
-            ? `<p class="mini flow-sent">🍳 Enviado pra cozinha</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir cozinha</button>`
-            : `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`}
-          ${command.paidAt
-            ? `<div class="pay-done">✓ Pago ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}</div>`
-            : `<button class="btn secondary" type="button" data-pay-toggle="${command.id}" style="width:100%;margin-bottom:8px">💳 Pagar</button>
+          ${!_placed ? `
+            <button class="btn" type="button" data-mark-placed="${command.id}" style="width:100%">✓ Pedido feito</button>
+            <p class="mini" style="margin-top:6px">Adicione os itens e toque em <strong>Pedido feito</strong> — aí liberam Cozinha e Pagamento.</p>
+          ` : command.paidAt ? `
+            ${command.kitchenSentAt ? `<p class="mini flow-sent">🍳 Enviado pra cozinha</p>` : ""}
+            <div class="pay-done">✓ Pago ${money(command.paymentAmount || commandTotal(command))} · ${escapeHTML(command.paymentMethod || "")}</div>
+            <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">✓ Finalizar · liberar mesa</button>
+            <div style="display:flex;gap:6px;margin-top:8px">
+              <button class="btn ghost" type="button" data-print-receipt="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🧾 Cupom</button>
+              ${state.settings.nfceToken
+                ? (command.nfce
+                    ? `<a href="${escapeHTML(command.nfce.linkPdf||'#')}" target="_blank" rel="noopener" class="btn ghost" style="flex:1;font-size:12px;padding:7px 6px;text-align:center;text-decoration:none">📄 NFC-e #${escapeHTML(String(command.nfce.numero))}</a>`
+                    : `<button class="btn ghost" type="button" data-emitir-nfce="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🗒️ Emitir NFC-e</button>`)
+                : ""}
+            </div>
+          ` : `
+            ${command.kitchenSentAt
+              ? `<p class="mini flow-sent">🍳 Enviado pra cozinha</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir cozinha</button>`
+              : `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`}
+            <button class="btn secondary" type="button" data-pay-toggle="${command.id}" style="width:100%;margin-bottom:8px">💳 Pagar</button>
             <div class="pay-box hidden" data-pay-box="${command.id}" style="margin-bottom:8px">
               <div class="pay-eyebrow">Forma de pagamento</div>
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
@@ -5832,18 +5885,9 @@
                 </div>
                 <button class="btn ok" type="button" data-confirm-cash="${command.id}" style="width:100%;margin-top:8px">Confirmar dinheiro</button>
               </div>
-            </div>`}
-          <button class="btn ok close-command-button" type="button" data-close-command="${command.id}" style="width:100%">✓ Feito</button>
-          ${command.paidAt ? `
-          <div style="display:flex;gap:6px;margin-top:8px">
-            <button class="btn ghost" type="button" data-print-receipt="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🧾 Cupom</button>
-            ${state.settings.nfceToken
-              ? (command.nfce
-                  ? `<a href="${escapeHTML(command.nfce.linkPdf||'#')}" target="_blank" rel="noopener" class="btn ghost" style="flex:1;font-size:12px;padding:7px 6px;text-align:center;text-decoration:none">📄 NFC-e #${escapeHTML(String(command.nfce.numero))}</a>`
-                  : `<button class="btn ghost" type="button" data-emitir-nfce="${command.id}" style="flex:1;font-size:12px;padding:7px 6px">🗒️ Emitir NFC-e</button>`)
-              : ""}
-          </div>` : ""}
-          <p class="mini" style="margin-top:6px">${command.paidAt ? "Comanda paga — clique em Feito pra finalizar e enviar pra Pedido feito." : "Mande pra cozinha, receba o pagamento e clique em Feito."}</p>
+            </div>
+            <button class="btn ghost close-command-button" type="button" data-close-command="${command.id}" style="width:100%">✓ Finalizar · liberar mesa</button>
+          `}
           <button class="btn-cancel-cmd" type="button" data-cancel-command="${command.id}">🗑️ Apagar comanda (desistiu)</button>
         </div>
       </article>`;
@@ -7966,6 +8010,20 @@
         }
       }
 
+      // "Pedido feito": libera Cozinha e Pagamento no card (e joga pra coluna
+      // "Pedido feito" do kanban).
+      const markPlaced = event.target.closest("[data-mark-placed]")?.dataset.markPlaced;
+      if (markPlaced) {
+        const command = state.commands.find(c => c.id === markPlaced);
+        if (command) {
+          if (!(command.itens || []).length) { alert("Adicione pelo menos um item antes de marcar como Pedido feito."); return; }
+          command.placedAt = new Date().toISOString();
+          save();
+          renderCommands();
+        }
+        return;
+      }
+
       const sendKitchen = event.target.closest("[data-send-kitchen]")?.dataset.sendKitchen;
       if (sendKitchen) {
         const command = state.commands.find(c => c.id === sendKitchen);
@@ -7974,11 +8032,17 @@
             alert("Adicione pelo menos um item antes de mandar para a cozinha.");
           } else {
             command.kitchenSentAt = new Date().toISOString();
+            command.placedAt = command.placedAt || command.kitchenSentAt;
+            command.kitchenPrinted = false; // marca p/ (re)imprimir na estação de impressão
             save();
-            printKitchenCommand(command);
-            // Sem mensagem de WhatsApp — o cliente acompanha em "Meus pedidos".
+            renderCommands();
+            // A impressão acontece na ESTAÇÃO DE IMPRESSÃO (o note ligado à
+            // impressora) via autoPrintKitchen — que roda no render e a cada sync.
+            // Assim, mandar do celular imprime no note automaticamente.
+            autoPrintKitchen();
           }
         }
+        return;
       }
 
       // Entregar bebida (marca as bebidas da comanda como entregues, sem mexer no resto)
@@ -9025,6 +9089,15 @@
           else { command.local = localVal; save(); }
           renderCommands();
         }
+        return;
+      }
+
+      // Marca/desmarca ESTE aparelho como a impressora da cozinha (por aparelho,
+      // não sincroniza). Ao marcar, já imprime o que estiver pendente.
+      if (event.target.matches("[data-kitchen-printer-toggle]")) {
+        setKitchenPrinter(event.target.checked);
+        renderCommands();
+        if (event.target.checked) autoPrintKitchen();
         return;
       }
 
