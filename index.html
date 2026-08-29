@@ -5670,7 +5670,7 @@
       } else if (stage === "saiu") {
         action = entregar;
       } else if (stage === "entregue") {
-        action = `<div class="kb-pay-row">${cselBuild("_kbpay_"+command.id,[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro","width:100%")}<button class="btn ok btn-sm" data-pay-kanban="${command.id}">💰 Pagar</button></div>`;
+        action = `<button class="btn ok btn-sm" style="width:100%" data-open-kb="${command.id}">💳 Abrir comanda p/ pagar</button>`;
       } else if (stage === "pago") {
         action = `<button class="btn ok btn-sm" style="width:100%" data-close-command="${command.id}">✓ Liberar mesa</button>`;
       }
@@ -5715,14 +5715,13 @@
     function commandListRow(command) {
       const status = commandStatus(command);
       const total = commandTotal(command);
-      const paySelect = `<span class="list-pay-inline" style="display:inline-flex;align-items:center;gap:6px">${cselBuild("_kbpay_"+command.id,[{v:"dinheiro",l:"Dinheiro"},{v:"pix",l:"Pix"},{v:"debito",l:"Débito"},{v:"credito",l:"Crédito"}],"dinheiro","min-width:110px")}<button class="btn ok btn-sm" data-pay-kanban="${command.id}">Pagar</button></span>`;
       const _st = commandStage(command);
       const actions = [
         _st === "feito" ? `<button class="btn secondary btn-sm" data-send-kitchen="${command.id}">Cozinha</button>` : "",
         _st === "cozinha" ? `<button class="btn secondary btn-sm" data-mark-ready="${command.id}">Pronto</button>` : "",
         _st === "pronto" && isDeliveryCmd(command) ? `<button class="btn secondary btn-sm" data-dispatch="${command.id}">Saiu</button>` : "",
         (_st === "pronto" && !isDeliveryCmd(command)) || _st === "saiu" ? `<button class="btn ghost btn-sm" data-deliver-command="${command.id}">Entregue</button>` : "",
-        _st === "entregue" ? paySelect : "",
+        _st === "entregue" ? `<button class="btn ok btn-sm" data-open-kb="${command.id}">💳 Pagar</button>` : "",
         _st === "pago" ? `<button class="btn ok btn-sm" data-close-command="${command.id}">Liberar</button>` : "",
       ].filter(Boolean).join(" ");
       return `<tr>
