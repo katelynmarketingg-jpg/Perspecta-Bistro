@@ -3235,6 +3235,18 @@
       const sT = (server && server._settingsUpdatedAt) || 0, lT = (local && local._settingsUpdatedAt) || 0;
       if (sT > lT && server.settings) { out.settings = server.settings; out._settingsUpdatedAt = sT; }
       else out._settingsUpdatedAt = lT;
+      // Protege a MARCA (logo): as settings são trocadas em bloco por data, então um
+      // save de outro aparelho sem o logo apagava a marca. Aqui, se o lado escolhido
+      // ficou sem logo mas o outro lado tinha, preserva o logo (idem WhatsApp/nome).
+      if (out.settings) {
+        const sLogo = server && server.settings && server.settings.logoUrl;
+        const lLogo = local && local.settings && local.settings.logoUrl;
+        if (!out.settings.logoUrl && (sLogo || lLogo)) {
+          out.settings = { ...out.settings, logoUrl: sLogo || lLogo };
+          const dims = (server && server.settings && server.settings.logoDims) || (local && local.settings && local.settings.logoDims);
+          if (dims) out.settings.logoDims = dims;
+        }
+      }
       out.savedAt = Math.max((server && server.savedAt) || 0, (local && local.savedAt) || 0);
       return out;
     }
@@ -3988,7 +4000,10 @@
       if (command.deliveredAt) return "entregue";
       if (command.dispatchedAt) return "saiu";
       if (command.readyAt) return "pronto";
-      if (command.kitchenSentAt) return "cozinha";
+      // Só vai pra "Na cozinha" quando REALMENTE imprimiu (kitchenPrinted). Se foi
+      // mandado mas ainda não imprimiu (note fora, sem carregar), fica em "Pedido
+      // feito" com aviso de "aguardando impressão" — nunca some.
+      if (command.kitchenPrinted) return "cozinha";
       if (isPlaced(command)) return "feito";
       return "montando";
     }
@@ -4007,12 +4022,16 @@
       const pend = (state.commands || []).filter(c => c && c.status === "aberta" && c.kitchenSentAt && c.kitchenPrinted !== c.kitchenSentAt);
       if (!pend.length) return;
       _autoPrinting = true;
-      const c = pend[0];
-      c.kitchenPrinted = c.kitchenSentAt;   // marca ANTES de imprimir (evita repetir)
-      save({ silent: true });
-      try { printKitchenCommand(c); } catch (e) {}
-      _autoPrinting = false;
-      if (pend.length > 1) setTimeout(autoPrintKitchen, 1200); // imprime as demais, uma a uma
+      try {
+        for (const c of pend) {
+          c.kitchenPrinted = c.kitchenSentAt;   // marca ANTES de imprimir (evita repetir)
+          try { printKitchenCommand(c); } catch (e) {}
+        }
+        save({ silent: true });
+      } finally { _autoPrinting = false; }
+      // Atualiza a tela: os pedidos saem de "aguardando impressão" pra "Na cozinha".
+      // (pend já vazio agora, então este render não reimprime — sem loop.)
+      if (typeof activeSection === "function" && activeSection() === "comandas") renderCommands();
     }
     function isDeliveryCmd(c) { return c.tipoEntrega === "tele" || c.tipo === "tele"; }
     // Bebida: pela categoria do item (no próprio item ou buscando no cardápio pelo id).
@@ -5866,9 +5885,11 @@
                 : ""}
             </div>
           ` : `
-            ${command.kitchenSentAt
-              ? `<p class="mini flow-sent">🍳 Enviado pra cozinha</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir cozinha</button>`
-              : `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`}
+            ${command.kitchenPrinted
+              ? `<p class="mini flow-sent">🍳 Na cozinha (impresso)</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir</button>`
+              : command.kitchenSentAt
+                ? `<p class="mini" style="margin:0 0 6px;color:#fbbf24;font-weight:700">⏳ Aguardando impressão no note…</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reenviar pra cozinha</button>`
+                : `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`}
             <button class="btn secondary" type="button" data-pay-toggle="${command.id}" style="width:100%;margin-bottom:8px">💳 Pagar</button>
             <div class="pay-box hidden" data-pay-box="${command.id}" style="margin-bottom:8px">
               <div class="pay-eyebrow">Forma de pagamento</div>
