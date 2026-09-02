@@ -784,6 +784,15 @@
     .kitchen-printer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; background: var(--panel-2, rgba(255,255,255,.03)); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; margin-bottom: 12px; }
     .kp-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink); cursor: pointer; }
     .kp-toggle input { width: auto; cursor: pointer; }
+    /* Seleção múltipla de comandas */
+    .cmd-select-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 10px 0 14px; }
+    .cmd-select-bar .csb-count { font-weight: 700; font-size: 13px; }
+    .cmd-select-bar .csb-move { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    .cmd-select-bar .csb-select { padding: 5px 8px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); font-size: 12px; }
+    .cmd-check-wrap { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--brand); cursor: pointer; margin-bottom: 8px; }
+    .cmd-check-wrap input { width: auto; cursor: pointer; }
+    .cmd-selected { outline: 2px solid var(--brand); outline-offset: -1px; }
+    tr.cmd-selected > td { background: rgba(249,115,22,.1); }
     /* Cabeçalho da comanda editável direto (sem abrir nada) */
     .cmd-head-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }
     .cmd-name-inp { font-size: inherit; font-weight: 800; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; max-width: 200px; box-sizing: border-box; }
@@ -2267,6 +2276,9 @@
     const MASTER_KEY = "gestaoMaster.v1";
     let storeKey = MASTER_KEY;
     let _kbModalId = null;
+    // Seleção múltipla de comandas (apagar/mover várias de uma vez).
+    let _cmdSelectMode = false;
+    let _cmdSelected = new Set();
     let _dragId = null, _pdrag = null, _justDragged = false, _editInvId = null, _addStockId = null;
     let currentSession = null; // { type:'gestor'} | { type:'company', company:{...} }
 
@@ -5680,7 +5692,8 @@
       const _drinks = commandUndeliveredDrinks(command);
       const _drinkBtn = (_drinks.length && commandStage(command) !== "pago")
         ? `<button class="btn-drink" type="button" data-deliver-drinks="${command.id}" title="Marcar bebida(s) como entregue">🥤 Entregar bebida</button>` : "";
-      return `<div class="kanban-card" data-drag-id="${command.id}" data-open-kb="${command.id}">
+      return `<div class="kanban-card ${_cmdSelectMode && _cmdSelected.has(command.id) ? "cmd-selected" : ""}" data-drag-id="${command.id}" data-open-kb="${command.id}">
+        ${_cmdSelectMode ? `<label class="cmd-check-wrap"><input type="checkbox" data-cmd-check="${command.id}" ${_cmdSelected.has(command.id) ? "checked" : ""}> selecionar</label>` : ""}
         <div class="kanban-card-top">
           <span class="kanban-card-mesa">👤 ${cliente}</span>
           <span class="kanban-card-total">${money(total)}</span>
@@ -5724,14 +5737,20 @@
         _st === "entregue" ? `<button class="btn ok btn-sm" data-open-kb="${command.id}">💳 Pagar</button>` : "",
         _st === "pago" ? `<button class="btn ok btn-sm" data-close-command="${command.id}">Liberar</button>` : "",
       ].filter(Boolean).join(" ");
-      return `<tr>
-        <td><strong>${escapeHTML(command.local)}</strong>${command.source === "whatsapp" ? ` <span class="badge-wa" style="font-size:10px;padding:1px 5px">📲</span>` : ""}</td>
+      return `<tr class="${_cmdSelectMode && _cmdSelected.has(command.id) ? "cmd-selected" : ""}">
+        <td><strong>${_cmdSelectMode ? `<input type="checkbox" data-cmd-check="${command.id}" ${_cmdSelected.has(command.id) ? "checked" : ""} style="margin-right:7px;vertical-align:middle"> ` : ""}${escapeHTML(command.local)}</strong>${command.source === "whatsapp" ? ` <span class="badge-wa" style="font-size:10px;padding:1px 5px">📲</span>` : ""}</td>
         <td style="color:var(--brand);font-weight:700">${escapeHTML(command.cliente || "Avulso")}</td>
         <td>${command.itens.length}</td>
         <td><strong>${money(total)}</strong></td>
         <td>${commandStatusChip(command)}</td>
         <td style="white-space:nowrap">${actions || `<span class="mini">—</span>`}</td>
       </tr>`;
+    }
+
+    function toggleCmdSel(id) {
+      if (_cmdSelected.has(id)) _cmdSelected.delete(id);
+      else _cmdSelected.add(id);
+      renderCommands();
     }
 
     function renderCommands() {
@@ -5745,9 +5764,18 @@
         <button class="btn${mode === "lista" ? "" : " ghost"}" data-cmd-view="lista">☰ Lista</button>
       </div>`;
 
+      // Barra de seleção múltipla (apagar/mover várias comandas de uma vez).
+      const _selStages = [["montando","Sem pedido"],["feito","Pedido feito"],["cozinha","Na cozinha"],["pronto","Pronto"],["saiu","Saiu p/ entrega"],["entregue","Entregue"],["pago","Pago"]];
+      const selectBar = `<div class="cmd-select-bar">${_cmdSelectMode
+        ? `<span class="csb-count">${_cmdSelected.size} selecionada(s)</span>
+           <button class="btn danger btn-sm" type="button" data-cmd-bulk-delete ${_cmdSelected.size ? "" : "disabled"}>🗑️ Apagar</button>
+           <span class="csb-move">Mover para <select id="cmdBulkMoveTarget" class="csb-select">${_selStages.map(([v,l]) => `<option value="${v}">${l}</option>`).join("")}</select> <button class="btn secondary btn-sm" type="button" data-cmd-bulk-move ${_cmdSelected.size ? "" : "disabled"}>Mover</button></span>
+           <button class="btn ghost btn-sm" type="button" data-cmd-select-toggle>Cancelar</button>`
+        : `<button class="btn ghost btn-sm" type="button" data-cmd-select-toggle>☑️ Selecionar vários</button>`}</div>`;
+
       let content = "";
       if (mode === "geral") {
-        content = `${viewToggle}<div class="command-grid">${open.length ? open.map(commandCard).join("") : empty("Nenhuma comanda aberta.")}</div>`;
+        content = `${viewToggle}${selectBar}<div class="command-grid">${open.length ? open.map(commandCard).join("") : empty("Nenhuma comanda aberta.")}</div>`;
       } else if (mode === "colunas") {
         const cols = [
           { id: "montando", label: "Sem pedido",     filter: c => commandStage(c) === "montando" },
@@ -5767,10 +5795,10 @@
             ${cards.length ? cards.map(commandKanbanCard).join("") : `<p class="mini" style="text-align:center;margin:8px 0">—</p>`}
           </div>`;
         }).join("");
-        content = `${viewToggle}<div class="kanban-board">${cols}</div>`;
+        content = `${viewToggle}${selectBar}<div class="kanban-board">${cols}</div>`;
       } else {
         const rows = open.length ? open.map(commandListRow).join("") : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Nenhuma comanda aberta.</td></tr>`;
-        content = `${viewToggle}<div class="cmd-list-wrap"><table class="cmd-list">
+        content = `${viewToggle}${selectBar}<div class="cmd-list-wrap"><table class="cmd-list">
           <thead><tr><th>Mesa</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ação</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`;
@@ -5836,7 +5864,8 @@
       const pessoas = Math.max(1, num(command.pessoas || 1));
       const localLabel = escapeHTML(command.local) + (command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : "");
       const _placed = isPlaced(command);
-      return `<article class="command-card ${command.paidAt ? "paid" : ""}">
+      return `<article class="command-card ${command.paidAt ? "paid" : ""} ${_cmdSelectMode && _cmdSelected.has(command.id) ? "cmd-selected" : ""}">
+        ${_cmdSelectMode ? `<label class="cmd-check-wrap"><input type="checkbox" data-cmd-check="${command.id}" ${_cmdSelected.has(command.id) ? "checked" : ""}> selecionar comanda</label>` : ""}
         <div class="command-head">
           <div class="command-head-info">
             <h3 class="cmd-head-name">👤 <input class="cmd-name-inp" data-head-name="${command.id}" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Cliente" autocomplete="off">${waBadge}</h3>
@@ -7991,8 +8020,47 @@
       } else {
         const openKb = event.target.closest("[data-open-kb]")?.dataset.openKb;
         if (!_justDragged && openKb && !event.target.closest("button, .csel-trigger, .csel-opt, .csel-drop, .csel, [data-step-advance]")) {
-          showKbModal(openKb);
+          // No modo seleção, clicar no card marca/desmarca (não abre a comanda).
+          if (_cmdSelectMode) {
+            if (!event.target.closest("[data-cmd-check], .cmd-check-wrap")) toggleCmdSel(openKb);
+          } else {
+            showKbModal(openKb);
+          }
         }
+      }
+
+      // ── Seleção múltipla de comandas ──
+      if (event.target.closest("[data-cmd-select-toggle]")) {
+        _cmdSelectMode = !_cmdSelectMode;
+        _cmdSelected.clear();
+        renderCommands();
+        return;
+      }
+      const bulkDel = event.target.closest("[data-cmd-bulk-delete]");
+      if (bulkDel) {
+        const ids = [..._cmdSelected];
+        if (!ids.length) return;
+        if (!confirm(`Apagar ${ids.length} comanda(s) selecionada(s)? Isso não pode ser desfeito.`)) return;
+        state.commands = state.commands.filter(c => !_cmdSelected.has(c.id));
+        _cmdSelected.clear();
+        _cmdSelectMode = false;
+        save();
+        renderCommands();
+        showToast(`${ids.length} comanda(s) apagada(s).`, 2200);
+        return;
+      }
+      const bulkMove = event.target.closest("[data-cmd-bulk-move]");
+      if (bulkMove) {
+        const ids = [..._cmdSelected];
+        if (!ids.length) return;
+        const target = document.getElementById("cmdBulkMoveTarget")?.value || "feito";
+        ids.forEach(id => applyKanbanDrop(id, target));  // ajusta as etapas da comanda
+        _cmdSelected.clear();
+        _cmdSelectMode = false;
+        save();
+        renderCommands();
+        showToast(`${ids.length} comanda(s) movida(s).`, 2200);
+        return;
       }
 
       const removeItem = event.target.closest("[data-remove-item]")?.dataset.removeItem;
@@ -9143,6 +9211,14 @@
           else { command.local = localVal; save(); }
           renderCommands();
         }
+        return;
+      }
+
+      // Seleção múltipla: marca/desmarca uma comanda.
+      if (event.target.matches("[data-cmd-check]")) {
+        const id = event.target.dataset.cmdCheck;
+        if (event.target.checked) _cmdSelected.add(id); else _cmdSelected.delete(id);
+        renderCommands();
         return;
       }
 
