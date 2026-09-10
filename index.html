@@ -164,6 +164,15 @@
       background: var(--brand);
       color: #fafaf9;
     }
+    .sidebar-update {
+      width: 100%;
+      font-size: 12px;
+      padding: 7px 8px;
+      background: transparent;
+      border: 1px solid var(--line-2);
+      color: var(--ink);
+    }
+    .sidebar-update:hover { border-color: var(--brand); color: var(--brand); }
 
     main {
       padding: 26px;
@@ -2208,6 +2217,8 @@
         <div id="syncBadge" style="font-size:10px;color:var(--muted);margin-bottom:5px;text-align:center;letter-spacing:.3px"></div>
         <div id="sessionBadge" style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
         <div id="proxyBanner"></div>
+        <button class="btn sidebar-update" type="button" data-force-update title="Baixa a versão mais nova e limpa o cache deste aparelho">🔄 Atualizar sistema</button>
+        <div style="font-size:9px;color:var(--muted);text-align:center;margin:3px 0 6px">versão <span id="appVersionLabel">—</span></div>
         <button class="btn sidebar-logout" type="button" data-logout>⏏ Sair</button>
       </div>
     </aside>
@@ -2276,6 +2287,27 @@
     const MASTER_KEY = "gestaoMaster.v1";
     let storeKey = MASTER_KEY;
     let _kbModalId = null;
+    // Versão do app (bate com o cache do Service Worker). Mostrada no rodapé e usada
+    // pelo botão "Atualizar sistema".
+    const APP_VERSION = "49";
+    // Força a versão mais nova neste aparelho: desregistra o Service Worker, limpa
+    // TODOS os caches e recarrega. Resolve "note preso numa versão antiga".
+    async function forceUpdate() {
+      try {
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+      } catch (e) {}
+      try {
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch (e) {}
+      // recarrega buscando na rede (cache-busting)
+      try { location.replace(location.pathname + location.search + location.hash); } catch (e) { location.reload(); }
+    }
     // Seleção múltipla de comandas (apagar/mover várias de uma vez).
     let _cmdSelectMode = false;
     let _cmdSelected = new Set();
@@ -7400,6 +7432,8 @@
 
     function renderAll() {
       document.getElementById("todayLabel").textContent = DATE.format(new Date());
+      const _vl = document.getElementById("appVersionLabel");
+      if (_vl) _vl.textContent = APP_VERSION;
       const badge = document.getElementById("sessionBadge");
       if (badge) badge.textContent = getSessionLabel();
       const proxyBanner = document.getElementById("proxyBanner");
@@ -8484,6 +8518,12 @@
         } catch {
           alert("JSON inválido.");
         }
+      }
+
+      if (event.target.closest("[data-force-update]")) {
+        showToast("Atualizando o sistema neste aparelho…", 2000);
+        forceUpdate();
+        return;
       }
 
       if (event.target.id === "logoutBtn" || event.target.closest("[data-logout]")) {
