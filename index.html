@@ -3034,6 +3034,15 @@
       return res;
     }
 
+    // Headers para as funções /api que exigem o token do admin (Authorization:
+    // Bearer <ID token com claims role/storeId>). Hoje o servidor IGNORA o token
+    // (REQUIRE_STORE_AUTH desligado); enviá-lo já deixa tudo pronto para ligar a
+    // trava na janela sem novo deploy de cliente. Sem token → manda só o base.
+    async function adminAuthHeaders(base = {}) {
+      try { const t = await ensureFbToken(); return t ? { ...base, Authorization: "Bearer " + t } : { ...base }; }
+      catch (e) { return { ...base }; }
+    }
+
     // ─────────────────────────────────────────────────────────────
     //  FOTOS — armazenadas SEPARADAS do estado (não incham o sync)
     //  • Fotos enviadas pelo usuário ficam no IndexedDB (local, sem o limite
@@ -3375,7 +3384,7 @@
         //    do Firebase do navegador (era o que travava a chegada dos pedidos).
         let orders = null, viaServer = false;
         try {
-          const sr = await fetch(`https://perspecta-bistro.vercel.app/api/pending-orders?companyId=${encodeURIComponent(companyId)}`, { cache: "no-store" });
+          const sr = await fetch(`https://perspecta-bistro.vercel.app/api/pending-orders?companyId=${encodeURIComponent(companyId)}`, { cache: "no-store", headers: await adminAuthHeaders() });
           if (sr.ok) { orders = (await sr.json()).orders || {}; viaServer = true; }
         } catch (e) {}
         // 2) Fallback: leitura direta no Firebase (quando o servidor não responde).
@@ -3440,7 +3449,7 @@
         // SERVIDOR (não depende do token do navegador); com fallback direto.
         if (processados.length) {
           fetch("https://perspecta-bistro.vercel.app/api/pending-orders", {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: await adminAuthHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({ companyId, ids: processados })
           }).catch(() => {
             processados.forEach(id => authedFetch(`${FIREBASE_URL}/orders/${path}/${id}.json`, { method: 'DELETE' }).catch(() => {}));
@@ -3805,10 +3814,12 @@
         };
       }
       if (!Object.keys(changed).length) return;
-      fetch(ORDER_STATUS_API, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: companyIdFromKey(), statuses: changed }),
-      }).catch(() => {});
+      adminAuthHeaders({ "Content-Type": "application/json" }).then(headers => {
+        fetch(ORDER_STATUS_API, {
+          method: "POST", headers,
+          body: JSON.stringify({ companyId: companyIdFromKey(), statuses: changed }),
+        }).catch(() => {});
+      });
     }
 
     function save(opts = {}) {
@@ -6132,7 +6143,7 @@
         // Caminho principal: emite pelo servidor (o token não sai do navegador).
         try {
           const sr = await fetch("/api/nfce", {
-            method: "POST", headers: { "Content-Type": "application/json" },
+            method: "POST", headers: await adminAuthHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({ companyId, payload })
           });
           if (sr.status !== 404 && sr.status < 500) res = sr;   // servidor respondeu (Plugnotas incluído)

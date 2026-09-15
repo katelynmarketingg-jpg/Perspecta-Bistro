@@ -1,4 +1,4 @@
-const CACHE = 'alianca-v49';
+const CACHE = 'alianca-v50';
 const ASSETS = ['./'];
 
 self.addEventListener('install', e => {
@@ -17,9 +17,11 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const req = e.request;
 
-  // Chamadas de API (Firebase / login Google) NUNCA são cacheadas — sempre rede.
-  // Evita servir dados velhos do banco (sync) e respostas de token vencidas.
-  if (/firebaseio\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com/.test(req.url)) return;
+  // Chamadas de API (Firebase / login Google / funções /api) NUNCA são cacheadas —
+  // sempre rede. Evita servir dados velhos: pedidos pendentes, status do pedido,
+  // "meus pedidos" e respostas de token vencidas. Sem isto, o cache-first abaixo
+  // devolvia respostas defasadas de /api mesmo com fetch cache:no-store.
+  if (/firebaseio\.com|identitytoolkit\.googleapis\.com|securetoken\.googleapis\.com|\/api\//.test(req.url)) return;
 
   const isDoc = req.mode === 'navigate' || req.destination === 'document';
 
