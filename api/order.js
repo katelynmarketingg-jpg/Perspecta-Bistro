@@ -39,6 +39,22 @@ function initAdmin() {
 
 const str = (v, max) => String(v == null ? "" : v).slice(0, max || 200);
 
+// Rate-limit simples por loja + telefone + IP (janela 60s). Limite alto: um
+// cliente real faz 1 pedido; só barra flood/spam. Fail-open: qualquer erro LIBERA
+// (nunca deixa de registrar um pedido legítimo por causa de bug no limitador).
+async function tooManyOrders(db, companyId, phone, ip) {
+  try {
+    const key = (companyId + "_" + (phone || ip || "anon")).replace(/[.#$\[\]/]+/g, "_").slice(0, 80) || "_";
+    const ref = db.ref("/ratelimit_orders/" + key);
+    const now = Date.now();
+    const arr = (await ref.get()).val();
+    const recent = (Array.isArray(arr) ? arr : []).filter((t) => now - t < 60000);
+    recent.push(now);
+    await ref.set(recent.slice(-30));
+    return recent.length > 15;
+  } catch (e) { return false; }
+}
+
 async function readJson(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string" && req.body) { try { return JSON.parse(req.body); } catch { return {}; } }
@@ -68,6 +84,11 @@ module.exports = async (req, res) => {
 
     const app = initAdmin();
     const db = admin.database(app);
+    // Anti-flood: barra rajadas de pedidos falsos (spam) do mesmo cliente/IP.
+    const ip = str((req.headers && (req.headers["x-forwarded-for"] || req.headers["x-real-ip"])) || "", 60).split(",")[0].trim();
+    const phoneRL = str(order.telefone, 20).replace(/\D/g, "");
+    if (await tooManyOrders(db, companyId, phoneRL, ip))
+      return res.status(429).json({ error: "muitos pedidos em sequência — aguarde 1 minuto" });
     // valida que a loja existe (evita gravar lixo p/ id inexistente).
     // Sinal principal: o nó público do cardápio (/public/gestaoCompany_<id>_v1),
     // republicado a cada save do admin — se o cliente está VENDO o cardápio, ele
