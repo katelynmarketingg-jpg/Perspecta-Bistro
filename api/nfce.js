@@ -50,7 +50,30 @@ async function readJson(req) {
   } catch { return {}; }
 }
 
+// Trava de acesso por loja (Fase 2), DORMENTE por padrão. Sem ela, QUALQUER um
+// que saiba um companyId consegue mandar o servidor emitir NFC-e com o token
+// fiscal da loja. Só EXIGE token quando REQUIRE_STORE_AUTH=1; flag desligada →
+// ok na hora (comportamento idêntico ao de hoje).
+async function checkStoreAuth(req, app, companyId) {
+  if (process.env.REQUIRE_STORE_AUTH !== "1") return { ok: true };
+  const h = (req.headers && (req.headers.authorization || req.headers.Authorization)) || "";
+  const m = /^Bearer\s+(.+)$/i.exec(String(h));
+  if (!m) return { ok: false, code: 401, error: "autenticação necessária" };
+  try {
+    const dec = await admin.auth(app).verifyIdToken(m[1].trim());
+    if (dec.role === "gestor") return { ok: true };
+    if (dec.role === "company" && String(dec.storeId) === String(companyId)) return { ok: true };
+    return { ok: false, code: 403, error: "sem permissão para esta loja" };
+  } catch (e) {
+    return { ok: false, code: 401, error: "token inválido ou expirado" };
+  }
+}
+
 module.exports = async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "método não permitido" });
   try {
     const body = await readJson(req);
@@ -59,6 +82,8 @@ module.exports = async (req, res) => {
     if (!companyId || !payload) return res.status(400).json({ error: "companyId/payload ausente" });
 
     const app = initAdmin();
+    const auth = await checkStoreAuth(req, app, companyId);
+    if (!auth.ok) return res.status(auth.code).json({ error: auth.error });
     const settings = (await admin.database(app).ref(`/data/gestaoCompany_${companyId}_v1/settings`).get()).val() || {};
     const token = settings.nfceToken;
     if (!token) return res.status(400).json({ error: "loja sem token NFC-e configurado" });

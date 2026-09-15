@@ -39,6 +39,26 @@ function initAdmin() {
 
 const str = (v, max) => String(v == null ? "" : v).slice(0, max || 200);
 
+// Trava de acesso por loja (Fase 2). DORMENTE por padrão: só passa a EXIGIR o
+// token quando REQUIRE_STORE_AUTH=1 nas env vars. Assim o código já vai pronto e
+// a trava é LIGADA na janela (depois da Fase 1 no ar e do cliente enviando o
+// token no header Authorization). Flag desligada → retorna ok na hora, sem tocar
+// no request: comportamento byte-a-byte idêntico ao de hoje.
+async function checkStoreAuth(req, app, companyId) {
+  if (process.env.REQUIRE_STORE_AUTH !== "1") return { ok: true };
+  const h = (req.headers && (req.headers.authorization || req.headers.Authorization)) || "";
+  const m = /^Bearer\s+(.+)$/i.exec(String(h));
+  if (!m) return { ok: false, code: 401, error: "autenticação necessária" };
+  try {
+    const dec = await admin.auth(app).verifyIdToken(m[1].trim());
+    if (dec.role === "gestor") return { ok: true };
+    if (dec.role === "company" && String(dec.storeId) === String(companyId)) return { ok: true };
+    return { ok: false, code: 403, error: "sem permissão para esta loja" };
+  } catch (e) {
+    return { ok: false, code: 401, error: "token inválido ou expirado" };
+  }
+}
+
 async function readJson(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string" && req.body) { try { return JSON.parse(req.body); } catch { return {}; } }
@@ -53,7 +73,7 @@ async function readJson(req) {
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(204).end();
   try {
     const app = initAdmin();
@@ -68,6 +88,8 @@ module.exports = async (req, res) => {
         if (typeof mapped === "string") companyId = mapped.replace(/[^\w-]/g, "");
       }
       if (!companyId) return res.status(400).json({ error: "companyId ausente" });
+      const auth = await checkStoreAuth(req, app, companyId);
+      if (!auth.ok) return res.status(auth.code).json({ error: auth.error });
       const snap = await db.ref(`/orders/gestaoCompany_${companyId}_v1`).get();
       return res.status(200).json({ companyId, count: snap.exists() ? Object.keys(snap.val()).length : 0, orders: snap.exists() ? snap.val() : {} });
     }
@@ -77,6 +99,8 @@ module.exports = async (req, res) => {
       const companyId = str(body.companyId, 60).replace(/[^\w-]/g, "");
       const ids = Array.isArray(body.ids) ? body.ids.map((x) => str(x, 60).replace(/[^\w-]/g, "")).filter(Boolean).slice(0, 100) : [];
       if (!companyId || !ids.length) return res.status(400).json({ error: "companyId/ids ausentes" });
+      const auth = await checkStoreAuth(req, app, companyId);
+      if (!auth.ok) return res.status(auth.code).json({ error: auth.error });
       const updates = {};
       for (const id of ids) updates[id] = null; // apagar
       await db.ref(`/orders/gestaoCompany_${companyId}_v1`).update(updates);

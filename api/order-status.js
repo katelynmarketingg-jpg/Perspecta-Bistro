@@ -40,6 +40,25 @@ function initAdmin() {
 const str = (v, max) => String(v == null ? "" : v).slice(0, max || 200);
 const ALLOWED = ["recebido", "cozinha", "entrega", "finalizado"];
 
+// Trava de acesso por loja (Fase 2), DORMENTE por padrão. Só EXIGE token quando
+// REQUIRE_STORE_AUTH=1. Aplica-se só ao POST (o admin publica status); o GET
+// segue público (o cliente acompanha os pedidos dele por id). Flag desligada →
+// retorna ok na hora, comportamento idêntico ao de hoje.
+async function checkStoreAuth(req, app, companyId) {
+  if (process.env.REQUIRE_STORE_AUTH !== "1") return { ok: true };
+  const h = (req.headers && (req.headers.authorization || req.headers.Authorization)) || "";
+  const m = /^Bearer\s+(.+)$/i.exec(String(h));
+  if (!m) return { ok: false, code: 401, error: "autenticação necessária" };
+  try {
+    const dec = await admin.auth(app).verifyIdToken(m[1].trim());
+    if (dec.role === "gestor") return { ok: true };
+    if (dec.role === "company" && String(dec.storeId) === String(companyId)) return { ok: true };
+    return { ok: false, code: 403, error: "sem permissão para esta loja" };
+  } catch (e) {
+    return { ok: false, code: 401, error: "token inválido ou expirado" };
+  }
+}
+
 async function readJson(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string" && req.body) { try { return JSON.parse(req.body); } catch { return {}; } }
@@ -54,7 +73,7 @@ async function readJson(req) {
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(204).end();
 
   try {
@@ -78,6 +97,8 @@ module.exports = async (req, res) => {
       const companyId = str(body.companyId, 60).replace(/[^\w-]/g, "");
       const statuses = body.statuses && typeof body.statuses === "object" ? body.statuses : null;
       if (!companyId || !statuses) return res.status(400).json({ error: "companyId/statuses ausentes" });
+      const auth = await checkStoreAuth(req, app, companyId);
+      if (!auth.ok) return res.status(auth.code).json({ error: auth.error });
       const entries = Object.entries(statuses).slice(0, 100);
       const updates = {};
       for (const [orderId, s] of entries) {
