@@ -104,22 +104,37 @@ module.exports = async (req, res) => {
 
     const app = initAdmin();
     const db = admin.database(app);
-    // Handle lido do nó público da loja (fonte confiável) — nunca do cliente.
-    const node = (await db.ref(`/public/gestaoCompany_${companyId}_v1/settings/pay/infinitepay`).get()).val() || {};
-    const handle = node.handle;
-    if (!handle || node.ativo === false) {
+    // Nó público da loja (fonte confiável) — cardápio, adicionais e infinitepay.
+    const pub = (await db.ref(`/public/gestaoCompany_${companyId}_v1`).get()).val() || {};
+    const payNode = (pub.settings && pub.settings.pay && pub.settings.pay.infinitepay) || {};
+    const handle = payNode.handle;
+    if (!handle || payNode.ativo === false) {
       return res.status(400).json({ error: "pagamento online não configurado para esta loja" });
     }
 
+    // INTEGRIDADE DE PREÇO: o valor cobrado vem do cardápio do SERVIDOR, não do
+    // carrinho do cliente (que poderia ser adulterado). Casa por id; se um id não
+    // existir no cardápio público, cai no preço enviado — assim um pedido legítimo
+    // (item recém-desativado, versão de cardápio antiga) nunca é barrado.
+    const menuPrice = new Map((Array.isArray(pub.menu) ? pub.menu : []).map((m) => [String(m && m.id), Number(m && m.preco) || 0]));
+    const addonPrice = new Map((Array.isArray(pub.addons) ? pub.addons : []).map((a) => [String(a && a.id), Number(a && a.preco) || 0]));
+    const priceOf = (map, id, fallback) => (id != null && map.has(String(id)) ? map.get(String(id)) : (Number(fallback) || 0));
+
     const items = order.itens.slice(0, 100).map((it) => {
-      const addPrice = Array.isArray(it.adicionais) ? it.adicionais.reduce((s, a) => s + (Number(a.preco) || 0), 0) : 0;
-      const unit = (Number(it.preco) || 0) + addPrice;
+      const base = priceOf(menuPrice, it.id, it.preco);
+      const addPrice = Array.isArray(it.adicionais)
+        ? it.adicionais.reduce((s, a) => s + priceOf(addonPrice, a && a.id, a && a.preco), 0) : 0;
+      const unit = base + addPrice;
       return { name: str(it.nome, 120) || "Item", priceCents: Math.max(0, Math.round(unit * 100)), qty: Math.max(1, Math.min(99, Number(it.quantidade) || 1)) };
     });
-    // Taxa de entrega do bairro entra como um item do checkout.
-    const entrega = Number(order.entrega) || 0;
+    // Taxa de entrega: usa a taxa do bairro cadastrado na loja (fonte confiável),
+    // casando pelo nome do bairro; cai na taxa enviada só se a zona não for achada.
+    const zones = (pub.settings && Array.isArray(pub.settings.deliveryZones)) ? pub.settings.deliveryZones : [];
+    const bairroNome = str(order.bairro, 60);
+    const zone = bairroNome ? zones.find((z) => z && String(z.bairro || "").trim().toLowerCase() === bairroNome.trim().toLowerCase()) : null;
+    const entrega = zone ? (Number(zone.taxa) || 0) : (Number(order.entrega) || 0);
     if (entrega > 0) {
-      items.push({ name: `Entrega${order.bairro ? ` — ${str(order.bairro, 60)}` : ""}`, priceCents: Math.round(entrega * 100), qty: 1 });
+      items.push({ name: `Entrega${bairroNome ? ` — ${bairroNome}` : ""}`, priceCents: Math.round(entrega * 100), qty: 1 });
     }
     const customer = {
       name: str(order.nome, 120) || "Cliente",
