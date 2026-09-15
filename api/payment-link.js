@@ -131,6 +131,7 @@ module.exports = async (req, res) => {
     if (r.url) return res.status(200).json({ url: r.url, orderId });
     return res.status(502).json({ error: r.error || "não foi possível gerar o link" });
   } catch (e) {
-    return res.status(500).json({ error: "falha ao gerar pagamento", detail: String((e && e.message) || e) });
+    console.error("payment-link:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha ao gerar pagamento" });
   }
 };

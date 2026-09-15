@@ -97,7 +97,11 @@ module.exports = async (req, res) => {
     if (gc && (gc.passHash || gc.senha != null)) {
       authorized = credOk(gestorSenha, gc);
     } else {
-      authorized = norm(gestorLogin || "Perspecta") === "perspecta" && String(gestorSenha) === "001";
+      // Bootstrap SÓ no primeiro uso real: sem gestor semeado E sem nenhuma
+      // empresa cadastrada. Assim que existir qualquer empresa, o padrão
+      // Perspecta/001 deixa de autorizar (fecha o backdoor em produção).
+      const semEmpresas = !Array.isArray(master.companies) || master.companies.length === 0;
+      authorized = semEmpresas && norm(gestorLogin || "Perspecta") === "perspecta" && String(gestorSenha) === "001";
     }
     if (!authorized) return res.status(401).json({ error: "senha do gestor incorreta" });
 
@@ -135,6 +139,7 @@ module.exports = async (req, res) => {
 
     return res.status(200).json({ ok: true, company: { id: clean.id, nome: clean.nome, login: clean.login } });
   } catch (e) {
-    return res.status(500).json({ error: "falha ao salvar empresa", detail: String((e && e.message) || e) });
+    console.error("save-company:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha ao salvar empresa" });
   }
 };

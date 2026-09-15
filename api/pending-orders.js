@@ -85,6 +85,7 @@ module.exports = async (req, res) => {
 
     return res.status(405).json({ error: "método não permitido" });
   } catch (e) {
-    return res.status(500).json({ error: "falha ao buscar pedidos", detail: String((e && e.message) || e) });
+    console.error("pending-orders:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha ao buscar pedidos" });
   }
 };

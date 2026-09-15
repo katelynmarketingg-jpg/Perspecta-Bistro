@@ -50,6 +50,22 @@ async function readJson(req) {
   } catch { return {}; }
 }
 
+// Rate-limit simples por IP+loja (janela 60s, máx 15 pedidos). Fail-open: em
+// qualquer erro, LIBERA (nunca barra um pedido legítimo por bug). Evita flood
+// de pedidos falsos na comanda de uma loja (companyId é público).
+async function tooManyOrders(db, companyId, ip) {
+  try {
+    const key = (String(companyId) + "_" + String(ip || "sem-ip")).toLowerCase().replace(/[.#$\[\]/]+/g, "_").slice(0, 90) || "_";
+    const ref = db.ref("/ratelimit_order/" + key);
+    const now = Date.now();
+    const arr = (await ref.get()).val();
+    const recent = (Array.isArray(arr) ? arr : []).filter((t) => now - t < 60000);
+    recent.push(now);
+    await ref.set(recent.slice(-30));
+    return recent.length > 15;
+  } catch (e) { return false; }
+}
+
 module.exports = async (req, res) => {
   // CORS — o cardápio público roda em outro domínio (GitHub Pages) e chama este endpoint.
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -68,6 +84,10 @@ module.exports = async (req, res) => {
 
     const app = initAdmin();
     const db = admin.database(app);
+    // Rate-limit por IP+loja (fail-open) antes de qualquer escrita.
+    const ip = String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "").split(",")[0].trim();
+    if (await tooManyOrders(db, companyId, ip))
+      return res.status(429).json({ error: "muitos pedidos em sequência — espere um instante" });
     // valida que a loja existe (evita gravar lixo p/ id inexistente).
     // Sinal principal: o nó público do cardápio (/public/gestaoCompany_<id>_v1),
     // republicado a cada save do admin — se o cliente está VENDO o cardápio, ele
@@ -127,6 +147,7 @@ module.exports = async (req, res) => {
     }
     return res.status(200).json({ ok: true, orderId: clean.id });
   } catch (e) {
-    return res.status(500).json({ error: "falha ao enviar pedido", detail: String((e && e.message) || e) });
+    console.error("order:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha ao enviar pedido" });
   }
 };

@@ -73,6 +73,7 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     return res.send(text); // repassa o corpo do Plugnotas como veio
   } catch (e) {
-    return res.status(500).json({ error: "falha na emissão", detail: String((e && e.message) || e) });
+    console.error("nfce:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha na emissão" });
   }
 };

@@ -130,6 +130,7 @@ module.exports = async (req, res) => {
     }
     return res.status(401).json({ error: "Empresa, nome ou senha incorretos" });
   } catch (e) {
-    return res.status(500).json({ error: "falha no login", detail: String((e && e.message) || e) });
+    console.error("login:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha no login" });
   }
 };

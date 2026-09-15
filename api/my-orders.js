@@ -68,6 +68,7 @@ module.exports = async (req, res) => {
     out.sort((a, b) => b.ts - a.ts);
     return res.status(200).json({ orders: out.slice(0, 50) });
   } catch (e) {
-    return res.status(500).json({ error: "falha ao buscar pedidos", detail: String((e && e.message) || e) });
+    console.error("my-orders:", (e && e.message) || e);
+    return res.status(500).json({ error: "falha ao buscar pedidos" });
   }
 };

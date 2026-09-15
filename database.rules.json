@@ -2,25 +2,27 @@
   "rules": {
     "public": {
       ".read": true,
-      "$company": {
-        ".write": "auth != null"
+      "$key": {
+        ".write": "auth != null && (auth.token.role === 'gestor' || $key === 'gestaoCompany_' + auth.token.storeId + '_v1' || ($key.beginsWith('slug__') && newData.val() === auth.token.storeId && (!data.exists() || data.val() === auth.token.storeId)))"
       }
     },
     "photos": {
       ".read": true,
-      "$company": {
-        ".write": "auth != null"
+      "$key": {
+        ".write": "auth != null && (auth.token.role === 'gestor' || $key === 'gestaoCompany_' + auth.token.storeId + '_v1')"
       }
     },
     "orders": {
-      "$company": {
-        ".read": "auth != null",
-        ".write": "auth != null"
+      "$key": {
+        ".read": "auth != null && (auth.token.role === 'gestor' || $key === 'gestaoCompany_' + auth.token.storeId + '_v1')",
+        ".write": "auth != null && (auth.token.role === 'gestor' || $key === 'gestaoCompany_' + auth.token.storeId + '_v1')"
       }
     },
     "data": {
-      ".read": "auth != null",
-      ".write": "auth != null"
+      "$key": {
+        ".read": "auth != null && (auth.token.role === 'gestor' || $key === 'gestaoCompany_' + auth.token.storeId + '_v1')",
+        ".write": "auth != null && (auth.token.role === 'gestor' || $key === 'gestaoCompany_' + auth.token.storeId + '_v1')"
+      }
     }
   }
 }
