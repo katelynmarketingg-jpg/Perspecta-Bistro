@@ -3576,7 +3576,7 @@
       let statuses = {};
       try {
         const ids = orders.map(o => o.id).join(",");
-        const r = await fetch(`${ORDER_STATUS_API}?company=${encodeURIComponent(companyIdFromKey())}&ids=${encodeURIComponent(ids)}`);
+        const r = await fetch(`${ORDER_STATUS_API}?company=${encodeURIComponent(companyIdFromKey())}&ids=${encodeURIComponent(ids)}`, { cache: "no-store" });
         if (r.ok) statuses = (await r.json()).statuses || {};
       } catch (e) {}
       box.innerHTML = orders.map(o => {
@@ -9006,7 +9006,9 @@
         const finalizeBtn = document.getElementById("pmFinalizeBtn");
         if (finalizeBtn) { finalizeBtn.disabled = true; finalizeBtn.textContent = "Enviando…"; }
         const res = await pmPersistOrder(data);
-        if (finalizeBtn) { finalizeBtn.disabled = false; finalizeBtn.textContent = "Finalizar pedido"; }
+        // Não reabilita aqui: no sucesso o botão é escondido logo abaixo; reabilitar
+        // durante o await do pagamento abria janela p/ duplo-toque = pedido duplicado.
+        // Só voltamos a habilitar no caminho de FALHA (para o cliente tentar de novo).
         const waUrl = whatsappLink(state.settings.whatsapp, pmOrderWhatsMsg(res, res.saved));
         const waLink = state.settings.whatsapp
           ? `<a href="${waUrl}" target="_blank" rel="noopener" class="pm-wa-mini" style="margin-top:10px;text-decoration:none">Avisar pelo WhatsApp</a>` : "";
@@ -9014,6 +9016,7 @@
         const ondePaga = res.tipo === "tele" ? "na entrega" : res.tipo === "mesa" ? "no local" : "na retirada";
 
         if (!res.saved) {
+          if (finalizeBtn) { finalizeBtn.disabled = false; finalizeBtn.textContent = "Finalizar pedido"; }
           if (status) {
             status.className = "pm-checkout-status err";
             status.innerHTML = `<span class="st-title">Não consegui registrar</span><span class="st-sub">${escapeHTML(res.failReason || "tente de novo")}. Toque para enviar seu pedido pelo WhatsApp — o restaurante confirma por lá.</span>${waLink}`;
