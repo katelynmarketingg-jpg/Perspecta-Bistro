@@ -23,8 +23,10 @@ function initAdmin() {
   return admin.initializeApp({ credential: admin.credential.cert(sa),
     databaseURL: process.env.FIREBASE_DATABASE_URL || `https://${sa.project_id}-default-rtdb.firebaseio.com` });
 }
-const DBURL = () => process.env.FIREBASE_DATABASE_URL || "https://perspecta-bistro-default-rtdb.firebaseio.com";
-const WEBKEY = () => process.env.FIREBASE_WEB_API_KEY || "AIzaSyBy_FMQjmTMnR9OZC6wIQGVx1i2R_5DvAw";
+// Sem segredos no código: a URL do RTDB é derivada da conta de serviço (ou da env)
+// e a web API key vem SÓ da env (FIREBASE_WEB_API_KEY). Endpoint de diagnóstico.
+const DBURL = () => process.env.FIREBASE_DATABASE_URL || `https://${loadServiceAccount().project_id}-default-rtdb.firebaseio.com`;
+const WEBKEY = () => process.env.FIREBASE_WEB_API_KEY || "";
 
 async function anonToken() {
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${WEBKEY()}`,
@@ -47,6 +49,8 @@ async function tryRead(path, token) {
 module.exports = async (req, res) => {
   if (!process.env.ADMIN_SCAN_KEY || req.query.key !== process.env.ADMIN_SCAN_KEY)
     return res.status(403).json({ error: "proibido" });
+  if (!WEBKEY())
+    return res.status(500).json({ error: "defina FIREBASE_WEB_API_KEY nas env vars do projeto" });
   try {
     const app = initAdmin();
     const anon = await anonToken();
