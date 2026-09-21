@@ -478,9 +478,16 @@
       position: absolute;
       width: var(--table-size, 132px);
       min-height: calc(var(--table-size, 132px) * .72);
-      cursor: grab;
+      cursor: pointer;
       user-select: none;
       box-shadow: 0 10px 22px rgba(35, 24, 14, .12);
+    }
+
+    /* Modo "Mover": mesas ficam arrastáveis, com cursor e contorno indicando isso. */
+    .floor-plan.editing .table-tile {
+      cursor: move;
+      outline: 2px dashed var(--brand);
+      outline-offset: 2px;
     }
 
     .floor-plan .table-tile.dragging {
@@ -2818,6 +2825,14 @@
       data.settings.menuOrder = normalizeMenuOrder(data.settings.menuOrder);
       data.cash = data.cash || [];
       data.cashSessions = data.cashSessions || structuredClone(defaultState.cashSessions);
+      // Remove a mesa "Bebidas" (sem uso) e registra tombstone para o sync não
+      // trazê-la de volta de outro aparelho / da nuvem.
+      const _bebidas = (data.tables || []).filter(t => String(t.nome || "").toLowerCase() === "bebidas");
+      if (_bebidas.length) {
+        data._tomb = data._tomb || {};
+        data._tomb.tables = data._tomb.tables || {};
+        _bebidas.forEach(t => { if (t.id != null) data._tomb.tables[t.id] = Date.now(); });
+      }
       data.tables = ensureDefaultServicePoints(data.tables || structuredClone(defaultState.tables));
       data.goals = data.goals || structuredClone(defaultState.goals);
       data.inventory = data.inventory || structuredClone(defaultState.inventory);
@@ -2897,10 +2912,12 @@
     }
 
     function ensureDefaultServicePoints(tables) {
+      // "Bebidas" foi removida do mapa (sem uso) — tira qualquer resquício salvo
+      // e não recria mais.
+      tables = (tables || []).filter(t => String(t.nome || "").toLowerCase() !== "bebidas");
       const required = [
         ...Array.from({ length: 11 }, (_, index) => ({ nome: `Mesa ${index + 1}`, area: index < 4 ? "Salão" : index < 8 ? "Meio" : "Fundo" })),
         { nome: "Balcão", area: "Caixa" },
-        { nome: "Bebidas", area: "Balcão" },
         { nome: "Delivery", area: "Online" }
       ];
       const existing = new Set((tables || []).map(table => String(table.nome || "").toLowerCase()));
@@ -4421,7 +4438,7 @@
         const minutes = command ? Math.max(1, Math.round((Date.now() - new Date(command.createdAt).getTime()) / 60000)) : 0;
         const status = tableStatus(command);
         const style = draggable ? `style="--table-size:${tileSize}px;left:${Math.max(0, Math.min(88, num(table.x)))}%;top:${Math.max(0, Math.min(80, num(table.y)))}%"` : `style="--table-size:${tileSize}px"`;
-        const openAttr = allowOpen ? `data-open-table="${escapeHTML(table.nome)}"` : "";
+        const openAttr = (allowOpen && !mapEditMode) ? `data-open-table="${escapeHTML(table.nome)}"` : "";
         const showMinutes = command && !command.deliveredAt && !command.paidAt;
         const statusText = command ? `${status.label}${showMinutes ? ` · ${minutes} min` : ""}` : "Livre";
         const paidBadge = command?.paidAt ? `<span class="table-paid-badge" title="Pago">✓</span>` : "";
@@ -4436,7 +4453,7 @@
         </button>`;
       }).join("");
       const emptyMessage = onlyActive && !content.trim() ? `<div class="empty">Nenhuma mesa ativa agora.</div>` : "";
-      return draggable ? `<div class="floor-plan" id="floorPlan">${content}${emptyMessage}</div>` : `<div class="floor-grid">${content}${emptyMessage}</div>`;
+      return draggable ? `<div class="floor-plan${mapEditMode ? " editing" : ""}" id="floorPlan">${content}${emptyMessage}</div>` : `<div class="floor-grid">${content}${emptyMessage}</div>`;
     }
 
     function tableStatus(command) {
@@ -4450,9 +4467,13 @@
     function tableMapControls() {
       const size = Math.max(108, Math.min(180, num(state.settings.tableTileSize || 132)));
       const checked = state.settings.tableOnlyActive ? "checked" : "";
+      const editBtn = mapEditMode
+        ? `<button type="button" class="btn ok btn-sm" data-map-save>✓ Salvar layout</button><span class="mini" style="color:var(--muted)">Arraste as mesas e toque em salvar.</span>`
+        : `<button type="button" class="btn secondary btn-sm" data-map-edit>✥ Mover mesas</button>`;
       return `<div class="map-toolbar">
         <label>Tamanho das mesas <input data-table-size type="range" min="108" max="180" value="${size}"></label>
         <label class="map-toggle"><input data-active-tables-only type="checkbox" ${checked}> Só mesas ativas</label>
+        ${editBtn}
       </div>`;
     }
 
@@ -5883,7 +5904,7 @@
     function commandLocations() {
       const map = new Map();
       (state.tables || []).forEach(table => map.set(table.nome.toLowerCase(), table));
-      ["Balcão", "Bebidas", "Delivery"].forEach((name, index) => {
+      ["Balcão", "Delivery"].forEach((name, index) => {
         if (!map.has(name.toLowerCase())) map.set(name.toLowerCase(), { id: name, nome: name, area: "Atendimento", ordem: 90 + index });
       });
       return Array.from(map.values()).sort((a, b) => num(a.ordem) - num(b.ordem) || a.nome.localeCompare(b.nome));
@@ -7099,6 +7120,7 @@
     let pmAddonQty = 1;
     let pmActiveCat = "all";
     let tableDrag = null;
+    let mapEditMode = false; // mesas só podem ser arrastadas quando o modo "Mover" está ligado
     let tableResize = null;
     let suppressTableClick = false;
 
@@ -8245,6 +8267,10 @@
       const openKbBtn = event.target.closest("button[data-open-kb]")?.dataset.openKb;
       if (openKbBtn && !_cmdSelectMode) { showKbModal(openKbBtn); return; }
 
+      // Mapa de mesas: "Mover" libera o arraste; "Salvar layout" fixa as posições.
+      if (event.target.closest("[data-map-edit]")) { mapEditMode = true; renderAll(); return; }
+      if (event.target.closest("[data-map-save]")) { mapEditMode = false; save(); showToast("Layout das mesas salvo ✓", 2000); renderAll(); return; }
+
       const closeCommand = event.target.closest("[data-close-command]")?.dataset.closeCommand;
       if (closeCommand) {
         const command = state.commands.find(c => c.id === closeCommand);
@@ -8589,6 +8615,7 @@
 
       const tile = event.target.closest(".floor-plan [data-table-id]");
       if (!tile) return;
+      if (!mapEditMode) return; // mesas ficam fixas; só arrastam no modo "Mover"
       const plan = tile.closest(".floor-plan");
       const rect = plan.getBoundingClientRect();
       tableDrag = {
