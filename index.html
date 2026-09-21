@@ -497,13 +497,13 @@
     }
 
     .table-tile.busy {
-      border-color: rgba(249,115,22,.55);
-      background: linear-gradient(160deg, rgba(249,115,22,.13), var(--panel-2));
+      border-color: rgba(250,204,21,.6);
+      background: linear-gradient(160deg, rgba(250,204,21,.14), var(--panel-2));
     }
 
     .table-tile.kitchen {
       border-color: #fb923c;
-      background: #2a2411;
+      background: #2a1c10;
     }
 
     .table-tile.delivered {
@@ -512,8 +512,8 @@
     }
 
     .table-tile.paid {
-      border-color: rgba(74,222,128,.5);
-      background: var(--panel-2);
+      border-color: rgba(239,68,68,.6);
+      background: linear-gradient(160deg, rgba(239,68,68,.14), var(--panel-2));
     }
 
     .table-tile.free {
@@ -683,14 +683,14 @@
       width: 12px;
       height: 12px;
       border-radius: 50%;
-      border: 2px solid var(--line);
+      border: 2px solid var(--ok);
       background: #12211b;
     }
 
-    .legend-dot.busy { background: #1c1c20; border-color: var(--brand); }
-    .legend-dot.kitchen { background: #2a2411; border-color: #fb923c; }
+    .legend-dot.busy { background: #2a2411; border-color: #facc15; }
+    .legend-dot.kitchen { background: #2a1c10; border-color: #fb923c; }
     .legend-dot.delivered { background: #141a26; border-color: #5b8def; }
-    .legend-dot.paid { background: #1c1c20; border-color: var(--brand); }
+    .legend-dot.paid { background: #2a1414; border-color: #ef4444; }
 
     .cost-block {
       display: grid;
@@ -1542,10 +1542,10 @@
     .cmd-list tbody tr:hover td { background: #1c1c20; }
     .cmd-status-chip { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 800; white-space: nowrap; }
     .cmd-status-chip.montando  { background: #26262c; color: #a8a29e; }
-    .cmd-status-chip.feito     { background: #2a2411; color: #fb923c; }
-    .cmd-status-chip.cozinha   { background: #241a12; color: var(--brand); }
+    .cmd-status-chip.feito     { background: #2a2411; color: #facc15; }
+    .cmd-status-chip.cozinha   { background: #2a1c10; color: #fb923c; }
     .cmd-status-chip.entregue  { background: #141a26; color: #5b8def; }
-    .cmd-status-chip.pago      { background: #1c1c20; color: #f97316; }
+    .cmd-status-chip.pago      { background: #2a1414; color: #f87171; }
     .list-pay-inline { display: inline-flex; gap: 4px; align-items: center; vertical-align: middle; }
     .list-pay-inline select { font-size: 11px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 5px; }
 
