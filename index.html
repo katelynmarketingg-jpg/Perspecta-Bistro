@@ -4043,11 +4043,13 @@
       if (command.paidAt) return "pago";
       if (command.deliveredAt) return "entregue";
       if (command.dispatchedAt) return "saiu";
-      if (command.readyAt) return "pronto";
+      // "Pronto" foi UNIFICADO com "Na cozinha": o pedido fica na cozinha até o
+      // garçom entregar na mesa (mesa/retirada) ou sair para entrega (delivery).
+      // readyAt (dados antigos ou "marcar pronto") também cai em "cozinha".
       // Só vai pra "Na cozinha" quando REALMENTE imprimiu (kitchenPrinted). Se foi
       // mandado mas ainda não imprimiu (note fora, sem carregar), fica em "Pedido
       // feito" com aviso de "aguardando impressão" — nunca some.
-      if (command.kitchenPrinted) return "cozinha";
+      if (command.kitchenPrinted || command.readyAt) return "cozinha";
       if (isPlaced(command)) return "feito";
       return "montando";
     }
@@ -5706,13 +5708,14 @@
       } else if (stage === "feito") {
         action = `<button class="btn secondary btn-sm" style="width:100%" data-send-kitchen="${command.id}">🍳 Mandar para cozinha</button>`;
       } else if (stage === "cozinha") {
-        action = `<button class="btn secondary btn-sm" style="width:100%" data-mark-ready="${command.id}">🔔 Marcar pronto</button>`;
-      } else if (stage === "pronto") {
+        // Delivery: sai para entrega. Mesa/retirada: o garçom pega o pedido pronto
+        // da cozinha e entrega na mesa conforme a comanda impressa.
         action = isDeliveryCmd(command)
           ? `<button class="btn secondary btn-sm" style="width:100%" data-dispatch="${command.id}">🛵 Saiu para entrega</button>`
           : entregar;
       } else if (stage === "saiu") {
-        action = entregar;
+        // Delivery é cobrado NA ENTREGA → conclui direto como pago.
+        action = `<button class="btn ok btn-sm" style="width:100%" data-open-kb="${command.id}">💳 Concluir como pago</button>`;
       } else if (stage === "entregue") {
         action = `<button class="btn ok btn-sm" style="width:100%" data-open-kb="${command.id}">💳 Abrir comanda p/ pagar</button>`;
       } else if (stage === "pago") {
@@ -5763,9 +5766,9 @@
       const _st = commandStage(command);
       const actions = [
         _st === "feito" ? `<button class="btn secondary btn-sm" data-send-kitchen="${command.id}">Cozinha</button>` : "",
-        _st === "cozinha" ? `<button class="btn secondary btn-sm" data-mark-ready="${command.id}">Pronto</button>` : "",
-        _st === "pronto" && isDeliveryCmd(command) ? `<button class="btn secondary btn-sm" data-dispatch="${command.id}">Saiu</button>` : "",
-        (_st === "pronto" && !isDeliveryCmd(command)) || _st === "saiu" ? `<button class="btn ghost btn-sm" data-deliver-command="${command.id}">Entregue</button>` : "",
+        _st === "cozinha" && isDeliveryCmd(command) ? `<button class="btn secondary btn-sm" data-dispatch="${command.id}">🛵 Saiu</button>` : "",
+        _st === "cozinha" && !isDeliveryCmd(command) ? `<button class="btn ghost btn-sm" data-deliver-command="${command.id}">Entregue</button>` : "",
+        _st === "saiu" ? `<button class="btn ok btn-sm" data-open-kb="${command.id}">💳 Pagar</button>` : "",
         _st === "entregue" ? `<button class="btn ok btn-sm" data-open-kb="${command.id}">💳 Pagar</button>` : "",
         _st === "pago" ? `<button class="btn ok btn-sm" data-close-command="${command.id}">Liberar</button>` : "",
       ].filter(Boolean).join(" ");
@@ -5797,7 +5800,7 @@
       </div>`;
 
       // Barra de seleção múltipla (apagar/mover várias comandas de uma vez).
-      const _selStages = [["montando","Sem pedido"],["feito","Pedido feito"],["cozinha","Na cozinha"],["pronto","Pronto"],["saiu","Saiu p/ entrega"],["entregue","Entregue"],["pago","Pago"]];
+      const _selStages = [["montando","Sem pedido"],["feito","Pedido feito"],["cozinha","Na cozinha"],["saiu","Saiu p/ entrega"],["entregue","Entregue"],["pago","Pago"]];
       const selectBar = `<div class="cmd-select-bar">${_cmdSelectMode
         ? `<span class="csb-count">${_cmdSelected.size} selecionada(s)</span>
            <button class="btn danger btn-sm" type="button" data-cmd-bulk-delete ${_cmdSelected.size ? "" : "disabled"}>🗑️ Apagar</button>
@@ -5813,7 +5816,6 @@
           { id: "montando", label: "Sem pedido",     filter: c => commandStage(c) === "montando" },
           { id: "feito",    label: "Pedido feito",   filter: c => commandStage(c) === "feito" },
           { id: "cozinha",  label: "Na cozinha",     filter: c => commandStage(c) === "cozinha" },
-          { id: "pronto",   label: "Pronto",         filter: c => commandStage(c) === "pronto" },
           { id: "saiu",     label: "Saiu p/ entrega", filter: c => commandStage(c) === "saiu" },
           { id: "entregue", label: "Entregue",       filter: c => commandStage(c) === "entregue" },
           { id: "pago",     label: "Pago",           filter: c => commandStage(c) === "pago" },
@@ -7483,10 +7485,6 @@
       } else if (targetCol === "cozinha") {
         command.kitchenSentAt = command.kitchenSentAt || now;
         command.readyAt = null; command.dispatchedAt = null; command.deliveredAt = null; command.paidAt = null;
-      } else if (targetCol === "pronto") {
-        command.kitchenSentAt = command.kitchenSentAt || now;
-        command.readyAt = command.readyAt || now;
-        command.dispatchedAt = null; command.deliveredAt = null; command.paidAt = null;
       } else if (targetCol === "saiu") {
         command.kitchenSentAt = command.kitchenSentAt || now;
         command.readyAt = command.readyAt || now;
@@ -7648,6 +7646,7 @@
           command.paidAt = new Date().toISOString();
           command.paymentMethod = method;
           command.paymentAmount = commandTotal(command);
+          if (isDeliveryCmd(command) && !command.deliveredAt) command.deliveredAt = command.paidAt; // delivery: pago na entrega
           registerCashSale(command);
           save();
           renderCommands();
@@ -7663,6 +7662,7 @@
           command.paidAt = new Date().toISOString();
           command.paymentMethod = method === "cartao" ? "Cartão" : "Pix";
           command.paymentAmount = commandTotal(command);
+          if (isDeliveryCmd(command) && !command.deliveredAt) command.deliveredAt = command.paidAt; // delivery: pago na entrega
           registerCashSale(command);
           save();
           renderCommands();
@@ -7729,6 +7729,7 @@
           command.paymentAmount = total;
           if (recebido > total) command.troco = recebido - total;
           if (recebido) command.recebido = recebido;
+          if (isDeliveryCmd(command) && !command.deliveredAt) command.deliveredAt = command.paidAt; // delivery: pago na entrega
           registerCashSale(command);
           save();
           renderCommands();
@@ -8238,6 +8239,11 @@
           // Sem mensagem de WhatsApp — o cliente vê "saiu para entrega" em "Meus pedidos".
         }
       }
+
+      // Botões "Concluir como pago" / "Abrir comanda p/ pagar" / "Pagar" abrem a
+      // comanda (modal) para registrar o pagamento. (Tocar no card também abre.)
+      const openKbBtn = event.target.closest("button[data-open-kb]")?.dataset.openKb;
+      if (openKbBtn && !_cmdSelectMode) { showKbModal(openKbBtn); return; }
 
       const closeCommand = event.target.closest("[data-close-command]")?.dataset.closeCommand;
       if (closeCommand) {
