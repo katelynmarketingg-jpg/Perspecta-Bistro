@@ -813,9 +813,13 @@
     tr.cmd-selected > td { background: rgba(249,115,22,.1); }
     /* Cabeçalho da comanda editável direto (sem abrir nada) */
     .cmd-head-name { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0; }
-    .cmd-name-inp { font-size: inherit; font-weight: 800; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 1px 6px; max-width: 200px; box-sizing: border-box; }
-    .cmd-name-inp:hover { border-color: var(--line-2); }
-    .cmd-name-inp:focus { border-color: var(--brand); background: var(--bg); outline: none; }
+    /* Campo do nome do cliente — bem destacado (vence .command-card input). */
+    .command-card .cmd-name-inp { font-size: 17px; font-weight: 800; color: var(--ink); background: var(--panel-2); border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 12px; min-height: 40px; max-width: 260px; box-sizing: border-box; }
+    .cmd-name-inp:hover { border-color: var(--brand); }
+    .cmd-name-inp:focus { border-color: var(--brand); background: var(--bg); outline: none; box-shadow: 0 0 0 3px rgba(234,88,12,.18); }
+    /* Vazio → destaca em laranja tracejado pra o garçom não esquecer do nome do cliente. */
+    .command-card .cmd-name-inp:placeholder-shown { border-style: dashed; border-color: var(--brand); background: rgba(234,88,12,.10); color: var(--brand); }
+    .cmd-name-inp::placeholder { color: var(--brand); opacity: .9; font-weight: 700; }
     .cmd-head-local { margin-top: 3px; }
     .cmd-head-local .csel { display: inline-block; min-width: 130px; vertical-align: middle; }
     .cmd-head-local .csel-trigger { padding: 4px 9px; font-size: 13px; }
@@ -5941,7 +5945,7 @@
         ${_cmdSelectMode ? `<label class="cmd-check-wrap"><input type="checkbox" data-cmd-check="${command.id}" ${_cmdSelected.has(command.id) ? "checked" : ""}> selecionar comanda</label>` : ""}
         <div class="command-head">
           <div class="command-head-info">
-            <h3 class="cmd-head-name">👤 <input class="cmd-name-inp" data-head-name="${command.id}" value="${escapeHTML(command.cliente || "Avulso")}" placeholder="Cliente" autocomplete="off">${waBadge}</h3>
+            <h3 class="cmd-head-name">👤 <input class="cmd-name-inp" data-head-name="${command.id}" value="${escapeHTML(command.cliente || "")}" placeholder="Nome do cliente" autocomplete="off" autocapitalize="words">${waBadge}</h3>
             <div class="command-client-name cmd-head-local" data-head-local="${command.id}" title="Clique para trocar a mesa / tipo">${cselBuild("hl_" + command.id, locations.map(t=>({v:t.nome,l:t.nome})), command.local)}${command.tipoLabel ? ` <span style="font-size:11px;color:var(--muted)">(${escapeHTML(command.tipoLabel)})</span>` : ""}</div>
             <p class="mini"><input class="cmd-qtd-inp" type="number" min="1" value="${Math.max(1, num(command.pessoas || 1))}" data-head-pessoas="${command.id}" title="Qtd. de clientes"> cliente(s) · ${commandStatusText(command)}</p>
           </div>
@@ -7806,10 +7810,24 @@
           // comanda aberta na mesa, apenas seleciona/mostra ela.
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
-          // No celular, a comanda fica embaixo do mapa: rola até ela ao tocar a mesa.
-          if (window.matchMedia("(max-width: 860px)").matches) {
-            setTimeout(() => { document.querySelector(".salao-comanda")?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 90);
-          }
+          // Sobe a tela até a comanda. Em mesa NOVA, já foca no nome do cliente
+          // (garçom começa o atendimento digitando o nome). Em mesa ocupada, só
+          // mostra a comanda (sem abrir teclado).
+          setTimeout(() => {
+            const panel = document.querySelector(".salao-comanda");
+            if (!panel) return;
+            const isMobile = window.matchMedia("(max-width: 860px)").matches;
+            if (!existing) {
+              // Mesa NOVA: foca o nome do cliente — no celular já traz o campo à
+              // vista e abre o teclado, começando o atendimento pelo nome.
+              const n = panel.querySelector(".cmd-name-inp");
+              if (n) { try { n.focus(); } catch (e) {} }
+              if (isMobile) (n || panel).scrollIntoView({ behavior: "smooth", block: n ? "center" : "start" });
+            } else if (isMobile) {
+              // Mesa OCUPADA: sobe até a comanda pra o garçom conferir o consumo.
+              panel.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }, 120);
         } else {
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           setSection("comandas");
