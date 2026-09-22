@@ -7798,12 +7798,13 @@
       const openTable = event.target.closest("[data-open-table]")?.dataset.openTable;
       if (openTable) {
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
-        const explicitOpen = Boolean(event.target.closest("[data-open-table]")?.hasAttribute("data-open-btn"));
-        // No Salão: seleciona a mesa e mostra a comanda ao lado (só cria comanda ao clicar "Abrir comanda").
+        // No Salão: tocar na mesa abre/seleciona a comanda daquela mesa.
         if (activeSection() === "mesas" || activeSection() === "comandas") {
           salaoSel = openTable;
           if (existing && existing.qrNewAt) existing.qrNewAt = null; // abriu a mesa → apaga o círculo azul
-          if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
+          // Tocar na mesa JÁ abre a comanda (agiliza o atendimento). Se já houver
+          // comanda aberta na mesa, apenas seleciona/mostra ela.
+          if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
           // No celular, a comanda fica embaixo do mapa: rola até ela ao tocar a mesa.
           if (window.matchMedia("(max-width: 860px)").matches) {
