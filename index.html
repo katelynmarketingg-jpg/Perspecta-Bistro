@@ -446,7 +446,8 @@
         var(--panel);
       background-size: 26px 26px, 100% 100%;
       overflow: hidden;
-      touch-action: none;
+      /* Permite rolar a página com o dedo sobre o mapa; só trava o toque no modo "Mover". */
+      touch-action: pan-y;
     }
 
     .table-tile {
@@ -484,6 +485,7 @@
     }
 
     /* Modo "Mover": mesas ficam arrastáveis, com cursor e contorno indicando isso. */
+    .floor-plan.editing { touch-action: none; }
     .floor-plan.editing .table-tile {
       cursor: move;
       outline: 2px dashed var(--brand);
@@ -7803,6 +7805,10 @@
           if (existing && existing.qrNewAt) existing.qrNewAt = null; // abriu a mesa → apaga o círculo azul
           if (!existing && explicitOpen) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
+          // No celular, a comanda fica embaixo do mapa: rola até ela ao tocar a mesa.
+          if (window.matchMedia("(max-width: 860px)").matches) {
+            setTimeout(() => { document.querySelector(".salao-comanda")?.scrollIntoView({ behavior: "smooth", block: "start" }); }, 90);
+          }
         } else {
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           setSection("comandas");
