@@ -7810,24 +7810,17 @@
           // comanda aberta na mesa, apenas seleciona/mostra ela.
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
-          // Sobe a tela até a comanda. Em mesa NOVA, já foca no nome do cliente
-          // (garçom começa o atendimento digitando o nome). Em mesa ocupada, só
-          // mostra a comanda (sem abrir teclado).
-          setTimeout(() => {
-            const panel = document.querySelector(".salao-comanda");
-            if (!panel) return;
-            const isMobile = window.matchMedia("(max-width: 860px)").matches;
-            if (!existing) {
-              // Mesa NOVA: foca o nome do cliente — no celular já traz o campo à
-              // vista e abre o teclado, começando o atendimento pelo nome.
-              const n = panel.querySelector(".cmd-name-inp");
-              if (n) { try { n.focus(); } catch (e) {} }
-              if (isMobile) (n || panel).scrollIntoView({ behavior: "smooth", block: n ? "center" : "start" });
-            } else if (isMobile) {
-              // Mesa OCUPADA: sobe até a comanda pra o garçom conferir o consumo.
-              panel.scrollIntoView({ behavior: "smooth", block: "start" });
+          // No celular a comanda fica embaixo do mapa e a rolagem automática nem
+          // sempre funciona; então abrimos a comanda em MODAL sobreposto (aparece
+          // na hora, sem depender de scroll). No desktop segue no painel ao lado.
+          if (window.matchMedia("(max-width: 860px)").matches) {
+            const cmd = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === String(openTable).toLowerCase());
+            if (cmd) {
+              showKbModal(cmd.id);
+              // Mesa nova: já foca o nome do cliente dentro do modal (garçom digita).
+              if (!existing) setTimeout(() => { const n = document.querySelector("#kbModal .cmd-name-inp"); if (n) { try { n.focus(); } catch (e) {} } }, 120);
             }
-          }, 120);
+          }
         } else {
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           setSection("comandas");
