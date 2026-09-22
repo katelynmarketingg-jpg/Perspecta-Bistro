@@ -7834,23 +7834,16 @@
         // Ponto COLETIVO (Balcão/Delivery): não abre comanda única — direciona pra
         // barra "Abrir comanda" com o Local já escolhido, pra criar vários pedidos.
         if (isCollectivePoint(openTable)) {
+          // Ponto coletivo (Balcão/Delivery): cada toque JÁ abre uma comanda NOVA,
+          // sem botão "Abrir comanda" — máxima agilidade. Vários pedidos por ponto.
+          const _isDeliv = openTable.toLowerCase() === "delivery";
+          const _newId = uid();
+          state.commands.push({ id: _newId, local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], tipoEntrega: _isDeliv ? "tele" : undefined, createdAt: new Date().toISOString() });
           salaoSel = null;
-          if (activeSection() !== "comandas") setSection("comandas");
-          setTimeout(() => {
-            const form = document.getElementById("commandForm");
-            if (!form) return;
-            const hid = form.querySelector('input[type="hidden"][name="local"]');
-            const csel = hid ? hid.closest(".csel") : null;
-            if (csel && hid) {
-              hid.value = openTable;
-              const val = csel.querySelector(".csel-val"); if (val) val.textContent = openTable;
-              csel.querySelectorAll(".csel-opt").forEach(o => o.classList.toggle("sel", o.dataset.v === openTable));
-            }
-            form.classList.add("cmdform-flash");
-            setTimeout(() => form.classList.remove("cmdform-flash"), 1200);
-            const cli = form.querySelector('[name="cliente"]');
-            if (cli) { try { cli.focus(); } catch (e) {} cli.scrollIntoView({ block: "center" }); }
-          }, 60);
+          save();
+          showKbModal(_newId);
+          // Já foca o nome do cliente dentro do modal (garçom começa digitando).
+          setTimeout(() => { const n = document.querySelector("#kbModal .cmd-name-inp"); if (n) { try { n.focus(); } catch (e) {} } }, 120);
           return;
         }
         const existing = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === openTable.toLowerCase());
