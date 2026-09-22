@@ -532,6 +532,9 @@
     .collective-count { position: absolute; top: 8px; right: 10px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 13px; background: var(--brand); color: #fff; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center; z-index: 2; }
     /* Destaque rápido na barra "Abrir comanda" quando vem do toque no Balcão/Delivery. */
     .cmdform-flash { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 10px; transition: outline-color .3s; }
+    /* Item já ENTREGUE: traço no nome + selo ✓ ok (automático; garçom não desmarca). */
+    .line-item-fold.item-entregue .line-item-name { text-decoration: line-through; text-decoration-thickness: 2px; opacity: .6; }
+    .item-ok { text-decoration: none; display: inline-block; margin-left: 4px; color: var(--ok); font-weight: 900; font-size: 11px; opacity: 1; }
     .table-tile.sel { outline: 2.5px solid var(--brand); outline-offset: 2px; }
 
     /* Salão: mapa + comanda lado a lado */
@@ -4114,12 +4117,12 @@
     let _autoPrinting = false;
     function autoPrintKitchen() {
       if (!isKitchenPrinter() || _autoPrinting) return;
-      const pend = (state.commands || []).filter(c => c && c.status === "aberta" && c.kitchenSentAt && c.kitchenPrinted !== c.kitchenSentAt);
+      const pend = (state.commands || []).filter(c => c && c.status === "aberta" && c.kitchenReqAt && c.kitchenPrinted !== c.kitchenReqAt);
       if (!pend.length) return;
       _autoPrinting = true;
       try {
         for (const c of pend) {
-          c.kitchenPrinted = c.kitchenSentAt;   // marca ANTES de imprimir (evita repetir)
+          c.kitchenPrinted = c.kitchenReqAt;   // marca ANTES de imprimir (evita repetir)
           try { printKitchenCommand(c); } catch (e) {}
         }
         save({ silent: true });
@@ -4133,6 +4136,17 @@
     // mesmo nome (Balcão = retirada no balcão; Delivery = entregas). A mesinha deles
     // no mapa só direciona pra barra "Abrir comanda".
     function isCollectivePoint(name) { return ["balcão", "delivery"].includes(String(name || "").toLowerCase()); }
+    // Controle item-a-item: o que já foi entregue ganha ✓ + traço (automático, o
+    // garçom não desmarca). Um item conta como entregue se tem deliveredAt próprio
+    // ou se a comanda foi paga.
+    function itemDelivered(command, item) { return !!(item && (item.deliveredAt || (command && command.paidAt))); }
+    // Ao marcar a comanda como entregue, carimba TODOS os itens atuais como entregues.
+    // Itens adicionados DEPOIS ficam sem carimbo (são o "pedido complementar").
+    function markCommandDelivered(command, ts) {
+      if (!command) return;
+      command.deliveredAt = command.deliveredAt || ts;
+      (command.itens || []).forEach(it => { if (it && !it.deliveredAt) it.deliveredAt = ts; });
+    }
     // Bebida: pela categoria do item (no próprio item ou buscando no cardápio pelo id).
     function itemCategoria(item) { return item.categoria || ((state.menu || []).find(m => m.id === item.id) || {}).categoria || ""; }
     function isDrinkItem(item) { return /bebida|drink|suco|refri|caf[eé]/i.test(itemCategoria(item)); }
@@ -6020,11 +6034,25 @@
                 : ""}
             </div>
           ` : `
-            ${command.kitchenPrinted
-              ? `<p class="mini flow-sent">🍳 Na cozinha (impresso)</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir</button>`
-              : command.kitchenSentAt
-                ? `<p class="mini" style="margin:0 0 6px;color:#fbbf24;font-weight:700">⏳ Aguardando impressão no note…</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reenviar pra cozinha</button>`
-                : `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`}
+            ${(() => {
+              const novos = (command.itens || []).filter(it => !it.kitchenSentAt).length;
+              // Já tem itens na cozinha E tem itens novos pendentes → pedido complementar.
+              if (novos && command.kitchenSentAt) {
+                return `<p class="mini flow-sent">🍳 Na cozinha · ${novos} novo(s) a enviar</p><button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Enviar novos p/ cozinha</button>`;
+              }
+              if (command.kitchenPrinted) {
+                return `<p class="mini flow-sent">🍳 Na cozinha (impresso)</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reimprimir tudo</button>`;
+              }
+              if (command.kitchenSentAt) {
+                return `<p class="mini" style="margin:0 0 6px;color:#fbbf24;font-weight:700">⏳ Aguardando impressão no note…</p><button class="btn btn-sm" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">↻ Reenviar pra cozinha</button>`;
+              }
+              return `<button class="btn" type="button" data-send-kitchen="${command.id}" style="width:100%;margin-bottom:8px">🍳 Mandar pra cozinha</button>`;
+            })()}
+            ${(() => {
+              // Comanda já entregue mas com item(ns) novo(s) na cozinha → botão pra entregar só os novos.
+              const pend = (command.itens || []).filter(it => it.kitchenSentAt && !it.deliveredAt).length;
+              return (command.deliveredAt && pend) ? `<button class="btn ghost btn-sm" type="button" data-deliver-command="${command.id}" style="width:100%;margin-bottom:8px">✓ Marcar ${pend} novo(s) como entregue(s)</button>` : "";
+            })()}
             <button class="btn secondary" type="button" data-pay-toggle="${command.id}" style="width:100%;margin-bottom:8px">💳 Pagar</button>
             <div class="pay-box hidden" data-pay-box="${command.id}" style="margin-bottom:8px">
               <div class="pay-eyebrow">Forma de pagamento</div>
@@ -6077,10 +6105,11 @@
         item.observacao ? `Obs.: ${item.observacao}` : ""
       ].filter(Boolean).join(" · ");
       // Clica no item → abre embaixo pra mudar quantidade / obs / remover.
-      return `<details class="line-item-fold">
+      const _entregue = itemDelivered(command, item);
+      return `<details class="line-item-fold${_entregue ? " item-entregue" : ""}">
         <summary class="line-item">
           <div class="line-main">
-            <span>${escapeHTML(item.nome)} x${item.quantidade}</span>
+            <span class="line-item-name">${escapeHTML(item.nome)} x${item.quantidade}${_entregue ? ` <span class="item-ok">✓ ok</span>` : ""}</span>
             ${detail ? `<span class="item-notes">${escapeHTML(detail)}</span>` : ""}
           </div>
           <strong>${money(commandItemTotal(item))}</strong>
@@ -6111,12 +6140,23 @@
         <p><strong>Pessoas:</strong> ${Math.max(1, num(command.pessoas || 1))}</p>
         <p><strong>Aberta:</strong> ${escapeHTML(createdAt)}</p>
         <hr>
-        ${(command.itens || []).map(item => {
-          const adicionais = commandItemAddons(item);
-          return `<p><strong>${escapeHTML(item.quantidade)}x ${escapeHTML(item.nome)}</strong></p>
-            ${adicionais.length ? `<p>Adic.: ${escapeHTML(adicionais.map(addon => addon.nome).join(", "))}</p>` : ""}
-            ${item.observacao ? `<p>Obs.: ${escapeHTML(item.observacao)}</p>` : ""}`;
-        }).join("<hr>")}
+        ${(() => {
+          const batch = command.kitchenBatch;
+          const all = command.itens || [];
+          const isReprint = (batch === "ALL" || !batch);
+          const items = isReprint ? all : all.filter(it => it.kitchenBatchId === batch);
+          const adicional = !isReprint && all.some(it => it.kitchenBatchId && it.kitchenBatchId !== batch);
+          const head = adicional ? `<p style="text-align:center;font-weight:900;font-size:1.15em">➕ PEDIDO ADICIONAL</p><hr>` : "";
+          const body = items.map(item => {
+            const adicionais = commandItemAddons(item);
+            const ent = isReprint && itemDelivered(command, item);   // reimpressão do ticket inteiro marca o que já saiu
+            const nome = `${escapeHTML(item.quantidade)}x ${escapeHTML(item.nome)}`;
+            return `<p><strong>${ent ? `<span style="text-decoration:line-through">${nome}</span> ✓ ENTREGUE` : nome}</strong></p>
+              ${adicionais.length ? `<p>Adic.: ${escapeHTML(adicionais.map(addon => addon.nome).join(", "))}</p>` : ""}
+              ${item.observacao ? `<p>Obs.: ${escapeHTML(item.observacao)}</p>` : ""}`;
+          }).join("<hr>");
+          return head + body;
+        })()}
         <hr>
         <p style="text-align:center">COZINHA</p>
       </div>`;
@@ -7576,6 +7616,14 @@
         command.paymentMethod = command.paymentMethod || "dinheiro";
         command.paymentAmount = command.paymentAmount || commandTotal(command);
       }
+      // Reconcilia os selos por item conforme a etapa (arraste manual).
+      if (targetCol === "montando" || targetCol === "feito") {
+        (command.itens || []).forEach(it => { it.kitchenSentAt = null; it.deliveredAt = null; });
+      } else if (targetCol === "cozinha" || targetCol === "saiu") {
+        (command.itens || []).forEach(it => { it.kitchenSentAt = it.kitchenSentAt || now; it.deliveredAt = null; });
+      } else if (targetCol === "entregue" || targetCol === "pago") {
+        (command.itens || []).forEach(it => { it.kitchenSentAt = it.kitchenSentAt || now; it.deliveredAt = it.deliveredAt || now; });
+      }
       save(); renderCommands();
     }
 
@@ -8296,14 +8344,24 @@
           if (!(command.itens || []).length) {
             alert("Adicione pelo menos um item antes de mandar para a cozinha.");
           } else {
-            command.kitchenSentAt = new Date().toISOString();
-            command.placedAt = command.placedAt || command.kitchenSentAt;
-            command.kitchenPrinted = false; // marca p/ (re)imprimir na estação de impressão
+            const now = new Date().toISOString();
+            const novos = command.itens.filter(it => !it.kitchenSentAt);
+            if (novos.length) {
+              // Pedido complementar: manda pra cozinha SÓ os itens novos.
+              const batchId = uid();   // id único do lote (à prova de colisão)
+              novos.forEach(it => { it.kitchenSentAt = now; it.kitchenBatchId = batchId; });
+              command.kitchenSentAt = command.kitchenSentAt || now;
+              command.placedAt = command.placedAt || now;
+              command.kitchenBatch = batchId;   // lote a imprimir = só os novos
+            } else {
+              // Nada novo → reimpressão do ticket inteiro (extravio/papel travado).
+              command.kitchenBatch = "ALL";
+            }
+            command.kitchenReqAt = now;     // dispara a estação (mesmo em reimpressão repetida)
             save();
             renderCommands();
             // A impressão acontece na ESTAÇÃO DE IMPRESSÃO (o note ligado à
             // impressora) via autoPrintKitchen — que roda no render e a cada sync.
-            // Assim, mandar do celular imprime no note automaticamente.
             autoPrintKitchen();
           }
         }
@@ -8352,7 +8410,7 @@
       if (deliverCommand) {
         const command = state.commands.find(c => c.id === deliverCommand);
         if (command) {
-          command.deliveredAt = new Date().toISOString();
+          markCommandDelivered(command, new Date().toISOString());
           save();
           renderCommands();
           // Sem mensagem de WhatsApp — o cliente vê "saiu para entrega" em "Meus pedidos".
