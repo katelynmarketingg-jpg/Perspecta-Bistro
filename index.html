@@ -534,9 +534,9 @@
     .collective-count { position: absolute; top: 8px; right: 10px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 13px; background: var(--brand); color: #fff; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center; z-index: 2; }
     /* Destaque rápido na barra "Abrir comanda" quando vem do toque no Balcão/Delivery. */
     .cmdform-flash { outline: 2px solid var(--brand); outline-offset: 4px; border-radius: 10px; transition: outline-color .3s; }
-    /* Item já ENTREGUE: traço no nome + selo ✓ ok (automático; garçom não desmarca). */
-    .line-item-fold.item-entregue .line-item-name { text-decoration: line-through; text-decoration-thickness: 2px; opacity: .6; }
-    .item-ok { text-decoration: none; display: inline-block; margin-left: 4px; color: var(--ok); font-weight: 900; font-size: 11px; opacity: 1; }
+    /* Item já ENTREGUE na comanda digital: só o selo ✓ ok (sem risco no nome).
+       O risco/tachado aparece SOMENTE na impressão da cozinha (ver printKitchenCommand). */
+    .item-ok { display: inline-block; margin-left: 4px; color: var(--ok); font-weight: 900; font-size: 11px; }
     .table-tile.sel { outline: 2.5px solid var(--brand); outline-offset: 2px; }
 
     /* Salão: mapa + comanda lado a lado */
