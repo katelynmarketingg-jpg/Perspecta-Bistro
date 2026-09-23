@@ -4548,13 +4548,28 @@
     // Espalha as mesas numa grade limpa (posições sugeridas, sem aglomerar).
     // Depois dá pra ajustar manualmente em "Mover mesas".
     function autoArrangeTables() {
-      const tbls = (state.tables || []).slice().sort((a, b) => num(a.ordem) - num(b.ordem));
+      const all = (state.tables || []).slice();
+      const mesaNum = t => { const m = String(t.nome || "").match(/(\d+)/); return m ? parseInt(m[1], 10) : null; };
+      const collOrder = ["balcão", "delivery"];
+      // Mesas numeradas primeiro (1,2,3…), depois mesas com outros nomes, e por
+      // último Balcão/Delivery numa linha só deles.
+      const numbered = all.filter(t => !isCollectivePoint(t.nome) && mesaNum(t) != null).sort((a, b) => mesaNum(a) - mesaNum(b));
+      const others = all.filter(t => !isCollectivePoint(t.nome) && mesaNum(t) == null).sort((a, b) => String(a.nome).localeCompare(b.nome));
+      const collective = all.filter(t => isCollectivePoint(t.nome)).sort((a, b) => collOrder.indexOf(a.nome.toLowerCase()) - collOrder.indexOf(b.nome.toLowerCase()));
+      const ordered = [...numbered, ...others];
       const cols = 3;               // 3 colunas cabem bem no celular e no note
-      const xs = [2, 35, 68];       // posição X de cada coluna (%) — com folga entre elas
+      const xs = [2, 35, 68];       // X de cada coluna (%) — com folga entre elas
       const y0 = 3, yStep = 17;     // primeira linha e passo vertical (%)
-      tbls.forEach((t, i) => {
-        const col = i % cols, row = Math.floor(i / cols);
+      let row = 0;
+      ordered.forEach((t, i) => {
+        const col = i % cols;
+        if (i > 0 && col === 0) row++;
         t.x = xs[col];
+        t.y = Math.min(80, y0 + row * yStep);
+      });
+      if (ordered.length) row++;    // Balcão/Delivery começam numa LINHA NOVA
+      collective.forEach((t, j) => {
+        t.x = xs[j % cols];
         t.y = Math.min(80, y0 + row * yStep);
       });
       save();
