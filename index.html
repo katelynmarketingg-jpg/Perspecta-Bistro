@@ -437,7 +437,7 @@
 
     .floor-plan {
       position: relative;
-      height: 420px;
+      height: 380px;
       margin-top: 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -478,9 +478,11 @@
     .floor-plan .table-tile {
       position: absolute;
       width: var(--table-size, 132px);
-      min-height: calc(var(--table-size, 132px) * .72);
+      min-height: calc(var(--table-size, 132px) * .48);
       cursor: pointer;
       user-select: none;
+      padding: 8px 10px;
+      gap: 2px;
       box-shadow: 0 10px 22px rgba(35, 24, 14, .12);
     }
 
