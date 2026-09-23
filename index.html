@@ -3411,6 +3411,7 @@
             softRerender();
             hydratePhotos();
           }
+          try { autoPrintKitchen(); } catch (e) {}   // note-impressora imprime pendências
           showSyncStatus('ok');
         }
         if (hasPending()) syncToServer();
@@ -3432,6 +3433,8 @@
           softRerender();
           hydratePhotos();
         }
+        // Note-impressora: imprime o que chegou na hora, mesmo em outra seção/tela.
+        try { autoPrintKitchen(); } catch (e) {}
         showSyncStatus('ok');
       } catch (e) {}
     }
