@@ -3239,10 +3239,11 @@
     );
     function isUserBusy() {
       const a = document.activeElement;
-      if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
-      if (document.querySelector('.pm-overlay:not(.hidden), #kbModal:not(.hidden)')) return true;
-      // Mexeu há menos de 30s → ocupada: não apaga o que está fazendo
-      if (Date.now() - _lastActivity < 30000) return true;
+      if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;   // digitando: não perder o texto
+      if (document.querySelector('.pm-overlay:not(.hidden)')) return true; // cliente no cardápio público
+      if (_pdrag || tableDrag || tableResize) return true;                 // arrastando card/mesa
+      // Tocou/rolou agora há pouco → espera 2s pra não repintar no meio do toque.
+      if (Date.now() - _lastActivity < 2000) return true;
       return false;
     }
     function softRerender() {
@@ -3417,8 +3418,12 @@
     }
 
     // Aplica um estado vindo da nuvem (merge item-a-item) sem novo GET.
+    // Se o usuário estiver mexendo, guarda e aplica assim que ele parar (ticker abaixo).
+    let _pendingServer = null;
     function applyServerState(server) {
-      if (!server || isUserBusy()) return;
+      if (!server) return;
+      if (isUserBusy()) { _pendingServer = server; return; }
+      _pendingServer = null;
       try {
         const merged = mergeStates(server, state);
         if (JSON.stringify(merged) !== JSON.stringify(state)) {
@@ -3430,6 +3435,8 @@
         showSyncStatus('ok');
       } catch (e) {}
     }
+    // Assim que o usuário para de tocar, aplica na hora a última atualização que chegou.
+    setInterval(() => { if (_pendingServer && !isUserBusy()) applyServerState(_pendingServer); }, 1000);
 
     // ── TEMPO REAL: stream do Firebase (EventSource) empurra as mudanças na hora ──
     // Uma conexão só, que recebe o nó da loja sempre que QUALQUER aparelho grava.
