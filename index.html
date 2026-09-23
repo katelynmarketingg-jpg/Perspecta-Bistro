@@ -2835,13 +2835,15 @@
 
       // Sync no boot: puxa e junta dados da nuvem (merge por item)
       pollSync();
+      // TEMPO REAL: abre o stream do Firebase — mudanças aparecem na hora nos outros aparelhos.
+      startRealtime();
 
       // Pedidos do cardápio: verifica a cada 4s (chegada quase em tempo real).
       setInterval(checkPendingOrders, 4000);
-      // Sync entre aparelhos: a cada 8s.
+      // Sync entre aparelhos: rede de segurança a cada 8s (o tempo real é o stream acima).
       setInterval(pollSync, 8000);
-      // Assim que a aba do admin volta a ficar visível, busca na hora (sem F5).
-      document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkPendingOrders(); pollSync(); } });
+      // Assim que a aba do admin volta a ficar visível, busca na hora (sem F5) e reabre o stream.
+      document.addEventListener("visibilitychange", () => { if (!document.hidden) { checkPendingOrders(); pollSync(); if (!_es) startRealtime(); } });
       window.addEventListener("focus", () => { checkPendingOrders(); });
     }
 
@@ -3413,6 +3415,55 @@
         if (hasPending()) syncToServer();
       } catch (e) { showSyncStatus('err'); }
     }
+
+    // Aplica um estado vindo da nuvem (merge item-a-item) sem novo GET.
+    function applyServerState(server) {
+      if (!server || isUserBusy()) return;
+      try {
+        const merged = mergeStates(server, state);
+        if (JSON.stringify(merged) !== JSON.stringify(state)) {
+          state = normalizeState(merged);
+          try { localStorage.setItem(storeKey, JSON.stringify(state)); } catch (e) {}
+          softRerender();
+          hydratePhotos();
+        }
+        showSyncStatus('ok');
+      } catch (e) {}
+    }
+
+    // ── TEMPO REAL: stream do Firebase (EventSource) empurra as mudanças na hora ──
+    // Uma conexão só, que recebe o nó da loja sempre que QUALQUER aparelho grava.
+    // Assim mudar de etapa / ocupar mesa aparece nos outros na hora. O polling
+    // continua como rede de segurança caso o stream caia.
+    let _es = null, _esTmr = null, _esRetry = null;
+    function _streamSync() { clearTimeout(_esTmr); _esTmr = setTimeout(() => { if (!isUserBusy()) pollSync(); }, 250); }
+    async function startRealtime() {
+      stopRealtime();
+      if (!storeKey || !FIREBASE_API_KEY || typeof EventSource === "undefined") return;
+      let token = null;
+      try { token = await ensureFbToken(); } catch (e) {}
+      if (!token) return;
+      const keyAtStart = storeKey;
+      let es;
+      try { es = new EventSource(`${FIREBASE_URL}/data/${fbPath(keyAtStart)}.json?auth=${encodeURIComponent(token)}`); } catch (e) { return; }
+      _es = es;
+      let first = true;
+      es.addEventListener("put", (ev) => {
+        if (first) { first = false; return; }   // snapshot inicial (já temos via pollSync do boot)
+        let msg = null; try { msg = JSON.parse(ev.data); } catch (_) {}
+        if (msg && msg.path === "/" && msg.data) applyServerState(msg.data);  // nó inteiro → aplica direto
+        else _streamSync();                                                    // parcial → sync completo por segurança
+      });
+      es.addEventListener("patch", () => _streamSync());
+      es.onerror = () => {
+        if (_es === es) { try { es.close(); } catch (e) {} _es = null; }
+        clearTimeout(_esRetry);
+        _esRetry = setTimeout(() => { if (storeKey === keyAtStart) startRealtime(); }, 5000);  // reconecta c/ token novo
+      };
+    }
+    function stopRealtime() { if (_es) { try { _es.close(); } catch (e) {} _es = null; } clearTimeout(_esRetry); }
+    // Reabre a conexão a cada 45min pra renovar o token (~1h) antes de expirar.
+    setInterval(() => { if (_es) startRealtime(); }, 45 * 60 * 1000);
 
     // Reenvio automático se ficou pendente da última vez
     async function flushPending() {
@@ -8753,6 +8804,7 @@
       }
 
       if (event.target.id === "logoutBtn" || event.target.closest("[data-logout]")) {
+        stopRealtime();
         sessionStorage.removeItem("perspectaSession");
         currentSession = null;
         storeKey = MASTER_KEY;
@@ -9671,8 +9723,10 @@
           }
           hideLogin();
           document.getElementById("internalApp").classList.remove("hidden");
-          renderAll();
-          initPhotos();
+          // startApp faz renderAll + initPhotos + sync + TEMPO REAL + intervals.
+          // (Antes, ao recarregar, a sessão restaurada não subia o sync — por isso
+          //  outras abas/dispositivos não atualizavam.)
+          startApp();
           if (pedidoParam) {
             try {
               const deepLinkOrder = JSON.parse(decodeURIComponent(escape(atob(pedidoParam))));
