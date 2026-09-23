@@ -4539,8 +4539,25 @@
       return `<div class="map-toolbar">
         <label>Tamanho das mesas <input data-table-size type="range" min="108" max="180" value="${size}"></label>
         <label class="map-toggle"><input data-active-tables-only type="checkbox" ${checked}> Só mesas ativas</label>
+        <button type="button" class="btn ghost btn-sm" data-map-auto>✨ Organizar</button>
         ${editBtn}
       </div>`;
+    }
+
+    // Espalha as mesas numa grade limpa (posições sugeridas, sem aglomerar).
+    // Depois dá pra ajustar manualmente em "Mover mesas".
+    function autoArrangeTables() {
+      const tbls = (state.tables || []).slice().sort((a, b) => num(a.ordem) - num(b.ordem));
+      const cols = 3;               // 3 colunas cabem bem no celular e no note
+      const xs = [4, 35, 66];       // posição X de cada coluna (%)
+      const y0 = 4, yStep = 18;     // primeira linha e passo vertical (%)
+      tbls.forEach((t, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        t.x = xs[col];
+        t.y = Math.min(80, y0 + row * yStep);
+      });
+      save();
+      showToast("Mesas reorganizadas ✓", 2000);
     }
 
     function tableLegend() {
@@ -8425,6 +8442,10 @@
       // Mapa de mesas: "Mover" libera o arraste; "Salvar layout" fixa as posições.
       if (event.target.closest("[data-map-edit]")) { mapEditMode = true; renderAll(); return; }
       if (event.target.closest("[data-map-save]")) { mapEditMode = false; save(); showToast("Layout das mesas salvo ✓", 2000); renderAll(); return; }
+      if (event.target.closest("[data-map-auto]")) {
+        if (confirm("Reorganizar as mesas automaticamente numa grade? Você pode ajustar depois em \"Mover mesas\".")) autoArrangeTables();
+        return;
+      }
 
       const closeCommand = event.target.closest("[data-close-command]")?.dataset.closeCommand;
       if (closeCommand) {
