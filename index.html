@@ -2051,11 +2051,12 @@
       .kanban-card-total { font-size: 12px; }
       .kanban-card-items .kbi { font-size: 11px; }
 
-      /* ── Mapa de mesas: tiles menores no celular ── */
-      .floor-plan { height: 60vh; }
-      .floor-plan .table-tile { --table-size: 108px !important; min-height: 74px; }
-      .table-tile .table-client { font-size: 13px; }
-      .table-tile .table-status { font-size: 10px; }
+      /* ── Mapa de mesas: tiles compactos no celular (nada amontoado) ── */
+      .floor-plan { height: 58vh; }
+      .floor-plan .table-tile { --table-size: 90px !important; min-height: 60px; padding: 8px 8px; }
+      .table-tile .table-client { font-size: 12px; }
+      .table-tile .table-status { font-size: 9px; }
+      .collective-count { top: 5px; right: 6px; min-width: 20px; height: 20px; font-size: 11px; }
     }
 
     @media print {
@@ -4549,8 +4550,8 @@
     function autoArrangeTables() {
       const tbls = (state.tables || []).slice().sort((a, b) => num(a.ordem) - num(b.ordem));
       const cols = 3;               // 3 colunas cabem bem no celular e no note
-      const xs = [4, 35, 66];       // posição X de cada coluna (%)
-      const y0 = 4, yStep = 18;     // primeira linha e passo vertical (%)
+      const xs = [2, 35, 68];       // posição X de cada coluna (%) — com folga entre elas
+      const y0 = 3, yStep = 17;     // primeira linha e passo vertical (%)
       tbls.forEach((t, i) => {
         const col = i % cols, row = Math.floor(i / cols);
         t.x = xs[col];
