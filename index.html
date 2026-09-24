@@ -1529,7 +1529,7 @@
     .kb-modal-overlay.hidden { display: none; }
     .kb-modal-inner {
       background: var(--panel); border-radius: 14px;
-      width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+      width: 96vw; max-width: 720px; max-height: 94vh; overflow-y: auto;
       position: relative; padding: 0;
     }
     .kb-modal-close {
@@ -5142,8 +5142,7 @@
 
     function renderTables() {
       document.getElementById("mesas").innerHTML = `
-        <div class="salao-grid">
-          <div class="salao-map">
+        <div class="salao-map">
             <div class="panel">
               ${salaoSummary()}
               ${tableMapControls()}
@@ -5178,11 +5177,6 @@
               <p class="mini" style="color:var(--muted);margin:0 0 12px">Gere um QR pra cada mesa. O cliente escaneia, vê o cardápio e o pedido cai direto na comanda daquela mesa (a mesa acende um círculo azul quando chega pedido novo).</p>
               <button class="btn" type="button" data-open-qr>📱 Gerar / imprimir QR das mesas</button>
             </div>
-          </div>
-
-          <aside class="panel salao-comanda">
-            ${salaoComandaPanel()}
-          </aside>
         </div>
       `;
     }
@@ -6023,19 +6017,6 @@
 
       document.getElementById("comandas").innerHTML = `
         ${salaoSummary()}
-
-        <div class="salao-grid" style="margin-bottom:16px">
-          <div class="salao-map">
-            <div class="panel">
-              ${tableMapControls()}
-              ${tableLegend()}
-              ${tableMap(true)}
-            </div>
-          </div>
-          <aside class="panel salao-comanda">
-            ${salaoComandaPanel()}
-          </aside>
-        </div>
 
         <div class="panel">
           <div class="kitchen-printer-bar">
@@ -7999,16 +7980,12 @@
           // comanda aberta na mesa, apenas seleciona/mostra ela.
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
           save();
-          // No celular a comanda fica embaixo do mapa e a rolagem automática nem
-          // sempre funciona; então abrimos a comanda em MODAL sobreposto (aparece
-          // na hora, sem depender de scroll). No desktop segue no painel ao lado.
-          if (window.matchMedia("(max-width: 860px)").matches) {
-            const cmd = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === String(openTable).toLowerCase());
-            if (cmd) {
-              showKbModal(cmd.id);
-              // Mesa nova: já foca o nome do cliente dentro do modal (garçom digita).
-              if (!existing) setTimeout(() => { const n = document.querySelector("#kbModal .cmd-name-inp"); if (n) { try { n.focus(); } catch (e) {} } }, 120);
-            }
+          // Tocar na mesa abre a comanda em MODAL (quase tela cheia), no note e no
+          // celular — a aba Mesas mostra o mapa; a comanda abre por cima.
+          const cmd = state.commands.find(c => c.status === "aberta" && c.local.toLowerCase() === String(openTable).toLowerCase());
+          if (cmd) {
+            showKbModal(cmd.id);
+            if (!existing) setTimeout(() => { const n = document.querySelector("#kbModal .cmd-name-inp"); if (n) { try { n.focus(); } catch (e) {} } }, 120);
           }
         } else {
           if (!existing) state.commands.push({ id: uid(), local: openTable, cliente: "", pessoas: 1, status: "aberta", itens: [], pagamentos: [], createdAt: new Date().toISOString() });
