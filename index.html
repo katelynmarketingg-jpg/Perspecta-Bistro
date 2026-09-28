@@ -1966,6 +1966,16 @@
       .two-col { grid-template-columns: 1fr; }
     }
 
+    /* Menu RECOLHIDO (oculto) em qualquer tela: vira gaveta que desliza — reaproveita o mobile. */
+    body.menu-oculto .app-shell { grid-template-columns: 1fr; }
+    body.menu-oculto .hamburger-btn { display: flex; align-items: center; justify-content: center; }
+    body.menu-oculto .sidebar {
+      position: fixed; top: 0; left: 0; height: 100vh; width: 270px; z-index: 200;
+      transform: translateX(-100%); transition: transform .25s ease; overflow-y: auto;
+    }
+    body.menu-oculto .sidebar.sidebar-open { transform: translateX(0); }
+    .sidebar-collapse { width: 100%; font-size: 12px; margin-bottom: 8px; }
+
     @media (max-width: 720px) {
       main { padding: 16px; }
       .topbar { display: flex; align-items: center; gap: 8px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid #e8e8e8; }
@@ -2262,6 +2272,7 @@
         <div id="syncBadge" style="font-size:10px;color:var(--muted);margin-bottom:5px;text-align:center;letter-spacing:.3px"></div>
         <div id="sessionBadge" style="font-size:11px;color:#f97316;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px"></div>
         <div id="proxyBanner"></div>
+        <button class="btn ghost sidebar-collapse" type="button" data-menu-toggle id="menuToggleBtn" title="Esconder o menu / deixá-lo fixo">◀ Recolher menu</button>
         <button class="btn sidebar-update" type="button" data-force-update title="Baixa a versão mais nova e limpa o cache deste aparelho">🔄 Atualizar sistema</button>
         <div style="font-size:9px;color:var(--muted);text-align:center;margin:3px 0 6px">versão <span id="appVersionLabel">—</span></div>
         <button class="btn sidebar-logout" type="button" data-logout>⏏ Sair</button>
@@ -3952,6 +3963,8 @@
       item.categoria = row.querySelector("[data-edit-menu-category]").value;
       item.preco = num(row.querySelector("[data-edit-menu-price]").value);
       item.ativo = row.querySelector("[data-edit-menu-active]").value === "true";
+      const _cbAdd = row.querySelector("[data-edit-menu-addons]");
+      if (_cbAdd) item.permiteAdicionais = _cbAdd.checked;
     }
 
     // mantido por compatibilidade; agora delega para a resolução de fotos nova
@@ -5817,6 +5830,9 @@
               <label>Preço<input data-edit-menu-price type="number" step="0.01" value="${num(item.preco)}"></label>
               <label>Emoji <span class="mini" style="font-weight:400">(quando não tem foto)</span><input data-edit-menu-emoji value="${escapeHTML(item.emoji || "🍽️")}"></label>
               <label class="full">Descrição<input data-edit-menu-desc value="${escapeHTML(item.descricao || "")}"></label>
+              <label class="full" style="display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:700">
+                <input type="checkbox" data-edit-menu-addons ${item.permiteAdicionais !== false ? "checked" : ""} style="width:auto"> Oferecer adicionais no cardápio público
+              </label>
               <select data-edit-menu-active style="display:none"><option value="true" ${item.ativo ? "selected" : ""}>Ativo</option><option value="false" ${!item.ativo ? "selected" : ""}>Pausado</option></select>
               <div class="actions full">
                 <button class="btn" data-save-menu="${item.id}">Salvar</button>
@@ -7183,6 +7199,7 @@
             </div>
             <div id="pmAddonImg"></div>
             ${activeAddons.length ? `
+              <div id="pmAddonSection">
               <p style="font-weight:800;margin:0 0 8px;font-size:14px;color:var(--muted)">ADICIONAIS (opcional)</p>
               <div id="pmAddonList">
                 ${activeAddons.map(a => `
@@ -7191,6 +7208,7 @@
                     <label for="pmAddon_${a.id}">${escapeHTML(a.nome)}</label>
                     ${a.preco > 0 ? `<span class="pm-addon-price">+ ${money(a.preco)}</span>` : ""}
                   </div>`).join("")}
+              </div>
               </div>` : ""}
             <label style="margin-top:14px;display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700">
               Observação
@@ -7785,6 +7803,29 @@
       else openSidebar();
     });
     document.getElementById("sidebarBackdrop").addEventListener("click", closeSidebar);
+
+    // ── Menu lateral: FIXO (ancorado) ou OCULTO (gaveta que auto-esconde). Lembrado. ──
+    function getMenuOculto() { try { return localStorage.getItem('perspectaMenuOculto') === '1'; } catch (e) { return false; } }
+    function setMenuOcultoPref(v) { try { localStorage.setItem('perspectaMenuOculto', v ? '1' : '0'); } catch (e) {} }
+    function applyMenuMode() {
+      const oculto = getMenuOculto();
+      document.body.classList.toggle('menu-oculto', oculto);
+      const b = document.getElementById('menuToggleBtn');
+      if (b) b.textContent = oculto ? '📌 Fixar menu' : '◀ Recolher menu';
+    }
+    applyMenuMode();
+    // Botão recolher/fixar (no rodapé da sidebar).
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-menu-toggle]')) {
+        setMenuOcultoPref(!getMenuOculto());
+        applyMenuMode();
+        closeSidebar();   // recolheu → esconde a gaveta; fixou → tira o overlay e ancora
+      }
+    });
+    // Escolher um item do menu fecha a gaveta (auto-esconde). Inofensivo no modo fixo.
+    document.getElementById("nav").addEventListener("click", () => {
+      if (getMenuOculto() || window.matchMedia("(max-width: 860px)").matches) closeSidebar();
+    });
 
     document.getElementById("loginForm").addEventListener("submit", async function(e) {
       e.preventDefault();
@@ -8541,6 +8582,9 @@
         if (!item) return;
         pmAddonTarget = item;
         pmAddonQty = 1;
+        // Só mostra a lista de adicionais nos produtos marcados pra oferecer.
+        const _addSec = document.getElementById("pmAddonSection");
+        if (_addSec) _addSec.style.display = (item.permiteAdicionais !== false) ? "" : "none";
         document.getElementById("pmAddonTitle").textContent = item.nome;
         const imgEl = document.getElementById("pmAddonImg");
         const _amSrc = resolvePhoto(item);
