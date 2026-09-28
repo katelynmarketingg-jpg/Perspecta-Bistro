@@ -3619,6 +3619,7 @@
         menu: (state.menu || []).filter(m => m && m.ativo).map(m => ({
           id: m.id, nome: m.nome || "", descricao: m.descricao || "", preco: m.preco || 0,
           categoria: m.categoria || "", emoji: m.emoji || "", ativo: true,
+          permiteAdicionais: m.permiteAdicionais !== false,
           photoUpload: !!m.photoUpload, photoTag: m.photoTag || null,
           foto: isBundled(m.foto) ? m.foto : null
         })),
