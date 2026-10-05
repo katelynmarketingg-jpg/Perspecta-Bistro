@@ -4171,9 +4171,17 @@
     function isPlaced(c) {
       return !!(c && (c.placedAt || c.kitchenSentAt || c.readyAt || c.dispatchedAt || c.deliveredAt || c.paidAt || c.source === "whatsapp"));
     }
+    // Pedido complementar: item novo mandado pra cozinha (reimpresso) numa comanda já
+    // entregue, que ainda não foi entregue. Enquanto houver um desses, a comanda não
+    // fica "Entregue" — volta pra "Na cozinha" pro garçom levar os novos.
+    function hasPendingKitchenItems(command) {
+      return (command && command.itens || []).some(it => it && it.kitchenSentAt && !it.deliveredAt);
+    }
     function commandStage(command) {
       if (command.paidAt) return "pago";
-      if (command.deliveredAt) return "entregue";
+      // Entregue só "de vez" quando não há item novo pendente na cozinha; se houver
+      // (item acrescentado e reimpresso depois de entregar), volta pra "cozinha".
+      if (command.deliveredAt) return hasPendingKitchenItems(command) ? "cozinha" : "entregue";
       if (command.dispatchedAt) return "saiu";
       // "Pronto" foi UNIFICADO com "Na cozinha": o pedido fica na cozinha até o
       // garçom entregar na mesa (mesa/retirada) ou sair para entrega (delivery).
