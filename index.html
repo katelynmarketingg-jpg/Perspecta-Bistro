@@ -2077,14 +2077,16 @@
       /* Cupom térmico 80mm. Antes usávamos visibility:hidden, que MANTÉM o espaço
          do app inteiro no papel (saía em A4 com 3 páginas em branco). Agora
          escondemos tudo de verdade (display:none) e deixamos só o cupom. */
-      @page { size: 80mm auto; margin: 3mm; }
-      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; }
+      /* Sem margem na folha e ticket ocupando 100% da largura do papel — numa bobina
+         térmica estreita toda sobra de margem vira texto minúsculo. Fonte maior. */
+      @page { size: 80mm auto; margin: 0; }
+      html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; height: auto !important; width: auto !important; }
       body > *:not(#printArea) { display: none !important; }
-      #printArea, #printArea.hidden { display: block !important; position: static !important; background: #fff; color: #000; }
-      .print-ticket { width: 74mm; margin: 0 auto; font-family: 'Courier New', ui-monospace, monospace; color: #000; }
+      #printArea, #printArea.hidden { display: block !important; position: static !important; background: #fff; color: #000; width: 100%; }
+      .print-ticket { width: 100%; max-width: none; margin: 0; padding: 1mm 2mm; box-sizing: border-box; font-family: 'Courier New', ui-monospace, monospace; color: #000; }
       .print-ticket .logo-dot { display: none !important; }
-      .print-ticket h1 { font-size: 15px; text-align: center; margin: 0 0 6px; letter-spacing: .5px; }
-      .print-ticket p { font-size: 13px; line-height: 1.35; margin: 2px 0; color: #000; }
+      .print-ticket h1 { font-size: 21px; text-align: center; margin: 0 0 6px; letter-spacing: .3px; }
+      .print-ticket p { font-size: 16px; line-height: 1.4; margin: 3px 0; color: #000; }
       .print-ticket hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
     }
 
